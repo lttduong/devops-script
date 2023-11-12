@@ -1,0 +1,19 @@
+{{- if and .Values.istioIngress.enabled .Values.rabbitmq.management.enabled }}
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: {{ template "rabbitmq.fullname" . }}-management-vs
+spec:
+  hosts:
+  - '{{ .Values.istioIngress.host }}'
+  gateways:
+  - {{ template "rabbitmq.fullname" . }}-istio-gateway
+  http:
+  - route:
+    - destination:
+        # Start of custom modification of original chart for CSFS-31476
+        host: {{ template "rabbitmq.fullname" . }}-ext.{{.Release.Namespace}}.{{ .Values.dns.domain }}
+        # End of custom modification of original chart for CSFS-31476
+        port:
+          number: {{ .Values.rabbitmq.management.port }}
+{{- end }}

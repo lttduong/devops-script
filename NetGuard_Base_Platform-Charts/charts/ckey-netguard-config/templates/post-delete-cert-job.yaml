@@ -1,0 +1,100 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Release.Name }}-del-sa
+  namespace: "{{.Release.Namespace}}"
+  labels:
+    app: {{ .Chart.Name }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+  annotations:
+    "helm.sh/hook": post-delete
+    "helm.sh/hook-weight": "-8"
+    "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded, hook-failed
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ .Release.Name }}-del-rb
+  namespace: "{{.Release.Namespace}}"
+  labels:
+    app: {{ .Chart.Name }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+  annotations:
+    "helm.sh/hook": post-delete
+    "helm.sh/hook-weight": "-7"
+    "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded, hook-failed
+
+subjects:
+- kind: ServiceAccount
+  name: {{ .Release.Name }}-del-sa
+  namespace: "{{.Release.Namespace}}"
+  apiGroup: ""
+roleRef:
+  kind: Role
+  name: {{ .Release.Name }}-del-role
+  apiGroup: ""
+
+---
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  namespace: "{{.Release.Namespace}}"
+  name: {{ .Release.Name }}-del-role
+  labels:
+    app: {{ .Chart.Name }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+  annotations:
+    "helm.sh/hook": post-delete
+    "helm.sh/hook-weight": "-8"
+    "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded, hook-failed
+
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - delete
+  - list
+
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}-post-delete-cert
+  annotations:
+    "helm.sh/hook": post-delete
+    "helm.sh/hook-weight": "1"
+    "helm.sh/hook-delete-policy": hook-succeeded,hook-failed
+spec:
+  template:
+    metadata:
+      labels:
+        app: {{ .Chart.Name }}
+        release: {{ .Release.Name }}
+        chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    spec:
+      {{- if .Values.affinity }}
+      affinity:
+{{ toYaml .Values.affinity | indent 8 }}
+      {{- end }}
+      serviceAccountName: {{ .Release.Name }}-del-sa
+      dnsPolicy: {{ .Values.dns.policy }}
+      restartPolicy: Never
+      containers:
+      - name: {{ .Release.Name }}-post-delete-cert
+        image: "{{ .Values.image.registry }}/{{ .Values.kubectl.image.repo }}:{{ .Values.kubectl.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        resources:
+{{ toYaml .Values.delete_cert_job.resources | indent 10 }}
+        command:
+        - sh
+        - "-c"
+        - |
+          secrets=$(kubectl get secret --namespace {{ .Release.Namespace }} -l owner!=helm -o custom-columns=:metadata.name | grep "{{ .Release.Name }}\|{{ .Chart.Name }}"  | grep -v "del-sa-token" )
+          for secret in $secrets
+          do
+            kubectl delete secret --namespace {{ .Release.Namespace }} $secret
+          done

@@ -1,0 +1,13 @@
+{
+  "policy": "OVERWRITE",
+  "users": [
+    {
+      "username": "admin",
+      "enabled": true,
+      "realmRoles": [ "offline_access", "uma_authorization" ],
+      "clientRoles": {
+        "account": [ "manage-account", "view-profile" ]
+      }
+    }
+  ]
+}

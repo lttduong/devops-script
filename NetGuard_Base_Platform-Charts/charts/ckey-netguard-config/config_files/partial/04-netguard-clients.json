@@ -1,0 +1,79 @@
+{
+  "policy": "SKIP",
+  "clients": [
+    {
+      "clientId": "{{ .Values.global.config.ckey.messageQueuingResourceServer }}",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": {{ uuidv4 | quote }},
+      "authorizationServicesEnabled": true,
+      "publicClient": false,
+      "protocol": "openid-connect",
+      "authorizationSettings": {
+        "resources": [
+          {
+            "name": "{{ .Values.global.config.ckey.messageQueuingResourceServer }}",
+            "type": "urn:{{ .Values.global.config.ckey.messageQueuingResourceServer }}:resources:default",
+            "ownerManagedAccess": false,
+            "attributes": {
+               "client_credentials.use_refresh_token": "true"
+            },
+            "uris": [
+              "/*"
+            ],
+            "scopes": [
+              {
+                "name": "{{ .Values.global.config.ckey.messageQueuingResourceServer }}.write:%2F/stomp-subscription-*/*.*.{username}.*"
+              },
+              {
+                "name": "{{ .Values.global.config.ckey.messageQueuingResourceServer }}.read:%2F/amq.topic/*.*.{username}.*"
+              },
+              {
+                "name": "{{ .Values.global.config.ckey.messageQueuingResourceServer }}.read:%2F/stomp-subscription-*/*.*.{username}.*"
+              },
+              {
+                "name": "{{ .Values.global.config.ckey.messageQueuingResourceServer }}.configure:%2F/stomp-subscription-*/*.*.{username}.*"
+              }
+            ]
+          }
+        ],
+        "policies": [
+          {
+            "name": "rbac-policy",
+            "type": "role",
+            "logic": "POSITIVE",
+            "decisionStrategy": "UNANIMOUS",
+            "config": {
+              "roles": "[{\"id\":\"{{ .Values.global.config.ckey.messageQueuingRealmRole }}\",\"required\":true}]"
+            }
+          },
+          {
+            "name": "rbac-permission",
+            "type": "resource",
+            "logic": "POSITIVE",
+            "decisionStrategy": "UNANIMOUS",
+            "config": {
+              "resources": "[\"{{ .Values.global.config.ckey.messageQueuingResourceServer }}\"]",
+              "applyPolicies": "[\"rbac-policy\"]"
+            }
+          }
+        ],
+        "scopes": [
+          {
+            "name": "{{ .Values.global.config.ckey.messageQueuingResourceServer }}.write:%2F/stomp-subscription-*/*.*.{username}.*"
+          },
+          {
+            "name": "{{ .Values.global.config.ckey.messageQueuingResourceServer }}.read:%2F/amq.topic/*.*.{username}.*"
+          },
+          {
+            "name": "{{ .Values.global.config.ckey.messageQueuingResourceServer }}.read:%2F/stomp-subscription-*/*.*.{username}.*"
+          },
+          {
+            "name": "{{ .Values.global.config.ckey.messageQueuingResourceServer }}.configure:%2F/stomp-subscription-*/*.*.{username}.*"
+          }
+        ],
+        "decisionStrategy": "UNANIMOUS"
+      }
+    }
+  ]
+}

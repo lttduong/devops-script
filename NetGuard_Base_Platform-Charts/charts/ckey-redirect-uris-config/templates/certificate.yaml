@@ -1,0 +1,19 @@
+apiVersion: {{ .Values.certManager.api }}
+kind: Certificate
+metadata:
+  name: {{ .Release.Name }}-certificate
+  namespace: {{ .Release.Namespace }}
+spec:
+  secretName: {{ .Release.Name }}-tls
+  issuerRef:
+    group: {{ .Values.certManager.issuerRef.group }}
+    name: {{ .Values.certManager.issuerRef.name }}
+    kind: {{ .Values.certManager.issuerRef.kind }}
+  duration: {{ .Values.certManager.duration }}
+  renewBefore: {{ .Values.certManager.renewBefore }}
+  keySize: {{ .Values.certManager.keySize }}
+  usages:
+    - client auth
+  commonName: {{ .Chart.Name }}
+  organization:
+    - Nokia

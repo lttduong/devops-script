@@ -1,0 +1,8 @@
+kubectl:
+  image:
+    repo: tools/kubectl
+    tag: v1.23.5-nano-20220401
+image:
+  pullPolicy: IfNotPresent
+
+affinity: {}

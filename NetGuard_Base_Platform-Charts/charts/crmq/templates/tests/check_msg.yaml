@@ -1,0 +1,115 @@
+{{- if or (.Values.rbac.enabled) (.Values.rbac.test.enabled) }}
+{{- if and .Values.rabbitmq.management.enabled .Values.rabbitmq.amqpSvc }}
+apiVersion: v1
+kind: Pod
+metadata:
+{{ if empty .Values.global.podNamePrefix }}
+  name: "{{ template "rabbitmq.fullname" . }}-msg-test"
+{{ else }}
+  name: "{{ .Values.global.podNamePrefix }}{{ template "rabbitmq.fullname" . }}-msg-test"
+{{ end }}
+  annotations:
+    "helm.sh/hook": test-success
+    {{- if .Values.helmTestDeletePolicy }}
+    "helm.sh/hook-delete-policy": {{ .Values.helmTestDeletePolicy }}
+    {{- else }}
+    "helm.sh/hook-delete-policy": hook-succeeded,before-hook-creation
+    {{- end }}
+    sidecar.istio.io/inject: "{{ .Values.istio.enabled }}"
+spec:
+  containers:
+    - name: {{ default "" .Values.global.containerNamePrefix }}{{ template "rabbitmq.fullname" . }}-msg-test
+      image: "{{ .Values.global.registry2 }}/{{ .Values.helmTestImage.repository }}:{{ .Values.helmTestImage.tag }}"
+      resources:
+        limits:
+          cpu: "0.5"
+          memory: 256Mi
+        requests:
+          cpu: "0.25"
+          memory: 128Mi
+      volumeMounts:
+        {{- if and (not .Values.rabbitmq.tls.certmanager.used) ( .Values.rabbitmq.tls.enabled )}}
+        - name: clientcert
+          mountPath: /test/tls/
+        {{- end }}
+        - name: testconfigmap
+          mountPath: /test/
+      command:
+         - bash
+         - -ec
+         - |
+           {{- if .Values.istio.enabled }}
+           until curl --head localhost:15000
+           do
+             echo "Waiting for istio-proxy ..."
+             sleep 1
+           done
+           echo "istio-proxy available"
+           {{- end }}
+           {{- if and (not .Values.rabbitmq.tls.certmanager.used) ( .Values.rabbitmq.tls.enabled ) }}
+           ls -l /test/tls/
+           {{- end }}
+           source /test/curl_cmd.sh
+           wait_service_available
+           run_curl_success "PUT" "exchanges/%2F/ex111"
+           wait_service_available
+           run_curl_success "PUT" "queues/%2F/que111"
+           wait_service_available
+           run_curl_success_wbody "POST" "bindings/%2F/e/ex111/q/que111" '{"routing_key":"rk111"}'
+
+           {{- if or (and .Values.rabbitmq.tls.enabled .Values.rabbitmq.tls.certmanager.used ) (and .Values.rabbitmq.tls.enabled .Values.rabbitmq.tls.cacert .Values.rabbitmq.tls.cert .Values.rabbitmq.tls.key) (and .Values.rabbitmq.tls.enabled .Values.rabbitmq.tls.path.cacert .Values.rabbitmq.tls.path.cert .Values.rabbitmq.tls.path.key) (and .Values.rabbitmq.tls.enabled .Values.rabbitmq.tls.uploadPath.cacert .Values.rabbitmq.tls.uploadPath.cert .Values.rabbitmq.tls.uploadPath.key) }}
+           echo "tls is enabled"
+           {{- if or ( not .Values.rabbitmq.tls.fail_if_no_peer_cert ) (eq .Values.rabbitmq.tls.test "yes") }}
+           python3 /test/send.py tls
+           python3 /test/receive.py tls |grep "helm test"
+           {{- end }}
+           {{- else }} 
+           echo "tls is not enabled"
+           python3 /test/send.py nontls
+           python3 /test/receive.py nontls|grep "helm test"
+           {{- end }} 
+
+           #clean up
+           run_curl_success "DELETE" "exchanges/%2F/ex111"
+           run_curl_success "DELETE" "queues/%2F/que111"
+           {{- if .Values.istio.enabled }}
+           curl -X POST http://localhost:15000/quitquitquit
+           {{- end }}
+
+
+  volumes:
+    - name: testconfigmap
+      configMap:
+        name: "{{ template "rabbitmq.fullname" . }}-test-configmap"
+    {{- if and (not .Values.rabbitmq.tls.certmanager.used) ( .Values.rabbitmq.tls.enabled ) }}
+    - name: clientcert
+      secret:
+        {{- if .Values.rbac.test.helmTestSecret }}
+        secretName: {{ .Values.rbac.test.helmTestSecret }}
+        {{- else  }}
+        secretName: "{{ template "rabbitmq.fullname" . }}-test-secret"
+        {{- end }}
+    {{- end }}
+  restartPolicy: Never
+  {{- if .Values.rbac.enabled}}
+  serviceAccountName: {{ template "rabbitmq.fullname" . }}-test-account
+  {{- else if not ( empty .Values.rbac.test.serviceAccountNameHelmTest ) }}
+  serviceAccountName: "{{ .Values.rbac.test.serviceAccountNameHelmTest }}"
+  {{- else }}
+  serviceAccountName: "{{ .Values.rbac.serviceAccountName }}"
+  {{- end }}
+  {{- if .Values.affinity }}
+  affinity:
+{{ toYaml .Values.affinity | indent 4 }}
+  {{- end }}
+  {{- if .Values.nodeSelector }}
+  nodeSelector:
+{{ toYaml .Values.nodeSelector | indent 4 }}
+  {{- end }}
+  {{- if .Values.tolerations }}
+  tolerations:
+{{ toYaml .Values.tolerations | indent 4 }}
+  {{- end }}
+
+{{- end }}
+{{- end }}

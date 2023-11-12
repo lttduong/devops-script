@@ -1,0 +1,8 @@
+{
+    "clients": [
+        {
+            "clientId": "base_platform_sso",
+            "redirectUris": [{{ .Values.redirectUris }}]
+        }
+    ]
+}

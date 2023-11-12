@@ -1,0 +1,15 @@
+{
+  "policy": "SKIP",
+  "roles": {
+    "realm": [
+      {
+        "name": "{{ .Values.global.config.common.sysAdminRealmRole }}",
+        "composite": false
+      },
+      {
+        "name": "{{ .Values.global.config.ckey.messageQueuingRealmRole }}",
+        "composite": false
+      }
+    ]
+  }
+}

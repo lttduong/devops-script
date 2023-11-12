@@ -1,0 +1,21 @@
+apiVersion: v1
+appVersion: 22.1.0
+description: Open source message broker software that implements the Advanced Message
+  Queuing Protocol (AMQP)
+engine: gotpl
+home: https://www.rabbitmq.com
+icon: https://bitnami.com/assets/stacks/rabbitmq/img/rabbitmq-stack-220x234.png
+keywords:
+- rabbitmq
+- message queue
+- AMQP
+- crmq
+- 'X-COMPAAS: { "CATEGORY": "Messaging", "SVC_NAME": "RabbitMQ", "SVC_TYPE": "CRMQ",
+  "SVC_SCOPE": [ "PRIVATE" ] }'
+maintainers:
+- email: aa-csf-ps@LIST.NOKIA.COM
+  name: CSF AR team
+name: crmq
+sources:
+- https://gerrit.ext.net.nokia.com/gerrit/CSF-CRMQDOCKER
+version: 22.1.0

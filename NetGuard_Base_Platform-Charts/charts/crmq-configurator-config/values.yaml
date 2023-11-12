@@ -1,0 +1,12 @@
+dns:
+  policy: ClusterFirst
+
+rabbitmq:
+  admin:
+    username: 'overridden during installation by runtime variable value'
+    password: 'overridden during installation by runtime variable value'
+  host: crmq-crmq-ext
+  node: rabbit@crmq-crmq-0.crmq-crmq
+  erlangCookie: 'overridden during installation by runtime variable value'
+  management:
+    port: 15671

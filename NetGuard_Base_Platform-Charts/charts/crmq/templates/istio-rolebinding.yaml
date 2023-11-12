@@ -1,0 +1,18 @@
+{{- if and .Values.rbac.enabled }}
+{{- if and (eq .Values.istio.enabled true) (eq .Values.istio.cni.enabled false) }}
+apiVersion: {{ template "rbac.apiVersion" . }}
+kind: RoleBinding
+metadata:
+  name: {{ template "rabbitmq.fullname" . }}-istio-rolebinding
+  namespace: "{{.Release.Namespace}}"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ template "rabbitmq.fullname" . }}-istio-role
+subjects:
+- kind: ServiceAccount
+  name: {{ template "rabbitmq.fullname" . }}
+  namespace: "{{.Release.Namespace}}"
+
+{{- end }}
+{{- end }}

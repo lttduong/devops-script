@@ -1,0 +1,34 @@
+{{- if .Values.rabbitmq.backuprestore.enabled }}
+apiVersion: "cbur.bcmt.local/v1"
+kind: BrPolicy
+metadata:
+  name: {{ template "rabbitmq.fullname" . }}
+  labels:
+    app: {{ template "rabbitmq.fullname" . }}
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    component: crmq
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+    {{- include "crmq.commonLabels" . | indent 4 }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ template "rabbitmq.name" . }}
+      release: "{{ .Release.Name }}"
+  volumes:
+  - config-volume
+  backend:
+    mode: "{{ .Values.rabbitmq.backuprestore.backendMode }}"
+  cronSpec: "{{ .Values.rabbitmq.backuprestore.cronJob }}"
+  k8sType: statefulset
+  brOption: {{ .Values.rabbitmq.backuprestore.brOption}}
+  maxiCopy: {{ .Values.rabbitmq.backuprestore.maxCopy}}
+  hooks:
+  - name: {{ template "rabbitmq.fullname" . }}
+    commands:
+      preBackupCmd: ["sh", "-c", "/usr/lib/rabbitmq/bin/backup.sh"]
+      postBackupCmd: []
+      preRestoreCmd: []
+      postRestoreCmd: ["sh", "-c", "/usr/lib/rabbitmq/bin/restore.sh"]
+  backupHistory: []
+{{- end }}

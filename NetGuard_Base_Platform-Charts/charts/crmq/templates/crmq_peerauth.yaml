@@ -1,0 +1,16 @@
+{{- if .Values.istio.enabled }}
+{{- if gt .Values.istio.version 1.5 }}
+apiVersion: "security.istio.io/v1beta1"
+kind: "PeerAuthentication"
+metadata:
+  name: {{ template "rabbitmq.fullname" . }}-peerauthentication
+  namespace: {{.Release.Namespace}}
+spec:
+  selector:
+    matchLabels:
+      app: {{ template "rabbitmq.name" . }}
+      release: {{ .Release.Name | quote }}
+  mtls:
+    mode: {{ template "rabbitmq.mtlsmode" . }}
+{{- end }}
+{{- end }}

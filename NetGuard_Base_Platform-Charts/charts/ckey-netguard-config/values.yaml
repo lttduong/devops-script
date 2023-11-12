@@ -1,0 +1,60 @@
+dns:
+  policy: ClusterFirst
+
+affinity: {}
+
+image:
+  pullPolicy: IfNotPresent
+kubectl:
+  image:
+    repo: tools/kubectl
+    tag: v1.23.5-nano-20220401
+
+certManager:
+  duration: "8760h" # 365d
+  renewBefore: "360h" # 15d
+  keySize: "2048"
+  api: "cert-manager.io/v1alpha2"
+  issuerRef:
+    group: cert-manager.io
+    name: ncms-ca-issuer
+    kind: ClusterIssuer
+
+config:
+  ckey:
+    realm: netguard
+    redirectUris: "\"*\""
+    adminPassword: admin
+    basePlatformSso:
+      secret: 'overridden during installation by runtime variable value'
+    ssoSessionIdleTimeout: 600
+    ssoSessionMaxLifespan: 86400
+    accessTokenLifespan: 300
+    csfPushEventListenerEnabled: false
+    quickLoginCheckMillis: 1000
+    loginSecurityBanner: "You are about to access a private system. This system is for the use of authorized users only. All connections are logged. Any unauthorized access or access attempts may be punished to the fullest extent possible under the applicable local legislation."
+    clientSecret:
+    clientId: netguard-admin
+    configurator:
+      image:
+        name: ckey-config
+        tag: 22.1.12
+      masterSecretName: ckey-configurator-config-master
+      configDir: /import/config
+      dataDir: /import/data
+      certificatesDir: /certificates
+      caCertFile: ca.crt
+    netguard:
+      frontendUrl: "https://example.com/auth"
+      passwordPolicy: "forceExpiredPasswordChange(90) and passwordHistory(5) and upperCase(1) and lowerCase(1) and digits(1) and specialChars(1) and length(8) and regexPattern(^.{8,150}$)"
+
+global:
+  config:
+    ckey:
+      messageQueuingResourceServer: crmq-resource-server
+      messageQueuingRealmRole: crmq-resource-server-consumer
+    btel:
+      grafanaRealmRole: BP_GRAFANA
+      kibanaRealmRole: BP_KIBANA
+    common:
+      sysAdminRealmRole: BP_SYSTEM_ADMIN

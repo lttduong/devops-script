@@ -1,0 +1,75 @@
+{{- if or (.Values.rbac.enabled) (.Values.rbac.test.enabled) }}
+{{- if .Values.rabbitmq.management.enabled }}
+apiVersion: v1
+kind: Pod
+metadata:
+{{ if empty .Values.global.podNamePrefix }}
+  name: "{{ template "rabbitmq.fullname" . }}-vhost-test"
+{{ else }}
+  name: "{{ .Values.global.podNamePrefix }}{{ template "rabbitmq.fullname" . }}-vhost-test"
+{{ end }}
+  annotations:
+    "helm.sh/hook": test-success
+    {{- if .Values.helmTestDeletePolicy }}
+    "helm.sh/hook-delete-policy": {{ .Values.helmTestDeletePolicy }}
+    {{- else }}
+    "helm.sh/hook-delete-policy": hook-succeeded,before-hook-creation
+    {{- end }}
+    sidecar.istio.io/inject: "{{ .Values.istio.enabled }}"
+spec:
+  volumes:
+    - name: testconfigmap
+      configMap:
+        name: "{{ template "rabbitmq.fullname" . }}-test-configmap"
+  containers:
+    - name: {{ default "" .Values.global.containerNamePrefix }}{{ template "rabbitmq.fullname" . }}-vhost-test
+      image: "{{ .Values.global.registry2 }}/{{ .Values.helmTestImage.repository }}:{{ .Values.helmTestImage.tag }}"
+      resources:
+        limits:
+          cpu: "0.5"
+          memory: 256Mi
+        requests:
+          cpu: "0.25"
+          memory: 128Mi
+      volumeMounts:
+        - name: testconfigmap
+          mountPath: /test/
+      command:
+         - bash
+         - -ec
+         - |
+           {{- if .Values.istio.enabled }}
+           until curl --head localhost:15000
+           do
+             echo "Waiting for istio-proxy ..."
+             sleep 1
+           done
+           echo "istio-proxy available"
+           {{- end }}
+           source /test/curl_cmd.sh
+           wait_service_available
+           run_curl_success "PUT" "vhosts/newvhost"
+           wait_service_available
+           run_curl_success "GET" "vhosts/newvhost"
+           wait_service_available
+           run_curl_success "DELETE" "vhosts/newvhost"
+           {{- if .Values.istio.enabled }}
+           curl -X POST http://localhost:15000/quitquitquit
+           {{- end }}
+
+
+  restartPolicy: Never
+  {{- if .Values.affinity }}
+  affinity:
+{{ toYaml .Values.affinity | indent 4 }}
+  {{- end }}
+  {{- if .Values.nodeSelector }}
+  nodeSelector:
+{{ toYaml .Values.nodeSelector | indent 4 }}
+  {{- end }}
+  {{- if .Values.tolerations }}
+  tolerations:
+{{ toYaml .Values.tolerations | indent 4 }}
+  {{- end }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,10 @@
+{
+  "users": [
+    {
+      "username": "admin",
+      "groups": [
+        "USER_ADMINISTRATOR"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+{{- if .Values.cbur.enabled }}
+apiVersion: "cbur.bcmt.local/v1"
+kind: BrPolicy
+metadata:
+  name: "{{ .Release.Name }}"
+  labels: 
+    app: "{{ .Chart.Name }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+spec:
+  brOption: 0
+  k8sobjects:
+    {{- range .Values.cbur.secrets }}
+    - object-type: Secret
+      match-string: {{ . | quote }}
+      match-criteria: name
+    {{- end }}
+  maxiCopy: {{ .Values.cbur.maxiCopy }}
+  selector:
+    matchLabels:
+      app: "{{ .Chart.Name }}"
+      release: "{{ .Release.Name }}"
+      heritage: "{{ .Release.Service }}"
+  backend:
+    mode: "{{ .Values.cbur.backendMode }}"
+  cronSpec: "{{ .Values.cbur.cronSpec }}"
+  autoEnableCron: {{ .Values.cbur.autoEnableCron }}
+  autoUpdateCron: {{ .Values.cbur.autoUpdateCron }}
+  dataEncryption:
+    enable: {{ .Values.cbur.dataEncryption }}
+{{- end }}

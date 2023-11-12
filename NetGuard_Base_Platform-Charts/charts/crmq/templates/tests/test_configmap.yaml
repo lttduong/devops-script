@@ -1,0 +1,386 @@
+{{- if or (.Values.rbac.enabled) (.Values.rbac.test.enabled) }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: "{{ template "rabbitmq.fullname" . }}-test-configmap"
+  namespace: {{ .Release.Namespace }} 
+data:
+  config.py: |
+    import ssl
+    import pika
+    import time
+    import json
+    import os
+    import sys
+    import requests
+    from time import sleep, time
+
+{{- if or .Values.rabbitmq.management.certmanager.used .Values.rabbitmq.management.cacert .Values.rabbitmq.management.path.cacert .Values.rabbitmq.management.uploadPath.cacert }}
+    CURL_URL="https://{{ template "rabbitmq.fullname" . }}-ext.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.rabbitmq.management.port }}/api"
+{{- else }}
+    CURL_URL="http://{{ template "rabbitmq.fullname" . }}-ext.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.rabbitmq.management.port }}/api"
+{{- end }}
+{{ if empty .Values.global.podNamePrefix }}
+    NODE_NAME="rabbit@{{ template "rabbitmq.fullname" . }}"
+    POD_NAME="{{ template "rabbitmq.fullname" . }}"
+{{ else }} 
+    NODE_NAME="rabbit@{{ .Values.global.podNamePrefix }}{{ template "rabbitmq.fullname" . }}"
+    POD_NAME="{{ .Values.global.podNamePrefix }}{{ template "rabbitmq.fullname" . }}"
+{{ end }}
+
+    ssl_port={{ .Values.rabbitmq.tls.ssl_port }}
+    nonssl_port={{ .Values.rabbitmq.amqpPort }}
+    myqueue="que111"
+    myexchange="ex111"
+    routekey="rk111"
+    sendcontent= "test message for helm test"
+
+    ssl_options = {
+{{- if and .Values.rabbitmq.tls.versions .Values.rabbitmq.tls.helm_test_tls_version }}
+            "ssl_version": {{ .Values.rabbitmq.tls.helm_test_tls_version }}
+{{ else }}
+            "ssl_version": ssl.PROTOCOL_TLSv1
+{{- end }}
+            }
+    ssl_options_full = {
+            "ca_certs":"/test/tls/cacert.pem",
+            "certfile": "/test/tls/cert.pem",
+            "keyfile": "/test/tls/key.pem",
+            "cert_reqs": ssl.CERT_REQUIRED,
+{{- if and .Values.rabbitmq.tls.versions .Values.rabbitmq.tls.helm_test_tls_version }}
+            "ssl_version": {{ .Values.rabbitmq.tls.helm_test_tls_version }}
+{{ else }}  
+            "ssl_version": ssl.PROTOCOL_TLSv1
+{{- end }}
+            }
+
+    srvhost = '{{ template "rabbitmq.fullname" . }}-ext.{{ .Release.Namespace }}.svc.cluster.local'
+{{- if .Values.rabbitmq.password }}
+    credentials = pika.PlainCredentials('{{ .Values.rabbitmq.username }}', '{{ .Values.rabbitmq.password }}')
+{{- else }}
+    credentials = pika.PlainCredentials('{{ .Values.rabbitmq.username }}', 'changeme' )
+{{- end }}
+
+    class WaitUntil(object):
+       def __init__(self, timeout=10, interval=1):
+          super(WaitUntil, self).__init__()
+          self.timeout = timeout
+          self.interval = interval
+
+       def __call__(self, function_name, *args, **kwargs):
+          print(".")
+          must_end = time() + self.timeout
+          ret = None
+          while time() < must_end:
+             try:
+                 ret = function_name(*args, **kwargs)
+                 #print(ret)
+             except:
+                 print(".")
+                 sleep(self.interval)
+             else:
+                 break
+          function_name(*args, **kwargs)
+
+    def checkstatus(data):
+       body=json.loads(data)
+       ckflag=0 if body["status"]=="ok" else 1
+       return ckflag
+
+    def vhost_node_running(node, data):
+       body=json.loads(data)
+       ckflag=0 if node in body[0]["cluster_state"] and body[0]["cluster_state"][node]=="running" else 1
+       if ( ckflag==0):
+          print (node+" is running")
+       else:
+          print (node+" is NOT running")
+       assert ckflag==0
+
+    def wait_node_running(node, data):
+       WaitUntil(400, 10)(vhost_node_running(node, data))
+
+    def get_value_with_path(data,path):
+       value=data
+       for item in path:
+          value=value[item]
+
+       return value
+
+    def get_response_body(restapi):
+       req_url='%s/%s' %(CURL_URL, restapi)
+       print(req_url)
+       header={
+          'Content-Type': 'application/json'
+       }
+{{- if .Values.rabbitmq.password }}
+       resp=requests.get(req_url,auth=('{{ .Values.rabbitmq.username }}', '{{ .Values.rabbitmq.password }}'),verify=False)
+{{- else }}
+       resp=requests.get(req_url,auth=('{{ .Values.rabbitmq.username }}', 'changeme' ),verify=False)
+{{- end }}
+       return resp.json()
+
+    def node_is_running(node):
+       resp_body=get_response_body("vhosts/%2F/")
+       print("get response:")
+       print(resp_body)
+       jsonpath=["cluster_state", node]
+       state=get_value_with_path(resp_body, jsonpath)
+       assert "running" in state
+       print(node+" is running")
+
+    def nodes_all_running(total):
+       for index in range(0,total ):
+          node=NODE_NAME+"-"+str(index)
+          print(node)
+          WaitUntil(300,10)(node_is_running, node)
+
+
+  receive.py: |
+    from config import *
+
+    ssl_flag=True if sys.argv[1]=="tls" else False
+    listen_port=ssl_port if ssl_flag==True else nonssl_port
+    print(ssl_flag)
+    print(srvhost)
+    cp = pika.ConnectionParameters(host=srvhost,
+                                   port=listen_port,
+                                   virtual_host='/',
+                                   heartbeat_interval=0,
+                                   credentials=credentials,
+                                   ssl=ssl_flag,
+           {{- if .Values.rabbitmq.tls.fail_if_no_peer_cert }}
+                                   ssl_options=ssl_options_full)
+           {{- else }}                                   
+                                   ssl_options=ssl_options)
+           {{- end }}
+
+    def callback(ch, method, properties, body):
+       print(" Message Received: %r" % body)
+       ch.basic_ack(delivery_tag = method.delivery_tag)
+       connection.close()
+
+    connection = pika.BlockingConnection(cp)
+    channel = connection.channel()
+    channel.basic_consume(callback,
+                      queue=myqueue)
+
+    print(" Start to wait for messages")
+    channel.start_consuming()
+
+  send.py: |
+    from config import *
+
+    ssl_flag=True if sys.argv[1]=="tls" else False
+    listen_port=ssl_port if ssl_flag==True else nonssl_port
+    print(ssl_flag)
+    print(srvhost)
+
+    cp = pika.ConnectionParameters(host=srvhost,
+                                   port=listen_port,
+                                   virtual_host='/',
+                                   heartbeat_interval=0,
+                                   credentials=credentials,
+                                   ssl=ssl_flag,
+           {{- if .Values.rabbitmq.tls.fail_if_no_peer_cert }}
+                                   ssl_options=ssl_options_full)
+           {{- else }}                                   
+                                   ssl_options=ssl_options)
+           {{- end }}
+
+    connection = pika.BlockingConnection(cp)
+    channel = connection.channel()
+    channel.basic_publish(exchange=myexchange,
+                         routing_key=routekey,
+                          body=sendcontent)
+    print(" Sent message to %s: %s" %(myexchange,sendcontent))
+    connection.close()
+
+  check_cluster.py: |
+    from config import * 
+    nodes_all_running(int(sys.argv[1]))
+    print("all nodes are running")
+
+  curl_cmd.sh: |
+    #!/bin/bash
+    RETRY=20
+{{- if or .Values.rabbitmq.management.certmanager.used .Values.rabbitmq.management.cacert .Values.rabbitmq.management.path.cacert .Values.rabbitmq.management.uploadPath.cacert }}
+    CURL_URL="https://{{ template "rabbitmq.fullname" . }}-ext.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.rabbitmq.management.port }}/api"
+{{- else }}
+    CURL_URL="http://{{ template "rabbitmq.fullname" . }}-ext.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.rabbitmq.management.port }}/api"
+{{- end }}
+{{- if .Values.rabbitmq.password }}
+    CURL_OPTIONS="--connect-timeout 5 -m 10 --retry $RETRY --retry-delay 10 -u {{ .Values.rabbitmq.username }}:{{ .Values.rabbitmq.password }}"
+{{- else}} 
+    CURL_OPTIONS="--connect-timeout 5 -m 10 --retry $RETRY --retry-delay 10 -u {{ .Values.rabbitmq.username }}:changeme"
+{{- end }} 
+    CURL_TLS_OPTIONS="--cacert /test/tls/cacert.pem --cert /test/tls/cert.pem --key /test/tls/key.pem"
+
+    function get_curl_cmd {
+       op=$1
+       restapi=$2
+       unset curl_cmd
+       curl_cmd="curl $CURL_OPTIONS -X$op $CURL_URL/$restapi"
+       echo $curl_cmd
+    }
+    function get_curl_cmd_code {
+       op=$1
+       restapi=$2
+       unset curl_cmd
+       if [ "$op" == "GET" ]; then
+          curl_cmd="curl -k -s -o /dev/null $CURL_OPTIONS -w \"%{http_code}\n\" $CURL_URL/$restapi"
+       else
+          curl_cmd="curl -k $CURL_OPTIONS -w \"%{http_code}\n\" -X$op $CURL_URL/$restapi"
+       fi
+       echo $curl_cmd
+    }
+
+    function get_curl_cmd_code_wbody {
+       op=$1
+       restapi=$2
+       body=$3
+       unset curl_cmd
+       if [ "$op" == "GET" ]; then
+          curl_cmd="curl -k -s -o /dev/null $CURL_OPTIONS -w \"%{http_code}\n\" $CURL_URL/$restapi --data $body"
+       else
+          curl_cmd="curl -k $CURL_OPTIONS -w \"%{http_code}\n\" -X$op $CURL_URL/$restapi --data $body"
+       fi
+       echo $curl_cmd
+    }
+
+    function get_curl_response_body() {
+       op="GET"
+       restapi=$1
+       curl_cmd="curl -k -s $CURL_OPTIONS $CURL_URL/$restapi" 
+       body=$($curl_cmd)
+       echo $body
+    }
+
+    function run_curl_cmd {
+       restapi=$1
+       run_cmd=$(get_curl_cmd $restapi)
+       result=$($run_cmd)
+       echo $result
+    }
+    function is_success_code() {
+       str1=$1
+       num1=$(( str1+0 ))
+
+       if [ $num1 -lt 300  -a $num1 -ge 200 ]; then
+          echo "$num1 is a success code"
+       else
+          echo "$num1 is not a success code"
+          exit 1
+       fi
+    }
+
+    function is_failure_code() {
+       str1=$1
+       num1=$(( str1+0 ))
+
+       if [ $num1 -lt 300  -a $num1 -ge 200 ]; then
+          echo "$num1 is a success code"
+          exit 1
+       else
+          echo "$num1 is not a success code"
+       fi
+    }
+
+    function run_curl_success() {
+       op=$1
+       restapi=$2
+       unset cmd  ret
+       num1=0
+       while [ $num1 -eq 0 ]
+       do
+         cmd=$(get_curl_cmd_code $op $restapi)
+         echo "run: $cmd"
+         ret=$($cmd|tr -dc '0-9')
+         echo "get return code $ret"
+         num1=$(( ret+0 ))
+       done
+       is_success_code $ret
+    }
+
+    function run_curl_success_wbody() {
+       op=$1
+       restapi=$2
+       body=$3
+       unset cmd  ret
+       num1=0
+       while [ $num1 -eq 0 ]
+       do
+         cmd=$(get_curl_cmd_code_wbody $op $restapi $body)
+         echo "run: $cmd"
+         ret=$($cmd|tr -dc '0-9')
+         echo "get return code $ret"
+         num1=$(( ret+0 ))
+       done
+       is_success_code $ret
+    }
+
+    function run_curl_failure() {
+       op=$1
+       restapi=$2
+       unset cmd ret
+       num1=0
+       while [ $num1 -eq 0 ]
+       do
+         cmd=$(get_curl_cmd_code $op $restapi)
+         echo "run: $cmd"
+         ret=$($cmd|tr -dc '0-9')
+         echo "get return code $ret"
+         num1=$(( ret+0 ))
+       done
+       is_failure_code $ret
+    }
+
+    function get_ss_replicas() {
+       replicas=$(kubectl get statefulsets --namespace {{ .Release.Namespace }} -l release={{ .Release.Name }},app={{ template "rabbitmq.name" . }} -o jsonpath="{.items[0].spec.replicas}")
+       echo $replicas
+    }
+
+    function check_plugin() {
+       plugin=$1
+       if [ -z "{{ .Values.global.podNamePrefix }}"  ] ; then
+       pod="{{ template "rabbitmq.fullname" . }}-0"
+       else
+       pod="{{ .Values.global.podNamePrefix }}{{ template "rabbitmq.fullname" . }}-0"
+       fi
+       kubectl exec -t $pod -- /usr/lib/rabbitmq/bin/rabbitmq-plugins list |grep "E\*"|grep $plugin > /dev/null
+       echo $?
+    }
+
+    function wait_pod_running() {
+       replicas=$(get_ss_replicas)
+       i=0
+       echo "wait all $replicas pods to be running..."
+       while [ $i -lt $RETRY ]
+       do
+           numb=$(kubectl get pod --namespace {{ .Release.Namespace }} -l release={{ .Release.Name }},app={{ template "rabbitmq.name" . }} |grep  Running|wc -l)
+           echo "try $i: get runing pod number - $numb"
+           if [ "$replicas" == "$numb" ]; then
+               break
+           else
+               sleep 10
+               (( i=i+1 ))
+           fi
+       done
+    }
+    function wait_service_available() {
+       i=0
+       echo "wait management service port available..."
+       while [ $i -lt $RETRY ]
+       do
+           echo "try $i: get nodes status"
+           cmd=$(get_curl_cmd_code "GET" "nodes")
+           ret=$($cmd|tr -dc '0-9')
+           num1=$(( ret+0 ))
+           if [ $num1 -eq 0 ]; then
+              sleep 15
+              (( i=i+1 ))
+           else
+              break
+           fi
+       done
+    }
+{{- end }}

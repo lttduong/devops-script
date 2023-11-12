@@ -1,0 +1,14 @@
+{{- if .Values.istio.enabled }}
+{{- if gt .Values.istio.version 1.5 }}
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: {{ template "rabbitmq.fullname" . }}-destrule
+  namespace: {{ .Release.Namespace }}
+spec:
+  host: {{ template "rabbitmq.fullname" . }}.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+{{- end }}
+{{- end }}

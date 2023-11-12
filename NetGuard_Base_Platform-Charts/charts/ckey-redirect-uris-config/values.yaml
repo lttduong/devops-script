@@ -1,0 +1,15 @@
+certManager:
+  duration: "8760h" # 365d
+  renewBefore: "360h" # 15d
+  keySize: "2048"
+  api: "cert-manager.io/v1alpha2"
+  issuerRef:
+    group: cert-manager.io
+    name: ncms-ca-issuer
+    kind: ClusterIssuer
+
+config:
+  ckey:
+    realm: netguard
+
+affinity: {}

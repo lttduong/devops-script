@@ -1,0 +1,229 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "postInstallJobName" . }}
+  labels:
+    app: {{ template "rabbitmq.name" . }}-post-install
+    chart: {{ template "rabbitmq.chart" .  }}
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+    {{- include "crmq.commonLabels" . | indent 4 }}
+  annotations:
+    "helm.sh/hook": post-install
+    {{- if .Values.hooks.deletePolicy }}
+    "helm.sh/hook-delete-policy": {{ .Values.hooks.deletePolicy }}
+    {{- else }}
+    "helm.sh/hook-delete-policy": hook-succeeded, before-hook-creation
+    {{- end }}
+spec:
+  activeDeadlineSeconds: {{ .Values.rabbitmq.dynamicConfig.timeout }}
+  template:
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "{{ .Values.istio.enabled }}"
+      labels:
+        app: {{ template "rabbitmq.name" . }}-post-install-job
+        chart: {{ template "rabbitmq.chart" .  }}
+        release: "{{ .Release.Name }}"
+        heritage: "{{ .Release.Service }}"
+        {{- include "crmq.commonLabels" . | indent 8 }}
+    spec:
+      securityContext:
+        {{- if ( ne ( toString (.Values.securityContext.fsGroup)) "auto" ) }}
+        fsGroup: {{ .Values.securityContext.fsGroup }}
+        {{- end }}
+      hostname: {{ template "rabbitmq.fullname" . }}-dynamic-config-pod
+      subdomain: {{ template "rabbitmq.fullname" . }}
+      restartPolicy: Never 
+      serviceAccountName: {{ if .Values.rbac.enabled }}{{ template "rabbitmq.fullname" . }}{{ else }}"{{ .Values.rbac.serviceAccountName }}"{{ end }}
+      {{- if .Values.affinity }}
+      affinity:
+{{ toYaml .Values.affinity | indent 8 }}
+      {{- end }}
+      {{- if .Values.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.nodeSelector | indent 8 }}
+      {{- end }}
+      {{- if .Values.tolerations }}
+      tolerations:
+{{ toYaml .Values.tolerations | indent 8 }}
+      {{- end }}
+      containers:
+      - name: {{ template "postInstallContainerName" . }}
+        image: "{{ .Values.global.registry }}/{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        securityContext:
+          {{- if .Values.securityContext.allowPrivilegeEscalation }}
+          allowPrivilegeEscalation: {{ .Values.securityContext.allowPrivilegeEscalation }}
+          {{- else }}
+          allowPrivilegeEscalation: false
+          {{- end }}
+           {{- if .Values.securityContext.readOnlyRootFilesystem }}
+          readOnlyRootFilesystem: {{ .Values.securityContext.readOnlyRootFilesystem }}
+          {{- else }}
+          readOnlyRootFilesystem: true
+          {{- end }}
+          {{- if ( ne ( toString ( .Values.securityContext.runAsUser )) "auto" ) }}
+          runAsUser: {{ .Values.securityContext.runAsUser }}
+          {{- end }}
+        command:
+          - bash
+          - -ec
+          - |
+            {{- if .Values.istio.enabled }}
+            until curl --head localhost:15000
+            do
+              echo "Waiting for istio-proxy ..."
+              sleep 1
+            done
+            echo "istio-proxy available"
+            {{- end }}
+            ls -al /var/lib/rabbitmq
+            if [ ! -f /var/lib/rabbitmq/.erlang.cookie ]; then
+              echo $RABBITMQ_ERL_COOKIE > /var/lib/rabbitmq/.erlang.cookie
+            fi
+            chmod 400 /var/lib/rabbitmq/.erlang.cookie
+            ls -al /var/lib/rabbitmq
+            set -x
+            if [ -z {{ .Values.global.podNamePrefix }} ]; then
+            pod="{{ template "rabbitmq.fullname" . }}"
+            else
+            pod="{{ .Values.global.podNamePrefix }}{{ template "rabbitmq.fullname" . }}"
+            fi
+            #wait when pod is ready. Job will sleep when rabbitmqctl return "Error:"
+            #It depends on the output of rabbitmqctl
+            #since we don't know how long rabbitmqctl will return
+            #timeout value is the same as activeDeadlineSeconds to make it simple
+            min=1
+            max={{ .Values.rabbitmq.dynamicConfig.timeout }}
+            while [ $min -le $max ]
+            do
+              min=`expr $min + 1`
+            {{- if (eq "hostname" .Values.rabbitmq.clustering.address_type) }}
+              result=`rabbitmqctl -l -n rabbit@\${pod}-0.$(K8S_SERVICE_NAME).$(MY_POD_NAMESPACE).svc.{{ .Values.rabbitmq.clustering.k8s_domain }} list_vhosts 2>&1 || true`
+            {{- else }}
+              result=`rabbitmqctl -n rabbit@\${pod}-0  list_vhosts 2>&1 || true`
+            {{- end }}
+              if [ ${result:0:6} == "Error:" ]; then
+                sleep 5
+              else
+                sleep 10
+                break
+              fi
+            done
+            ## reading parameter only if dynamicConfig is set to true
+            {{- if .Values.rabbitmq.dynamicConfig.enabled }}
+            number=0
+            patt="cmd"
+            fname=""
+            while read line;
+            do
+              printf -v fname -- '%s-%02d' "$patt" "$(( ++number ))"
+              {{- if (eq "hostname" .Values.rabbitmq.clustering.address_type) }}
+              echo "rabbitmqctl -l -n rabbit@$pod-0.$(K8S_SERVICE_NAME).$(MY_POD_NAMESPACE).svc.{{ .Values.rabbitmq.clustering.k8s_domain }} ${line}" >> /tmp/${fname};
+              {{- else }}
+              echo "rabbitmqctl -n rabbit@$pod-0 ${line}" >> /tmp/${fname};
+              {{- end }}
+            done < /tmp/parameters
+            set +e
+            for f in /tmp/cmd*;
+            do
+              min=1
+              max={{ .Values.rabbitmq.dynamicConfig.maxCommandRetries }}
+              while [ $min -le $max ]
+              do
+                min=`expr $min + 1`
+                chmod +x $f
+                sh -c $f
+                if [ $? -eq 0 ]; then
+                  rm $f
+                  break
+                else
+                  sleep 1
+                fi
+              done
+              if [ $min -gt $max ]; then
+                exit 1
+              fi             
+            done
+            {{- end }}
+            # changing default password
+            {{- if (eq "hostname" .Values.rabbitmq.clustering.address_type) }}
+              {{- if .Values.rabbitmq.password }}
+            rabbitmqctl -l -n rabbit@$pod-0.$(K8S_SERVICE_NAME).$(MY_POD_NAMESPACE).svc.{{ .Values.rabbitmq.clustering.k8s_domain }} change_password {{ .Values.rabbitmq.username }} {{ .Values.rabbitmq.password }}
+              {{- else }}
+            rabbitmqctl -l -n rabbit@$pod-0.$(K8S_SERVICE_NAME).$(MY_POD_NAMESPACE).svc.{{ .Values.rabbitmq.clustering.k8s_domain }} change_password {{ .Values.rabbitmq.username }} changeme
+              {{- end }}
+            {{- else }}
+              {{- if .Values.rabbitmq.password }}
+            rabbitmqctl -n rabbit@$pod-0 change_password {{ .Values.rabbitmq.username }} {{ .Values.rabbitmq.password }}
+              {{- else }}
+            rabbitmqctl -n rabbit@$pod-0 change_password {{ .Values.rabbitmq.username }} changeme
+              {{- end }}
+            {{- end }}
+            set +x
+            {{- if .Values.istio.enabled }}
+            curl -X POST http://localhost:15000/quitquitquit
+            {{- end }}
+
+        {{- if .Values.resources }}
+        resources:
+{{ toYaml .Values.resources | indent 10 }}
+        {{- end }}
+        volumeMounts:
+          - name: erlang-cookie
+            mountPath: /var/lib/rabbitmq/
+{{- if .Values.rabbitmq.dynamicConfig.enabled }}
+          - name: tmp
+            mountPath: /tmp
+          - name: dynamic-config-parameters
+            mountPath: /tmp/parameters
+            subPath: parameters
+{{- end }}
+        ports:
+        - name: tcp-epmd
+          containerPort: 4369
+        - name: tcp-dist
+          containerPort: 25672
+        - name: tcp-erlang
+          containerPort: 35672
+
+        env:
+          - name: LC_ALL
+            value: en_US.UTF-8
+          - name: LANG
+            value: en_US.UTF-8
+          {{- if .Values.ipv6Enabled }}
+          - name: RABBITMQ_CTL_ERL_ARGS
+            value: "-proto_dist inet6_tcp"
+          {{- end }}
+          - name: RABBITMQ_ERL_COOKIE
+            valueFrom:
+              secretKeyRef:
+                name: {{ template "rabbitmq.fullname" . }}-const
+                key: rabbitmq-erlang-cookie
+          - name: K8S_SERVICE_NAME
+            value: {{ template "rabbitmq.fullname" . }}
+          - name: MY_POD_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+          - name: HOME
+            value: "/var/lib/rabbitmq/"
+      dnsConfig:
+        searches:
+          # Start of custom modification of original chart for CSFS-31476
+          - {{ template "rabbitmq.fullname" . }}.{{ .Release.Namespace }}.{{ .Values.dns.domain }}
+          # End of custom modification of original chart for CSFS-31476
+      volumes:
+        - name: erlang-cookie      
+          emptyDir: {}
+{{- if .Values.rabbitmq.dynamicConfig.enabled }}
+        - name: tmp
+          emptyDir: {}
+        - name: dynamic-config-parameters
+          configMap:
+            name: {{ template "rabbitmq.fullname" . }}-parameters
+            items:
+            - key: parameters
+              path: parameters          
+{{- end }}

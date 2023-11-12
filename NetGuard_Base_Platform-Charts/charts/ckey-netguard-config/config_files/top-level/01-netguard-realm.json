@@ -1,0 +1,40 @@
+{
+  "realm": "netguard",
+  "eventsListeners": [
+    "CSFEventMetricsListener",
+    {{- if .Values.config.ckey.csfPushEventListenerEnabled }}
+    "CSFPushEventListener",
+    {{- end }}
+    "jboss-logging"
+  ],
+  "ssoSessionIdleTimeout": {{ .Values.config.ckey.ssoSessionIdleTimeout }},
+  "ssoSessionMaxLifespan": {{ .Values.config.ckey.ssoSessionMaxLifespan }},
+  "accessTokenLifespan": {{ .Values.config.ckey.accessTokenLifespan }},
+  "bruteForceProtected": true,
+  "quickLoginCheckMilliSeconds": {{ .Values.config.ckey.quickLoginCheckMillis }},
+  "failureFactor": 5,
+  {{- if .Values.config.ckey.netguard.passwordPolicy }}
+  "passwordPolicy": {{ .Values.config.ckey.netguard.passwordPolicy | quote }},
+  {{- end }}
+  "attributes": {
+    "_browser_header.xXSSProtection": "",
+    "_browser_header.strictTransportSecurity": "",
+    "_browser_header.xFrameOptions": "",
+    "permanentLockout": "false",
+    "quickLoginCheckMilliSeconds": "{{ .Values.config.ckey.quickLoginCheckMillis }}",
+    "displayName": "NetGuard",
+    "_browser_header.xRobotsTag": "none",
+    "maxFailureWaitSeconds": "900",
+    "displayNameHtml": "<div class=\"kc-logo-text\"><span>NetGuard</span></div>",
+    "frontendUrl" : {{ .Values.config.ckey.netguard.frontendUrl | quote }},
+    "minimumQuickLoginWaitSeconds": "60",
+    "failureFactor": "5",
+    "actionTokenGeneratedByUserLifespan": "300",
+    "maxDeltaTimeSeconds": "43200",
+    "_browser_header.xContentTypeOptions": "",
+    "actionTokenGeneratedByAdminLifespan": "43200",
+    "bruteForceProtected": true,
+    "_browser_header.contentSecurityPolicy": "frame-src 'self'; frame-ancestors 'self'; object-src 'none';",
+    "waitIncrementSeconds": "60"
+  }
+}
