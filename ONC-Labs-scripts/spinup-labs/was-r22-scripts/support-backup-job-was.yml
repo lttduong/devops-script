@@ -1,0 +1,6 @@
+---
+ - import_playbook: was-r21-script/backup-vm/backup-masternode.yml
+ - import_playbook: was-r21-script/backup-vm/backup-workernode.yml
+ - import_playbook: was-r21-script/backup-vm/backup-dpa.yml
+ - import_playbook: was-r21-script/backup-vm/return-info-cluster.yml
+ 

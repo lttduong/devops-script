@@ -1,0 +1,23 @@
+## Start of custom chart file for CSFID-2094
+{{- if .Values.elasticsearch_master.persistence.createPv }}
+{{- range $index, $replica := until (int .Values.elasticsearch_master.replicas) }}
+---
+kind: PersistentVolume
+apiVersion: v1
+metadata:
+  name: {{ $.Chart.Name }}-esmaster-pv-{{ $index }}
+  labels:
+    type: local
+{{ $.Values.elasticsearch_master.persistence.labels | indent 4 }}
+spec:
+  storageClassName: {{ $.Values.persistence.storageClassName }}
+  capacity:
+    storage: {{ quote  $.Values.persistence.masterStorage }}
+  accessModes:
+    - {{ quote $.Values.persistence.accessMode }}
+  hostPath:
+    path: {{  $.Values.elasticsearch_master.persistence.hostPath }}
+  persistentVolumeReclaimPolicy: {{ default "Delete" $.Values.elasticsearch_master.persistence.resourcePolicyPv }}
+{{- end }}
+{{- end }}
+## End of custom chart file

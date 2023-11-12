@@ -1,0 +1,84 @@
+belk:
+  persistence:
+    storageClassName: default
+  belk-elasticsearch:
+    persistence:
+      storageClassName: default
+    elasticsearch_master:
+      persistence:
+        createPv: true
+        enabled: true
+        resourcePolicy: keep
+        resourcePolicyPv: Retain
+        hostPath: /var/netguard_local_storage/belk/es/master
+        labels: |
+          pv-target: belk-es-master
+    esdata:
+      persistence:
+        createPv: true
+        enabled: true
+        resourcePolicy: keep
+        resourcePolicyPv: Retain
+        hostPath: /var/netguard_local_storage/belk/es/data
+        labels: |
+          pv-target: belk-es-data
+
+calm:
+  persistence:
+    createPv: true
+    enabled: true
+    storageClass: default
+    resourcePolicy: keep
+    resourcePolicyPv: Retain
+    hostPath: /var/netguard_local_storage/calm
+    labels: |
+      pv-target: calm
+
+cpro:
+  alertmanager:
+    persistentVolume:
+      storageClass: default
+    persistence:
+      createPv: true
+      enabled: true
+      resourcePolicy: keep
+      resourcePolicyPv: Retain
+      hostPath: /var/netguard_local_storage/cpro/alertmanager
+      labels: |
+        pv-target: cpro-alertmanager
+  server:
+    persistentVolume:
+      storageClass: default
+    persistence:
+      createPv: true
+      enabled: true
+      resourcePolicy: keep
+      resourcePolicyPv: Retain
+      hostPath: /var/netguard_local_storage/cpro/server
+      labels: |
+        pv-target: cpro-server
+
+grafana:
+  persistence:
+    createPv: false
+    enabled: false
+    storageClass: default
+    storageClassName: default
+    resourcePolicy: keep
+    resourcePolicyPv: Retain
+    hostPath: /var/netguard_local_storage/grafana
+    labels: |
+      pv-target: grafana
+
+gen3gppxml:
+  persistentVolume:
+    storageClass: default
+  persistence:
+    createPv: true
+    enabled: true
+    storageClass: default
+    resourcePolicy: keep
+    resourcePolicyPv: Retain
+    hostPath: /var/netguard_local_storage/gen3gppxml
+    labels: |
+      pv-target: gen3gppxml

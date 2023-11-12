@@ -1,0 +1,23 @@
+## Start of custom chart file for CSFID-2995
+{{- if .Values.persistence.createPv }}
+{{- range $index, $replica := until (int .Values.servers) }}
+---
+kind: PersistentVolume
+apiVersion: v1
+metadata:
+  name: {{ template "alarm.fullname" $ }}-pv-{{ $index }}
+  labels:
+    type: local
+{{ $.Values.persistence.labels | indent 4 }}
+spec:
+  storageClassName: {{ $.Values.persistence.storageClass }}
+  capacity:
+    storage: {{ quote $.Values.persistence.size }}
+  accessModes:
+    - {{ quote $.Values.persistence.accessMode }}
+  hostPath:
+    path: {{ $.Values.persistence.hostPath }}
+  persistentVolumeReclaimPolicy: {{ default "Delete" $.Values.persistence.resourcePolicyPv }}
+{{- end }}
+{{- end }}
+## End of custom chart file

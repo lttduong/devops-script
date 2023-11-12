@@ -1,0 +1,22 @@
+apiVersion: v1
+appVersion: 11.0.0
+description: Keycloak is an open source Identity and Access Management solution aimed
+  at modern applications and services. It makes it easy to secure applications and
+  services with little to no code.
+engine: gotpl
+keywords:
+- keycloak
+- 8.11.0
+- 11.0.0
+- "20.08"
+- CKEY
+- 'X-COMPAAS: { "CATEGORY": "Security", "SVC_NAME": "Keycloak", "SVC_TYPE": "CKEY",
+  "SVC_SCOPE": [ "PRIVATE","SHARED" ] }'
+maintainers:
+- email: CSFSecurity@groups.nokia.com
+  name: CSF Security Team
+name: ckey
+sources:
+- https://gerrit.ext.net.nokia.com/gerrit/gitweb?p=CSF-KEYCLOAK.git;a=shortlog;h=refs%2Fheads%2Fdocker
+- https://repo.lab.pl.alcatel-lucent.com/webapp/#/artifacts/browse/tree/General/csf-docker-delivered/keycloak
+version: 8.11.0

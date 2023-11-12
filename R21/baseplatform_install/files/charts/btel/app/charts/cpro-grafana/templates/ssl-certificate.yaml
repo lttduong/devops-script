@@ -1,0 +1,21 @@
+## Start of custom chart file - CSFID-3367
+apiVersion: {{ .Values.global.certManager.api }}
+kind: Certificate
+metadata:
+  name: {{ template "grafana.fullname" . }}-server-cert
+  namespace: {{ .Release.Namespace }}
+spec:
+  secretName: {{ template "grafana.fullname" . }}-server-cert
+  issuerRef:
+    name: {{ default "ncms-ca-issuer" .Values.global.certManager.issuerRef.name }}
+    kind: ClusterIssuer
+  duration: {{ default "8760h" .Values.global.certManager.duration }}
+  renewBefore: {{ default "360h" .Values.global.certManager.renewBefore }}
+  commonName: {{ template "grafana.fullname" . }}
+  dnsNames:
+    - {{ printf "%s.%s.%s" (include "grafana.fullname" .) .Release.Namespace .Values.dns.domain | quote }}
+  usages:
+    - server auth
+#  organization:
+#    - Nokia
+## End of custom chart file

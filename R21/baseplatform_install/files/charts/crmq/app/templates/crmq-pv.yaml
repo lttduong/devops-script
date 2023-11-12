@@ -1,0 +1,22 @@
+## Start of custom chart file
+{{- if .Values.persistence.crmq.localPv }}
+{{- range $index, $replica := until (int .Values.replicas) }}
+---
+kind: PersistentVolume
+apiVersion: v1
+metadata:
+  name: {{ $.Chart.Name }}-pv-{{ $index }}
+  labels:
+    type: local
+spec:
+  storageClassName: {{ $.Values.persistence.data.storageClass }}
+  capacity:
+    storage: {{ quote $.Values.persistence.data.size }}
+  accessModes:
+    - {{ quote $.Values.persistence.data.accessMode }}
+  hostPath:
+    path: {{ $.Values.persistence.crmq.path }}
+  persistentVolumeReclaimPolicy: {{ default "Delete" $.Values.persistence.crmq.resourcePolicy }}
+{{- end }}
+{{- end }}
+## End of custom chart file

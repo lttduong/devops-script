@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "gen3gppxml.fullname" . }}-env-configmap
+data:
+  override.env: |
+{{ .Values.configOverride | indent 4 }}

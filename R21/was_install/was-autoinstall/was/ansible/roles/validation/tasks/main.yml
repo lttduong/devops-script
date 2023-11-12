@@ -1,0 +1,88 @@
+- name: "Validate GEO_REDUNDANCY parameters"
+  block:
+    - name: "Set regular expressions for geo redundancy related parameters"
+      set_fact:
+        GEO_REDUNDANCY_MODE_REGEX: "^({{ activeMode }}|{{ passiveMode }})$"
+        BOOLEAN_REGEX: "^(y|Y|yes|Yes|YES|n|N|no|No|NO|true|True|TRUE|false|False|FALSE|on|On|ON|off|Off|OFF)$"
+        PASSWORD_REGEX: "(?=^.{% raw %}{{% endraw %}14,{% raw %}}{% endraw %}$)(?=.*[0-9])(?=.*[{{ passwordSigns }}]+)(?![.\n])(?=.*[A-Z])(?=.*[a-z]).*$"
+        UUID_REGEX: "^([0-9a-fA-F]{8}\\-[0-9a-fA-F]{4}\\-[0-9a-fA-F]{4}\\-[0-9a-fA-F]{4}\\-[0-9a-fA-F]{12})$"
+
+    - name: "Validate value of GEO_REDUNDANCY.ENABLED parameter"
+      fail:
+        msg: >-
+          Invalid value of GEO_REDUNDANCY.ENABLED parameter.
+          Allowed values: {{ BOOLEAN_REGEX | regex_replace('\^') | regex_replace('\$') }}.
+      when: geoRedundancyEnabled is not regex(BOOLEAN_REGEX)
+
+    - name: "Validate value of GEO_REDUNDANCY.MODE parameter"
+      fail:
+        msg: >-
+          Invalid value of GEO_REDUNDANCY.MODE parameter.
+          Allowed values: {{ GEO_REDUNDANCY_MODE_REGEX | regex_replace('\^') | regex_replace('\$') }}.
+      when: >
+        geoRedundancyEnabled and geoRedundancyMode is not regex(GEO_REDUNDANCY_MODE_REGEX)
+
+    - name: "Set password parameters dictionary"
+      set_fact:
+        password_parameters:
+          NOSDB_PASSWORD: "{{ NOSDB_PASSWORD | default(none) }}"
+          NIAMDB_PASSWORD: "{{ NIAMDB_PASSWORD | default(none) }}"
+          NACMDB_PASSWORD: "{{ NACMDB_PASSWORD | default(none) }}"
+      no_log: true
+
+    - name: "Validate passwords"
+      set_fact:
+        passwordsValidationErrors: "{{ passwordsValidationErrors | default('') }} Password validation for {{ item.key }} parameter failed."
+      no_log: true
+      when: >
+        item.value != "" and
+        item.value | length > 0 and
+        item.value is not regex(PASSWORD_REGEX)
+      with_dict: "{{ password_parameters }}"
+
+    - set_fact:
+        passwordRequirementsMsg: >-
+          Password requirements:
+          the password length must be greater than or equal to {{ passwordLength }},
+          the password must contain one or more uppercase characters,
+          the password must contain one or more lowercase characters,
+          the password must contain one or more numeric values,
+          the password must contain one or more of the following special characters: {{ passwordSigns }}
+
+    - name: "Check passwords validation errors"
+      fail:
+        msg: "{{ passwordsValidationErrors }} {{ passwordRequirementsMsg }}"
+      when: passwordsValidationErrors is defined and passwordsValidationErrors is not none
+
+    - name: "Set secret parameters dictionary"
+      set_fact:
+        secret_parameters:
+          NETGUARD_FRAMEWORK_SECRET: "{{ NETGUARD_FRAMEWORK_SECRET | default(none) }}"
+          NETGUARD_NETWORKACCESS_SECRET: "{{ NETGUARD_NETWORKACCESS_SECRET | default(none) }}"
+          NETGUARD_NETWORKACCESS_AGENT_SECRET: "{{ NETGUARD_NETWORKACCESS_AGENT_SECRET | default(none) }}"
+          NETGUARD_IAM_SECRET: "{{ NETGUARD_IAM_SECRET | default(none) }}"
+          NETGUARD_IAM_PROXY_SECRET: "{{ NETGUARD_IAM_PROXY_SECRET | default(none) }}"
+          NETGUARD_ACM_SECRET: "{{ NETGUARD_ACM_SECRET | default(none) }}"
+      no_log: true
+
+    - name: "Validate secrets"
+      set_fact:
+        secretsValidationErrors: "{{ secrestValidationErrors | default('') }} Secret validation for {{ item.key }} parameter failed."
+      no_log: true
+      when: >
+        item.value is defined and
+        item.value is not none and
+        item.value != "" and
+        item.value is not regex(UUID_REGEX)
+      with_dict: "{{ secret_parameters }}"
+
+    - set_fact:
+        secretRequirementsMsg: >-
+          Secret requirements:
+          the secret must have a UUID format
+
+    - name: "Check secrets validation errors"
+      fail:
+        msg: "{{ secretsValidationErrors }} {{ passwordRequirementsMsg }}"
+      when: secretsValidationErrors is defined and secretsValidationErrors is not none
+

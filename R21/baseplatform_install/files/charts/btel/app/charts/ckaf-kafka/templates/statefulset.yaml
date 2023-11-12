@@ -1,0 +1,531 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ template "kafka.name" . }}
+  labels:
+    app: {{ .Chart.Name }}
+    release: {{ .Release.Name | quote }}
+    heritage: {{ .Release.Service | quote }}
+  annotations:
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: {{ .Values.global.seccompAllowedProfileNames }}
+    seccomp.security.alpha.kubernetes.io/defaultProfileName: {{ .Values.global.seccompDefaultProfileName }}
+
+spec:
+  serviceName: {{ template "kafka.name" . }}-headless
+  replicas: {{ default 3 .Values.Replicas }}
+  podManagementPolicy: {{ .Values.podManagementPolicy }}
+  updateStrategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app: {{ .Chart.Name }}
+      release: {{ .Release.Name | quote }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Chart.Name }}
+        release: {{ .Release.Name | quote }}
+      annotations:
+        {{- if .Values.global.istio.enabled }}
+        sidecar.istio.io/inject: "true"
+        {{- else }}
+        sidecar.istio.io/inject: "false"
+        {{- end }}
+    spec:
+      {{- if eq .Values.security.enabled true }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: {{ .Values.security.runAsUser }}
+        fsGroup: {{ .Values.security.fsGroup }}
+        runAsGroup: {{ .Values.security.runAsGroup }}
+      {{- if .Values.security.supplementalGroups }}
+        supplementalGroups: {{ .Values.security.supplementalGroups }}
+      {{- end }}
+      {{- if eq .Values.security.seLinuxOptions.enabled true }}
+        seLinuxOptions:
+          level: {{ .Values.security.seLinuxOptions.level }}
+          role: {{ .Values.security.seLinuxOptions.role }}
+          type: {{ .Values.security.seLinuxOptions.type }}
+          user: {{ .Values.security.seLinuxOptions.user }}
+      {{- end }}
+
+      {{- end }}
+      {{- if .Values.global.rbacEnable }}
+      serviceAccountName: {{ template "kfserviceAccount.name" . }}
+      {{- end }}
+      {{- if .Values.tolerationsForTaints.enable }}
+      tolerations:
+      {{- range $index, $tol := .Values.tolerationsForTaints.tolerations }}
+        - key : "{{ $tol.key }}"
+          operator: "{{ $tol.operator }}"
+          value: "{{ $tol.value }}"
+          effect: "{{ $tol.effect }}"
+          {{- if $tol.tolerationSeconds }}
+          tolerationSeconds: {{ $tol.tolerationSeconds }}
+          {{ end }}
+      {{ end }}
+      {{ end }}
+      {{- if eq .Values.antiAffinity "hard" }}
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: "kubernetes.io/hostname"
+              labelSelector:
+                matchLabels:
+                  app: {{ .Chart.Name }}
+                  release: {{ .Release.Name | quote }}
+      {{- else if eq .Values.antiAffinity "soft" }}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 1
+              podAffinityTerm:
+                topologyKey: "kubernetes.io/hostname"
+                labelSelector:
+                  matchLabels:
+                    app: {{ .Chart.Name }}
+                    release: {{ .Release.Name | quote }}
+      {{- end }}
+      {{- if .Values.kafkaNodeSelector.enable }}
+      nodeSelector:
+{{ toYaml .Values.kafkaNodeSelector.nodeLabel | indent 8 }}
+      {{- end }}
+      containers:
+      - name: ckaf-kafka-jmx-exporter
+        image: "{{ .Values.global.registry1 }}/{{ .Values.JmxExporter.imageRepo }}:{{ .Values.JmxExporter.imageTag }}"
+        imagePullPolicy: {{ .Values.JmxExporter.imagePullPolicy }}
+        {{- if eq .Values.security.enabled true }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          privileged: false
+          capabilities:
+            drop:
+              - all
+        {{- end }}
+        volumeMounts:
+        - name: prom-jmx-exporter-volume
+          mountPath: /jmx-exporter
+        resources:
+{{ toYaml .Values.JmxExporter.jmxResources.resources | indent 10 }}
+      {{ if (eq .Values.global.cburEnable true) }}
+      - name: {{ .Values.cbur.name }}
+        image: "{{ .Values.global.registry2 }}/{{ .Values.cbur.image }}:{{ .Values.cbur.tag }}"
+        imagePullPolicy: {{ .Values.cbur.imagePullPolicy }}
+        resources:
+{{ toYaml .Values.cbur.resources | indent 10 }}
+        {{- if eq .Values.security.enabled true }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          privileged: false
+          capabilities:
+            drop:
+              - all
+          runAsUser: {{ .Values.security.runAsUser }}
+        {{- end }}
+        volumeMounts:
+        - mountPath: /kafka-data-dir
+          name: kafka-data-dir
+        - mountPath: /kafka-log-dir
+          name: kafka-log-dir
+        - mountPath: /prom-jmx-exporter-volume
+          name: prom-jmx-exporter-volume
+        - mountPath: /kafka-jmx-config-volume
+          name: kafka-jmx-config-volume
+        - mountPath: /topic-backup
+          name: topic-backup
+        - mountPath: /tmp
+          name: cbura-tmp-volume
+      {{end}}
+      - name: ckaf-kafka-broker
+        image: "{{ .Values.global.registry }}/{{ .Values.imageRepo }}:{{ .Values.imageTag }}"
+        imagePullPolicy: "{{ .Values.imagePullPolicy }}"
+        {{- if eq .Values.security.enabled true }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          privileged: false
+          capabilities:
+            drop:
+              - all
+        {{- end }}
+        env:
+        - name: MY_POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: POD_HOST_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: MY_POD_NAME
+          value: "$(POD_HOST_NAME).{{ template "kafka.name" . }}-headless.{{ template "kafka.namespace" . }}.svc.cluster.local"
+        - name: ZOOKEEPER_SASL_ENABLED
+          value: "FALSE"
+        - name: KAFKA_ZOOKEEPER_CONNECT
+          value: "{{ template "zkConnect.url" . }}"
+        - name: EXTERNAL_KAFKA
+          value: "{{ .Values.ingress.enableExternalAccess }}"
+        - name: INITIAL_PORT
+          value: "{{ .Values.ingress.startPortRangeOnEdgeNode }}"
+        - name: INTERNAL_SECURITY_PROTOCOL
+          value: "{{ .Values.listenerSecurityMode.internalSecurityMode }}"
+        - name: KAFKA_LISTENERS
+          value: "$(INTERNAL_SECURITY_PROTOCOL)://0.0.0.0:9092"
+        - name: KAFKA_ADVERTISED_LISTENERS
+          value: "$(INTERNAL_SECURITY_PROTOCOL)://$(MY_POD_NAME):9092"
+        - name: EXTERNAL_SECURITY_PROTOCOL
+          value: "{{ .Values.listenerSecurityMode.externalSecurityMode }}"
+        {{- if eq .Values.ingress.enableExternalAccess true }}
+        - name: EXTERNAL_LISTENER_NAME
+          value: "{{ .Values.ingress.externalServiceName }}"
+        - name: KAFKA_LISTENER_SECURITY_PROTOCOL_MAP
+          value: "$(INTERNAL_SECURITY_PROTOCOL):$(INTERNAL_SECURITY_PROTOCOL),EXTERNAL:$(EXTERNAL_SECURITY_PROTOCOL)"
+        {{- else }}
+        - name: KAFKA_LISTENER_SECURITY_PROTOCOL_MAP
+          value: "$(INTERNAL_SECURITY_PROTOCOL):$(INTERNAL_SECURITY_PROTOCOL)"
+        {{- end }}
+        - name: KAFKA_SECURITY_INTER_BROKER_PROTOCOL
+          value: "$(INTERNAL_SECURITY_PROTOCOL)"        
+        - name: KAFKA_LOG_DIRS
+          value: "/var/lib/kafka/data/topics"
+        - name: KAFKA_UNCLEAN_LEADER_ELECTION_ENABLE
+          value: "{{ .Values.UncleanLeaderElectionEnable }}"
+        - name: KAFKA_AUTO_CREATE_TOPICS_ENABLE
+          value: "{{ .Values.AutoCreateTopicsEnable }}"
+        - name: KAFKA_DEFAULT_REPLICATION_FACTOR
+          value: "{{ .Values.DefaultReplicationFactor }}"
+        - name: KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS
+          value: "{{ .Values.GroupInitialRebalanceDelayMs }}"
+        - name: KAFKA_NUM_RECOVERY_THREADS_PER_DATA_DIR
+          value: "{{ .Values.NumRecoveryThreadsPerDataDir }}"
+        - name: KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR
+          value: "{{ .Values.TransactionStateLogReplicationFactor }}"
+        - name: KAFKA_TRANSACTION_STATE_LOG_MIN_ISR
+          value: "{{ .Values.TransactionStateLogMinIsr }}"
+        - name: KAFKA_BACKGROUND_THREADS
+          value: "{{ .Values.BackgroundThreads }}"
+        - name: KAFKA_MESSAGE_MAX_BYTES
+          value: "{{ .Values.MessageMaxBytes }}"
+        - name: KAFKA_NUM_IO_THREADS
+          value: "{{ .Values.NumIoThreads }}"
+        - name: KAFKA_NUM_NETWORK_THREADS
+          value: "{{ .Values.NumNetworkThreads }}"
+        - name: KAFKA_QUEUED_MAX_REQUESTS
+          value: "{{ .Values.QueuedMaxRequests }}"
+        - name: KAFKA_SOCKET_SEND_BUFFER_BYTES
+          value: "{{ .Values.SocketSendBufferBytes }}"
+        - name: KAFKA_SOCKET_RECEIVE_BUFFER_BYTES
+          value: "{{ .Values.SocketReceiveBufferBytes }}"
+        - name: KAFKA_SOCKET_REQUEST_MAX_BYTES
+          value: "{{ .Values.SocketRequestMaxBytes }}"
+        - name: KAFKA_NUM_REPLICA_FETCHERS
+          value: "{{ .Values.NumReplicaFetchers }}"
+        - name: KAFKA_REPLICA_FETCH_MAX_BYTES
+          value: "{{ .Values.ReplicaFetchMaxBytes }}"
+        - name: KAFKA_REPLICA_FETCH_WAIT_MAX_MS
+          value: "{{ .Values.ReplicaFetchWaitMaxMs }}"
+        - name: KAFKA_REPLICA_HIGH_WATERMARK_CHECKPOINT_INTERVAL_MS
+          value: "{{ .Values.ReplicaHighWatermarkCheckpointIntervalMs }}"
+        - name: KAFKA_REPLICA_SOCKET_TIMEOUT_MS
+          value: "{{ .Values.ReplicaSocketTimeoutMs }}"
+        - name: KAFKA_REPLICA_SOCKET_RECEIVE_BUFFER_BYTES
+          value: "{{ .Values.ReplicaSocketReceiveBufferBytes }}"
+        - name: KAFKA_REPLICA_LAG_TIME_MAX_MS
+          value: "{{ .Values.ReplicaLagTimeMaxMs }}"
+        - name: KAFKA_CONTROLLER_SOCKET_TIMEOUT_MS
+          value: "{{ .Values.ControllerSocketTimeoutMs }}"
+        - name: KAFKA_NUM_PARTITIONS
+          value: "{{ .Values.NumPartitions }}"
+        - name: KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR
+          value: "{{ .Values.OffsetsTopicReplicationFactor }}"
+        - name: KAFKA_COMPRESSION_TYPE
+          value: "{{ .Values.CompressionType }}"
+        - name: KAFKA_LOG_INDEX_INTERVAL_BYTES
+          value: "{{ .Values.LogIndexIntervalBytes }}"
+        - name: KAFKA_LOG_INDEX_SIZE_MAX_BYTES
+          value: "{{ .Values.LogIndexSizeMaxBytes }}"
+        - name: KAFKA_LOG_RETENTION_HOURS
+          value: "{{ .Values.LogRetentionHours }}"
+        - name: KAFKA_LOG_FLUSH_INTERVAL_MS
+          value: "{{ .Values.LogFlushIntervalMs }}"
+        - name: KAFKA_LOG_FLUSH_INTERVAL_MESSAGES
+          value: "{{ .Values.LogFlushIntervalMessages }}"
+        - name: KAFKA_LOG_FLUSH_SCHEDULER_INTERVAL_MS
+          value: "{{ .Values.LogFlushSchedulerIntervalMs }}"
+        - name: KAFKA_LOG_ROLL_HOURS
+          value: "{{ .Values.LogRollHours }}"
+        - name: KAFKA_LOG_RETENTION_CHECK_INTERVAL_MS
+          value: "{{ .Values.LogRetentionCheckIntervalMs }}"
+        - name: KAFKA_LOG_SEGMENT_BYTES
+          value: "{{ .Values.LogSegmentBytes }}"
+        - name: KAFKA_LOG_CLEANER_BACKOFF_MS
+          value: "{{ .Values.LogCleanerBackoffMs }}"
+        - name: KAFKA_LOG_CLEANER_THREADS
+          value: "{{ .Values.LogCleanerThreads }}"
+        - name: KAFKA_LOG_CLEANER_ENABLE
+          value: "{{ .Values.LogCleanerEnable }}"
+        - name: KAFKA_LOG_CLEANUP_POLICY
+          value: "{{ .Values.LogCleanupPolicy }}"
+        - name: KAFKA_ZOOKEEPER_CONNECTION_TIMEOUT_MS
+          value: "{{ .Values.ZookeeperConnectionTimeoutMs }}"
+        - name: KAFKA_ZOOKEEPER_SYNC_TIME_MS
+          value: "{{ .Values.ZookeeperSyncTimeMs }}"
+        - name: KAFKA_FETCH_PURGATORY_PURGE_INTERVAL_REQUESTS
+          value: "{{ .Values.FetchPurgatoryPurgeIntervalRequests }}"
+        - name: KAFKA_PRODUCER_PURGATORY_PURGE_INTERVAL_REQUESTS
+          value: "{{ .Values.ProducerPurgatoryPurgeIntervalRequests }}"
+        - name: KAFKA_ZOOKEEPER_SESSION_TIMEOUT_MS
+          value: "{{ .Values.ZookeeperSessionTimeoutMs }}"
+        - name: KAFKA_ZOOKEEPER_SET_ACL
+          value: "{{ .Values.ZookeeperSetAcl }}"
+        - name: KAFKA_DELETE_TOPIC_ENABLE
+          value: "{{ .Values.DeleteTopicEnable }}"
+        - name: KAFKA_AUTO_LEADER_REBALANCE_ENABLE
+          value: "{{ .Values.AutoLeaderRebalanceEnable }}"
+        - name: KAFKA_LEADER_IMBALANCE_CHECK_INTERVAL_SECONDS
+          value: "{{ .Values.LeaderImbalanceCheckIntervalSeconds }}"
+        - name: KAFKA_QUOTA_CONSUMER_DEFAULT
+          value: "{{ .Values.QuotaConsumerDefault }}"
+        - name: KAFKA_QUOTA_PRODUCER_DEFAULT
+          value: "{{ .Values.QuotaProducerDefault }}"
+        - name: KAFKA_MIN_INSYNC_REPLICAS
+          value: "{{ .Values.MinInsyncReplicas }}"
+        - name: KAFKA_LOG_RETENTION_BYTES
+          value: "{{ .Values.LogRetentionBytes }}"
+        - name: KAFKA_OPTS
+          value: "-Dlogging.level={{ .Values.LogLevel }}"
+        - name: KAFKA_HEAP_OPTS
+          value: "{{ .Values.KafkaHeapOpts }}"
+        {{ if .Values.InterBrokerProtocolVersion }}
+        - name: KAFKA_INTER_BROKER_PROTOCOL_VERSION
+          value: "{{ .Values.InterBrokerProtocolVersion }}"
+        {{ end }}
+        {{ if .Values.LogMessageFormatVersion }}
+        - name: KAFKA_LOG_MESSAGE_FORMAT_VERSION
+          value: "{{ .Values.LogMessageFormatVersion }}"
+        {{ end }}
+        {{ if eq .Values.zkAclAuthorizer.enable true }}
+        - name: KAFKA_AUTHORIZER_CLASS_NAME
+          value: "kafka.security.authorizer.AclAuthorizer"
+        - name: KAFKA_SUPER_USERS
+          value: {{ .Values.zkAclAuthorizer.superUsers }}
+        - name: KAFKA_ALLOW_EVERYONE_IF_NO_ACL_FOUND
+          value: {{ .Values.zkAclAuthorizer.allowEveryoneIfNoAcl |quote }}
+        {{ end }}
+        {{if eq .Values.ssl.enabled true}}
+        - name: SSL_ENABLE
+          value: "enable"
+        - name: KAFKA_ADVERTISED_HOST_NAME
+          value: "$(MY_POD_NAME)"
+        - name: KAFKA_SSL_TRUSTSTORE_CREDENTIALS
+          value: "/ssl/{{ .Values.ssl.truststore_passwd_key }}"
+        - name: KAFKA_SSL_KEYSTORE_CREDENTIALS
+          value: "/ssl/{{ .Values.ssl.keystore_passwd_key }}"
+        - name: KAFKA_SSL_KEY_CREDENTIALS
+          value: "/ssl/{{ .Values.ssl.keystore_key_passwd_key }}"
+        - name: KAFKA_SSL_KEYSTORE_FILENAME
+          value: "/ssl/{{ .Values.ssl.keystore_key }}"
+        - name: KAFKA_SSL_TRUSTSTORE_FILENAME
+          value: "/ssl/{{ .Values.ssl.truststore_key }}"
+        - name: KAFKA_SSL_ENABLED_PROTOCOLS
+          value: "{{ .Values.ssl.enabledProtocols }}"
+        - name: KAFKA_SSL_KEYSTORE_TYPE
+          value: "{{ .Values.ssl.keyStoreType }}"
+        - name: KAFKA_SSL_TRUSTSTORE_TYPE
+          value: "{{ .Values.ssl.trustStoreType }}"
+        - name: KAFKA_SECURITY_PROTOCOL
+          value: "$(INTERNAL_SECURITY_PROTOCOL)"
+        - name: KAFKA_SSL_SECURE_RANDOM_IMPL
+          value: "{{ .Values.ssl.secureRamdomImpl }}"
+        - name: KAFKA_SSL_CLIENT_AUTH
+          value: "{{ .Values.ssl.clientAuth }}"
+        {{- else }}
+        - name: SSL_ENABLE
+          value: "disable"
+        {{end}}
+        {{- if eq .Values.sasl.enable true}}
+        - name: SASL_ENABLE
+          value: "enable"
+        - name: KAFKA_SASL_ENABLED_MECHANISMS
+          value: {{ .Values.sasl.mechanism }}
+        - name: KAFKA_SASL_MECHANISM_INTER_BROKER_PROTOCOL
+          value: {{ .Values.sasl.mechanism }}
+        {{- if eq .Values.sasl.mechanism "GSSAPI" }}
+        - name: KRB_REALM
+          value: {{ .Values.sasl.krb.krbRealm }}
+        - name: KAFKA_SASL_KERBEROS_SERVICE_NAME
+          value: "kafka"
+        {{- end }}
+        {{- if eq .Values.sasl.mechanism "PLAIN" }}
+        - name: SASL_PLAIN_USER_NAME
+          valueFrom:
+             secretKeyRef:
+               name: {{ .Values.sasl.plain.secretName }}
+               key: {{ .Values.sasl.plain.usernameKey }}
+        - name: SASL_PLAIN_PASS_WORD
+          valueFrom:
+             secretKeyRef:
+               name: {{ .Values.sasl.plain.secretName }}
+               key: {{ .Values.sasl.plain.passwordKey }}
+        - name: SASL_KEYCLOAK_CONFIG_DIR
+          value: "/etc/kafka/keycloak/"
+        {{- end }}
+        {{- else }}
+        - name: SASL_ENABLE
+          value: "disable"
+        {{- end }}
+        - name: LOG_DIR
+          value: "/var/log/kafka"
+        - name: KAFKA_LOG_LEVEL
+          value: "{{ .Values.LogLevel }}"
+        - name: KAFKA_MAX_FILE_SIZE
+          value: "{{ .Values.MaxFileSize }}"
+        - name: KAFKA_MAX_BACKUP_INDEX
+          value: "{{ .Values.MaxBackupIndex }}"
+        - name: CLOG_ENABLE
+          value: "{{ .Values.global.clogEnable }}"
+        - name: EXTRA_ARGS
+          value:  "-javaagent:/jmx-exporter/jmx_prometheus_javaagent.jar={{ .Values.JmxExporter.port }}:/etc/kafka/jmx_config/kafka-jmx.yaml"
+        - name: IS_RESTORE
+       {{- if (eq .Values.global.cburEnable true) }}
+          valueFrom:
+            configMapKeyRef:
+              name: {{ .Release.Name }}-kf-cbur-conf
+              key: is_restore
+        - name: BACKUP_TOPICS
+          value: "{{ .Values.cbur.backupTopics }}"
+       {{- else }}
+          value: "false"
+       {{- end }}
+       {{- range $key, $value := .Values.configurationOverrides }}
+        - name: {{ printf "KAFKA_%s" $key | replace "." "_" | upper | quote }}
+          value: {{ $value | quote }}
+       {{- end }}
+        livenessProbe:
+          exec:
+            command:
+              - sh
+              - -c
+              - sh /etc/kafka/kafka-health-check 
+          initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+          timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
+        readinessProbe:
+          exec:
+            command:
+              - sh
+              - -c
+              - sh /etc/kafka/kafka-health-check
+          initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+          timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
+        ports:
+        - containerPort: 9092
+          name: tcp-kafka
+        resources:
+{{ toYaml .Values.resources | indent 10 }}
+        volumeMounts:
+        - name: kafka-data-dir
+          mountPath: /var/lib/kafka/data
+        - name: kafka-log-dir
+          mountPath: /var/log/kafka
+        - name: prom-jmx-exporter-volume
+          mountPath: /jmx-exporter
+        - name: kafka-jmx-config-volume
+          mountPath: /etc/kafka/jmx_config
+        {{ if (eq .Values.global.cburEnable true) }}
+        - name: topic-backup
+          mountPath: /topic-backup
+        {{ end }}
+        {{if eq .Values.ssl.enabled true }}
+        - name: ssl
+          mountPath: /etc/kafka/secrets/ssl
+        {{end}}
+        {{if (and (eq .Values.sasl.enable true) (eq .Values.sasl.mechanism "GSSAPI")) }}
+        - name: sasl
+          mountPath: /etc/kafka/keytabs
+        - name: krb5config
+          mountPath: /etc/kafka/krb-conf
+        {{end}}
+        {{if eq .Values.sasl.enable true }}
+        {{if eq .Values.sasl.mechanism "PLAIN" }}
+        - name: keycloak
+          mountPath: /etc/kafka/keycloak/
+        {{end}}
+        {{end}}
+      volumes:
+      {{if eq .Values.ssl.enabled true}}
+      - name: ssl
+        secret:
+          secretName: {{ .Values.ssl.secret_name }}
+          items:
+          - key: {{ .Values.ssl.keystore_key }}
+            path: {{ .Values.ssl.keystore_key }}
+          - key: {{ .Values.ssl.truststore_key }}
+            path: {{ .Values.ssl.truststore_key }}
+          - key: {{ .Values.ssl.truststore_passwd_key }}
+            path: {{ .Values.ssl.truststore_passwd_key }}
+          - key: {{ .Values.ssl.keystore_passwd_key }}
+            path: {{ .Values.ssl.keystore_passwd_key }}
+          - key: {{ .Values.ssl.keystore_key_passwd_key }}
+            path: {{ .Values.ssl.keystore_key_passwd_key }}
+      {{end}}
+      {{if (and (eq .Values.sasl.enable true) (eq .Values.sasl.mechanism "GSSAPI")) }}
+      - name: sasl
+        secret:
+          secretName: {{ .Values.sasl.krb.secretName }}
+      - name: krb5config
+        configMap:
+          name: {{ .Values.sasl.krb.krbConfigmapName }}
+          items:
+          - key: {{ .Values.sasl.krb.KrbConfKeyName }}
+            path: krb5.conf
+      {{end}}
+      {{if eq .Values.sasl.enable true }}
+      {{if eq .Values.sasl.mechanism "PLAIN" }}
+      - name: keycloak
+        secret:
+          secretName: {{ .Values.sasl.plain.keyCloakConfig.secretName }}
+      {{end}}
+      {{end}}
+      - name: kafka-jmx-config-volume
+        configMap:
+          name: {{ template "kafka.name" . }}
+      - name: prom-jmx-exporter-volume
+        emptyDir: {}
+      {{ if (eq .Values.global.cburEnable true) }}
+      - name: topic-backup
+        emptyDir: {}
+      - name: cbura-tmp-volume
+        emptyDir: {}
+      {{ end }}
+  volumeClaimTemplates:
+  - metadata:
+      name: kafka-data-dir
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: {{ .Values.DataStorage }}
+    {{- if .Values.AutoPvEnabledKafka }}
+      selector:
+        matchLabels:
+          for: {{ .Values.AutoPvEnabledLabelKafka }}
+    {{- else if .Values.compaas }}
+      storageClassName: "{{ .Values.compaas.storageClass }}"
+    {{- else if .Values.global.storageClass }}
+      storageClassName: "{{ .Values.global.storageClass }}"
+    {{- end }}
+  - metadata:
+      name: kafka-log-dir
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: {{ .Values.LogStorage }}
+    {{- if .Values.AutoPvEnabledKafka }}
+      selector:
+        matchLabels:
+          for: {{ .Values.AutoPvEnabledLabelKafka }}
+    {{- else if .Values.compaas }}
+      storageClassName: "{{ .Values.compaas.storageClass }}"
+    {{- else if .Values.global.storageClass }}
+      storageClassName: "{{ .Values.global.storageClass }}"
+    {{- end }}

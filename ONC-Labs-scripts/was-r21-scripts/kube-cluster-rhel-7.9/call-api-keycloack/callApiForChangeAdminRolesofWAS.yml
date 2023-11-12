@@ -1,0 +1,108 @@
+---
+- name: Call Keycloak API to Change Roles for Admin User on WAS Component
+  hosts: localhost
+  connection: local
+  collections:
+   - azure.azcollection
+
+  vars: 
+    nmaster: "{{ lookup('env', 'mastername') }}"
+    resource_group: "{{ lookup('env', 'rg') }}"
+
+  tasks:
+  - name: Query Public IP vm master node
+    shell: sudo az vm show -g "{{ resource_group }}" -n "{{ nmaster }}"  --query publicIps -d --out tsv 
+    register: masterIp
+
+  - name: Get keycloack admin password 
+    shell: |
+      awk '{if(NR==126) print $2}' ../was-install/playbook/bp-packages/bp_config_vars.yml
+    register: keycloackaAdminPassword
+
+  - name: Print out New Password
+    debug:
+      msg: "This is new Password: {{ keycloackaAdminPassword.stdout }}"
+
+  - name: Get token access of admin keycloack
+    shell: |
+      curl --insecure --location --request POST "https://{{masterIp.stdout}}/auth/realms/master/protocol/openid-connect/token" \
+      --header 'Content-Type: application/x-www-form-urlencoded' \
+      --data-urlencode 'client_id=admin-cli' \
+      --data-urlencode 'username=admin' \
+      --data-urlencode "password={{ keycloackaAdminPassword.stdout }}" \
+      --data-urlencode 'grant_type=password' | sed -n 's|.*"access_token":"\([^"]*\)".*|\1|p'
+    register: token
+
+  - name: Print out Token
+    debug:
+      msg: "This is new Password: {{ token.stdout }}"
+
+  - name: Get Netguard Realm Admin's userId
+    shell: |
+      curl --insecure --location --request GET -H "Content-Type: application/json" -H "Authorization: bearer {{token.stdout}}" "https://{{masterIp.stdout}}/auth/admin/realms/netguard/users" | awk -F '["]' '{print $4}' 
+    register: userId
+
+  - name: Print out UserId
+    debug:
+      msg: "This is UserID: {{ userId.stdout }}"
+
+  - name: Get gourp ID
+    shell: |
+      curl --location --insecure --request GET -H "Content-Type: application/json" -H "Authorization: bearer {{token.stdout}}" "https://{{masterIp.stdout}}/auth/admin/realms/netguard/groups" | sed -n 's|.*"id":"\([^"]*\)".*|\1|p'
+    register: groupId
+
+  - name: Print out Group Id
+    debug:
+      msg: "This is Group Id: {{ groupId.stdout }}"
+
+  - name: Get client role of NetGuard Workflow Automation
+    shell: |
+      curl --location --insecure --request GET -H "Content-Type: application/json" -H "Authorization: bearer {{token.stdout}}" "https://{{masterIp.stdout}}/auth/admin/realms/netguard/clients" | jq '.[].id' | grep -o '[^"]*'| sed '10q;d'
+    register: wasClientId
+
+  - name: Print out wasClientId
+    debug:
+      msg: "This is wasClientId: {{ wasClientId.stdout }}"
+  
+  - name: Get client role of Workflow Automation Workbench
+    shell: |
+      curl --location --insecure --request GET -H "Content-Type: application/json" -H "Authorization: bearer {{token.stdout}}" "https://{{masterIp.stdout}}/auth/admin/realms/netguard/clients" | jq '.[].id' | grep -o '[^"]*'| sed '13q;d'
+    register: workbenchClientId
+
+  - name: Print out workbenchClientId
+    debug:
+      msg: "This is workbenchClientId: {{ workbenchClientId.stdout }}"
+
+  - name: Get available client-level roles that can be mapped to the user of NetGuard Workflow Automation
+    shell: |
+      curl --location --insecure --request GET -H "Content-Type: application/json" -H "Authorization: bearer {{token.stdout}}" "https://{{masterIp.stdout}}/auth/admin/realms/netguard/groups/{{groupId.stdout}}/role-mappings/clients/{{wasClientId.stdout}}/available"
+    register: wasRoles
+
+  - name: Print out wasRoles
+    debug:
+      msg: "This is wasRoles: {{ wasRoles.stdout }}"
+  
+  - name: Get available client-level roles that can be mapped to the user of Workflow Automation Workbench
+    shell: |
+      curl --location --insecure --request GET -H "Content-Type: application/json" -H "Authorization: bearer {{token.stdout}}" "https://{{masterIp.stdout}}/auth/admin/realms/netguard/groups/{{groupId.stdout}}/role-mappings/clients/{{workbenchClientId.stdout}}/available"
+    register: workbenchRoles
+
+  - name: Print out workbenchRoles
+    debug:
+      msg: "This is workbenchRoles: {{ workbenchRoles.stdout }}"
+  
+  - name: Assign WAS role for admin user
+    shell: |
+      curl --location --insecure --request POST -H "Content-Type: application/json" -H "Authorization: bearer {{token.stdout}}" "https://{{masterIp.stdout}}/auth/admin/realms/netguard/users/{{userId.stdout}}/role-mappings/clients/{{wasClientId.stdout}}" \
+      --header 'Content-Type: application/json' \
+      --data '{{ wasRoles.stdout }}'
+      
+  - name: Assign WAS role for admin user
+    shell: |
+      curl --location --insecure --request POST -H "Content-Type: application/json" -H "Authorization: bearer {{token.stdout}}" "https://{{masterIp.stdout}}/auth/admin/realms/netguard/users/{{userId.stdout}}/role-mappings/clients/{{workbenchClientId.stdout}}" \
+      --header 'Content-Type: application/json' \
+      --data '{{ workbenchRoles.stdout }}'
+
+
+
+

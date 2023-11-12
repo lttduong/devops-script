@@ -1,0 +1,23 @@
+{{- if .Values.ha.enabled -}}
+{{- if .Values.rbac.enabled }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app: {{ template "prometheus.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    component: "{{ .Values.server.name }}-post-delete"
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+{{- include "prometheus-labels" (tuple .Values.global.labels) | indent 4}}
+  name: {{ template "prometheus.serviceAccount.fullname" . }}-post-delete
+  annotations:
+{{- include "prometheus-annotations" (tuple .Values.global.annotations) | indent 4}}
+    # This is what defines this resource as a hook. Without this line, the
+    # job is considered part of the release.
+    # If there're multiple hooks, may define differnent hook-weight value.
+    "helm.sh/hook": post-delete
+    "helm.sh/hook-weight": "-8"
+    "helm.sh/hook-delete-policy": hook-succeeded, hook-failed
+{{- end }}
+{{- end }}

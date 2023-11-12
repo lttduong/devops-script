@@ -1,0 +1,76 @@
+{{- include "elasticsearch.istio.initIstio" . }}
+{{- if and (.Values.istio.enabled) (eq $.istioVersion 1.4) }}
+apiVersion: "networking.istio.io/v1alpha3"
+kind: "DestinationRule"
+metadata:
+  name: {{ template "elasticsearch.fullname" . }}-chl
+spec:
+  host: {{ template "elasticsearch.fullname" . }}-chl.{{ .Release.Namespace }}.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+---
+apiVersion: "networking.istio.io/v1alpha3"
+kind: "DestinationRule"
+metadata:
+  name: {{ template "elasticsearch.fullname" . }}-dhl
+spec:
+  host: {{ template "elasticsearch.fullname" . }}-dhl.{{ .Release.Namespace }}.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+---
+apiVersion: "networking.istio.io/v1alpha3"
+kind: "DestinationRule"
+metadata:
+  name: {{ template "elasticsearch.fullname" . }}-es
+spec:
+  host: {{.Values.service.name}}.{{ .Release.Namespace }}.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+---
+apiVersion: "networking.istio.io/v1alpha3"
+kind: "DestinationRule"
+metadata:
+  name: {{ template "elasticsearch.fullname" . }}-discovery
+spec:
+  host: {{ template "elasticsearch.fullname" . }}-discovery.{{ .Release.Namespace }}.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+---
+{{- if .Values.service.prometheus_metrics.enabled }}
+apiVersion: "networking.istio.io/v1alpha3"
+kind: "DestinationRule"
+metadata:
+  name: {{ template "elasticsearch.fullname" . }}-crh
+spec:
+  host: {{ template "elasticsearch.fullname" . }}-crh.{{ .Release.Namespace }}.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+---
+apiVersion: "networking.istio.io/v1alpha3"
+kind: "DestinationRule"
+metadata:
+  name: {{ template "elasticsearch.fullname" . }}-mrh
+spec:
+  host: {{ template "elasticsearch.fullname" . }}-mrh.{{ .Release.Namespace }}.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+---
+apiVersion: "networking.istio.io/v1alpha3"
+kind: "DestinationRule"
+metadata:
+  name: {{ template "elasticsearch.fullname" . }}-drh
+spec:
+  host: {{ template "elasticsearch.fullname" . }}-drh.{{ .Release.Namespace }}.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+
+{{- end }}
+{{- end }}
+

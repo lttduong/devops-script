@@ -1,0 +1,27 @@
+- hosts: kubernetes_master_nodes
+  become: yes
+  vars_files:
+  - env_variables
+  
+  tasks: 
+    - name: set label for master node
+      command: kubectl label node {{edge_node}} is_edge=true --overwrite=true  
+      
+    - name: set label for worker nodes
+      command: kubectl label node {{item}} is_worker=true --overwrite=true
+      with_items: "{{ worker_node }}" 
+
+    - name: install tiller
+      shell: kubectl create sa tiller -n kube-system && kubectl create clusterrolebinding tiller-cluster-role-binding --clusterrole=cluster-admin --serviceaccount=kube-system:tiller
+      ignore_errors: yes
+
+    - name: install tiller with helm
+      shell: PATH=$PATH:/usr/local/bin &&  helm init -i wasr22containerregistry.azurecr.io/smc/gcr.io/kubernetes-helm/tiller:v2.16.9  --service-account tiller --skip-refresh 
+      ignore_errors: yes
+
+    - name: wait for tiller pod to be ready
+      shell: kubectl wait --namespace=kube-system --for=condition=Ready pod -l name=tiller --timeout=600s  
+
+    - name: untain master node
+      shell: kubectl taint node {{edge_node}} node-role.kubernetes.io/master:NoSchedule-
+      ignore_errors: yes

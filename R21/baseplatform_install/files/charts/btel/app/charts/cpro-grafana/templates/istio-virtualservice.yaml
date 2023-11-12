@@ -1,0 +1,53 @@
+{{- if .Values.istio.enable }}
+{{- if .Values.istioIngress.enabled }}
+apiVersion: networking.istio.io/v1alpha3 
+kind: VirtualService
+metadata:
+  name: {{ template "grafana.fullname" . }}-vs
+  labels:
+    app: {{ template "grafana.name" . }}
+    chart: {{ template "grafana.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+    {{- if .Values.global.labels }}
+{{ toYaml .Values.global.labels | indent 4}}
+    {{- end }}
+{{- if .Values.global.annotations }}
+  annotations:
+{{- include "grafana-annotations" (tuple .Values.global.annotations) | indent 4}}
+{{- end }}
+spec:
+  hosts:
+  - '{{ .Values.istioIngress.host }}'
+  gateways:
+    {{- if eq .Values.istioIngress.gatewayName "" }}
+  - {{ template "grafana.fullname" . }}-istio-gateway
+    {{- else }}
+  - {{ .Values.istioIngress.gatewayName }}
+    {{- end }}
+  {{- if and .Values.istioIngress.tls.enabled (eq .Values.istioIngress.tls.mode "PASSTHROUGH") }}
+  tls:
+  - match:
+    - port: {{ .Values.istioIngress.tls.httpsPort }}
+      sni_hosts:
+      - '{{ .Values.istioIngress.host }}'
+    route:
+    - destination:
+        host: {{ template "grafana.fullname" . }}
+        port:
+          number: {{ .Values.service.port }}
+  {{- else }}
+  http:
+  - match:
+    - uri:
+        prefix: /{{ .Values.istioIngress.Contextroot }}
+    rewrite:
+      uri: /{{ template "grafana.rooturl" . }} 
+    route:
+    - destination:
+        host: {{ template "grafana.fullname" . }}
+        port:
+          number: {{ .Values.service.port }}
+  {{- end }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,69 @@
+- name: Tear down WSHA VM
+  hosts: localhost
+  connection: local
+  collections:
+   - azure.azcollection
+
+  vars:
+    vmName: "{{ lookup('env', 'nfmtname') }}"
+    resource_group: "{{ lookup('env', 'rg') }}"
+    location: "{{ lookup('env', 'region') }}"
+    resourceGroup: open-wavehub-dev
+    vaultName: "{{ lookup('env', 'vaultname') }}"
+
+  tasks:
+  - name: Get NIC name
+    shell: sudo az vm nic list --vm-name "{{ vmName }}" -g "{{ resource_group }}" --query [0].id | awk -F '[/]' '{print $9}' | sed 's/"//'
+    register: nicname
+
+  - name: show NIC
+    set_fact:
+     cardnic: "{{ nicname.stdout }}"
+
+  - name: Get OS Disk of VM
+    shell: sudo az vm show -d -g "{{ resource_group }}" -n "{{ vmName }}" --query "storageProfile.osDisk.managedDisk.id" | awk -F '[/]' '{print $9}' | sed 's/"//'
+    register: diskname
+
+  - name: show osDisk
+    set_fact:
+     osdisk: "{{ diskname.stdout }}"
+
+  - name: Get publicip name
+    shell: sudo az vm list-ip-addresses -g "{{ resource_group }}" -n "{{ vmName }}" --query [0].virtualMachine.network.publicIpAddresses[0].name | sed 's/"//g'
+    register: publicip
+
+  - name: Show public ip name
+    set_fact:
+     publicipname: "{{ publicip.stdout }}"
+
+  - name: Remove a VM with all resource that were autocreated
+    azure_rm_virtualmachine:
+     resource_group: "{{ resource_group }}"
+     name: "{{ vmName }}"
+     remove_on_absent: all_autocreated
+     state: absent
+
+  - name: Remove NIC
+    azure_rm_networkinterface:
+     resource_group: "{{ resource_group }}"
+     name: "{{ cardnic }}" 
+     state: absent
+
+  - name: Remove Os Disk
+    azure_rm_manageddisk:
+     name: "{{ osdisk }}"
+     location: "{{ location }}"
+     resource_group: "{{ resource_group }}"
+     state: absent 
+
+  - name: Remove Public IP
+    azure_rm_publicipaddress:
+     resource_group: "{{ resource_group }}"
+     name: "{{ publicipname }}"
+     state: absent
+    ignore_errors: yes  
+
+  - name: Delete Backup Item of itself
+    shell: az backup protection disable --container-name {{ vmName }} --backup-management-type AzureIaasVM --delete-backup-data true --item-name {{ vmName }} --resource-group {{ resourceGroup }} --vault-name {{ vaultName }} --yes
+    ignore_errors: yes  
+

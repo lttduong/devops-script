@@ -1,0 +1,67 @@
+{{- if and .Values.istio.enable .Values.restserver.enabled }}
+{{- if .Values.restserver.istioIngress.enabled }}
+{{- if eq .Values.restserver.istioIngress.gatewayName "" }}
+apiVersion: networking.istio.io/v1alpha3
+kind: Gateway
+metadata:
+  labels:
+    app: {{ template "prometheus.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    component: "{{ .Values.restserver.name }}"
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+{{- include "prometheus-labels" (tuple .Values.global.labels) | indent 4}}
+  name: {{ template "prometheus.restserver.fullname" . }}-istio-gateway
+{{- if .Values.global.annotations }}
+  annotations:
+{{- include "prometheus-annotations" (tuple .Values.global.annotations) | indent 4}}
+{{- end }}
+spec:
+  {{- if .Values.restserver.istioIngress.selector }}
+  selector:
+{{ toYaml .Values.restserver.istioIngress.selector | indent 4 }}
+  {{- end }}
+  servers:
+  {{- if .Values.restserver.istioIngress.tls.enabled }}
+  - hosts:
+    - '{{ .Values.restserver.istioIngress.host }}'
+    port:
+      name: http
+      number: {{ .Values.restserver.istioIngress.httpPort }}
+      protocol: HTTP
+    tls:
+      httpsRedirect: true # sends 301 redirect for http requests
+  - hosts:
+    - '{{ .Values.restserver.istioIngress.host }}'
+    port:
+      name: https
+      number: {{ .Values.restserver.istioIngress.tls.httpsPort }}
+      protocol: HTTPS
+    tls:
+      {{- if eq .Values.restserver.istioIngress.tls.mode "PASSTHROUGH" }}
+      mode: PASSTHROUGH
+      {{- else if eq .Values.restserver.istioIngress.tls.mode "SIMPLE" }}
+      credentialName : {{ .Values.restserver.istioIngress.tls.credentialName}}
+      mode: SIMPLE
+      {{- else if eq .Values.restserver.istioIngress.tls.mode "MUTUAL" }}
+      credentialName : {{ .Values.restserver.istioIngress.tls.credentialName}}
+      mode: MUTUAL
+      {{- else if eq .Values.restserver.istioIngress.tls.mode "ISTIO_MUTUAL" }}
+      {{- if eq .Values.restserver.istioIngress.tls.credentialName "" }}
+      mode: ISTIO_MUTUAL
+      {{- else}}
+      mode: ISTIO_MUTUAL
+      credentialName : {{ .Values.restserver.istioIngress.tls.credentialName}}
+      {{- end }}
+      {{- end }}
+  {{- else }}
+  - hosts:
+    - '{{ .Values.restserver.istioIngress.host }}'
+    port:
+      name: http
+      number: {{ .Values.restserver.istioIngress.httpPort }}
+      protocol: HTTP
+  {{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

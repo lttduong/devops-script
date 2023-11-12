@@ -1,0 +1,36 @@
+---
+- name: Get info WAS R22
+  hosts: localhost
+  connection: local
+  collections:
+    - azure.azcollection
+  vars_files:
+    - env_variables
+ 
+  tasks:
+    - name: Get public IP of Master node
+      shell: sudo az vm show -g "{{ newRG }}" -n "{{ masterName }}"  --query publicIps -d --out tsv > ./wasip.txt
+      
+    - name: Query Public IP vm master node
+      shell: sudo az vm show -g "{{ newRG }}" -n "{{ masterName }}"  --query publicIps -d --out tsv 
+      register: ipmaster  
+
+    - name: Print out URL of WAS
+      debug:
+       msg: "This is URL of WAS: https://{{ipmaster.stdout}}"
+
+    - name: Print out the credentials
+      debug:
+        msg: "Username: admin  & Password: Nokia@22"
+
+    - name: Print out VM name of masternode
+      debug:
+       msg: "This is VM name of masternode: {{ masterName }} "
+
+    - name: Print out VM name of workernode
+      debug:
+       msg: "This is VM name of workernode: {{ workerName }} "
+
+    - name: Print out Resource Group of Cluster
+      debug:
+       msg: "This is Resource group of Cluster: {{ newRG }} "

@@ -1,0 +1,86 @@
+---
+- name: Connect to DPA to run script update
+  hosts: restore_dpa_vm
+
+  vars_files: 
+    - env_variables
+
+  tasks:
+    - name: Changing NFMT configure in the credentials.cfg
+      shell: | 
+        sed -i "23 s/ip=.*/ip={{nfmtIp}}/g" /opt/nokia/dpa/digimops/config/credentials.cfg
+        sed -i "30 s/ip=.*/ip={{nfmtIp}}/g" /opt/nokia/dpa/digimops/config/credentials.cfg
+        sed -i "25 s/username=.*/username={{nfmtUsername}}/g" /opt/nokia/dpa/digimops/config/credentials.cfg
+        sed -i "26 s/password=.*/password={{nfmtPassword}}/g" /opt/nokia/dpa/digimops/config/credentials.cfg
+        sed -i "32 s/username=.*/username={{nfmtUsername}}/g" /opt/nokia/dpa/digimops/config/credentials.cfg
+        sed -i "33 s/password=.*/password={{nfmtPassword}}/g" /opt/nokia/dpa/digimops/config/credentials.cfg
+      become: true
+
+    - name: Copy vpn profile to DPA
+      copy:
+        src: "{{rootProfile}}{{vpnProfile}}/{{ dpa_profile_name }}"
+        dest: /etc/openvpn3
+      become: true
+
+    - name: Connect VPN to NFM-T
+      shell: |
+        openvpn3 session-start --config /etc/openvpn3/{{ dpa_profile_name }}
+      become_user: DPA_Admin
+      become: true
+      become_method: su
+      become_flags: '-s /bin/bash'
+
+    - name: Check vpn connaction with NFMT
+      shell: |
+        openvpn3 sessions-list 
+      register: showConnection
+
+    - name: List VPN connections
+      debug:
+        msg: "{{showConnection.stdout}}"
+
+    - name: Get private IP of DPA
+      shell: hostname -I | awk -F ' ' '{print $1}'
+      register: privateIP
+
+    - name: Set fact private Ip dpa node
+      set_fact:
+        private_dpa_ip: "{{ privateIP.stdout }}"
+
+    - name: Docker swarm leave before initializing
+      shell: sudo docker swarm leave
+      ignore_errors: yes
+
+    - name: Start digimops with playbook 
+      shell: ansible-playbook initial_setup.yml --extra-vars "swarm_ip={{ private_dpa_ip }}"
+      args:
+        chdir: /opt/nokia/dpa/initial_setup/ogne_dpa_initial_setup/ansible
+
+    - name: Find all files in build
+      find:
+        path: "/opt/nokia/dpa/digimops"
+        file_type: directory
+        use_regex: false
+        patterns:
+          - 'ogne_dpa_*'
+      register: result
+      become: true
+
+    - name: Check all files
+      debug:
+        msg: "{{ result.files|map(attribute='path')|list }}"
+
+    - name: Copy all file to credentials directory
+      shell: |
+        sudo docker stack deploy -c docker-compose.yml  stack-digi
+      args:
+        chdir: "{{ item }}"
+      loop: "{{ result.files|map(attribute='path')|list }}"
+      become: true
+
+    # - name: Scale up all docker swarm of DPA
+    #   shell: |
+    #     sudo docker service ls | grep 'stack-digi_ogne_dpa_dm' | while read a b c d e; do sudo docker service scale $b=1; done
+    #   become: true
+
+...

@@ -1,0 +1,9 @@
+---
+- name: "Installing PSP bypass"
+  shell: >
+    {{ helmPath }} install {{ chartsPath }}/psp-bypass
+    --wait
+    --namespace {{ NAMESPACE }}
+    --name-template {{ helmName }}-psp-bypass
+    --set helmName={{ helmName }}
+  when: shouldInstall == true

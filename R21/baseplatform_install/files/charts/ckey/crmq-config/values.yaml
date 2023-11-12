@@ -1,0 +1,10 @@
+rbacEnabled: true
+
+config:
+  crmq:
+    ckeyExchangeName: ckey.topic
+    certificatesDir: /certificates/management
+    caCertFile: ca.crt
+    users:
+      ckey:
+        username: ckey-user

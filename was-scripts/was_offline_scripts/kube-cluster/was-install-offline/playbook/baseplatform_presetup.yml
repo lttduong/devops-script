@@ -1,0 +1,189 @@
+- hosts: kubernetes_master_nodes
+  become: yes
+  vars_files:
+    - env_variables
+  
+  tasks:
+    - name: copy cert-manager package to master node
+      copy:
+        src: bp-packages/cert-manager.tar.gz 
+        dest: "{{ dir_master[0] }}" 
+
+    - name: unzip the cert manager package
+      shell: tar -xzvf cert-manager.tar.gz
+      args:
+        chdir: "{{ dir_master[0] }}"
+   
+    - name: install cert-manager
+      shell: PATH=$PATH:/usr/local/bin && helm install --name cert-manager --namespace ncms "{{ dir_master[0] }}"/cert-manager --set webhook.hostNetwork=true --set webhook.securePort=11250 --set global.registry=wasr21containerregistry.azurecr.io --set installCRDs=true  --wait --debug
+      ignore_errors: yes 
+
+    - name: generate a CA private key
+      shell: openssl genrsa -out ca.key 2048
+      args:
+        chdir: "{{ dir_master[0]}}"
+
+    - name: Create a self signed Certificate, valid for 10yrs with the 'signing' option set
+      shell: openssl req -x509 -new -nodes -key "{{ dir_master[0] }}"/ca.key -subj "/CN=NCS" -days 3650 -reqexts v3_req -extensions v3_ca -out "{{ dir_master[0] }}"/ca.crt
+
+    - name: create CA secret
+      shell: kubectl create secret tls ca-key-pair --cert="{{ dir_master[0] }}"/ca.crt --key="{{ dir_master[0] }}"/ca.key -n ncms
+      ignore_errors: yes
+
+    - name: copy ca issuer yml
+      copy:
+        src: bp-packages/bcmt_ca_issuer.yaml
+        dest: "{{ dir_master[0] }}"
+
+    - name: install cluster issuer
+      shell: kubectl create -f "{{ dir_master[0] }}"/bcmt_ca_issuer.yaml
+      ignore_errors: yes
+
+    - name: copy ncs-operators package
+      copy:
+        src: bp-packages/ncs-operators-1.0.0.tgz
+        dest: "{{ dir_master[0] }}"
+
+    - name: install ncs operators
+      shell: PATH=$PATH:/usr/local/bin && helm install --name ncs-operator --namespace ncms --set global.registry=wasr21containerregistry.azurecr.io --set tolerations[0].operator=Exists,tolerations[0].effect=NoExecute "{{ dir_master[0] }}"/ncs-operators-1.0.0.tgz
+      ignore_errors: yes
+
+    - name: copy ncm-system-tune package
+      copy:
+        src: bp-packages/ncm-system-tune-1.0.9.tgz
+        dest: "{{ dir_master[0] }}"
+
+    - name: install ncm system tune
+      shell: PATH=$PATH:/usr/local/bin && helm install --name ncm-system-tune --namespace ncms "{{ dir_master[0] }}"/ncm-system-tune-1.0.9.tgz
+      ignore_errors: yes
+
+    - name: copy ncm-app package
+      copy:
+        src: bp-packages/ncm-app-1.13.1.tgz
+        dest: "{{ dir_master[0] }}"
+
+    - name: copy ncm-app-values.yaml
+      copy:
+        src: bp-packages/ncm-app-values.yaml
+        dest: "{{ dir_master[0] }}"
+
+    - name: install ncm app tune
+      shell: PATH=$PATH:/usr/local/bin && helm install --name app-api "{{ dir_master[0] }}"/ncm-app-1.13.1.tgz -f "{{ dir_master[0] }}"/ncm-app-values.yaml --namespace ncms
+      ignore_errors: yes
+
+    - name: wait for app-api-ncms-app pod be ready
+      shell: kubectl wait --namespace=ncms --for=condition=ready pods -l app=app-api-ncms-app --timeout=600s
+
+    - name: copy ncs-linux-cli
+      copy:
+        src: bp-packages/ncs-linux-cli-20.12.0.tgz
+        dest: "{{ dir_master[0] }}"
+
+    - name: create ncm cli link
+      shell: tar -zxvf "{{ dir_master[0] }}"/ncs-linux-cli-20.12.0.tgz && ln -sf "{{ dir_master[0] }}"/ncs_linux ncm
+      args:
+        chdir: "{{ dir_master[0] }}"
+      ignore_errors: yes
+
+    - name: get app-api-ncms-app svc info
+      shell: kubectl get ep app-api-ncms-app  -n ncms | awk '{ print $2 }'
+      register: ncms_app_svc
+
+    - name: set svc info
+      set_fact:
+        ncms_app_info: "{{ ncms_app_svc.stdout_lines[1] }}"
+
+    - name: create config file
+      shell: echo '{"endpoint":"https://{{ ncms_app_info }}","token":"WdPoqcsA#28"}' > config.json
+      args:
+        chdir: "{{ dir_master[0] }}"
+
+    - name: run ncm command to update the config
+      shell: ./ncm config upgrade --filepath config.json
+      args:
+        chdir: "{{ dir_master[0] }}"
+
+    - name: check ncm if it works fine
+      shell: ./ncm app list 
+      args:
+        chdir: "{{ dir_master[0] }}"
+
+    - name: get ncms app pod name
+      shell: kubectl get po -n ncms | grep app-api-ncms-app  | awk '{ print $1 }'
+      register: ncms_app_pod
+
+    - name: set ncms pod name
+      set_fact:
+        ncms_app_pod: "{{ ncms_app_pod.stdout_lines[0] }}"
+
+    - name: update helm repo in ncms app pod
+      shell: kubectl exec -it {{ ncms_app_pod }} -n ncms -- bash -c 'helm init --client-only --skip-refresh'
+
+    - name: Get Ip worker
+      shell: cat bp_config_vars.yml | awk  -F '"' '{if (NR==10) print $2}' | awk -F '\\,' '{print $2}' | sed 's/\\//g'
+      register: worker_ip
+      args:
+        chdir: "{{ dir_master[0] }}"
+
+    - name: Get fact worker ip
+      set_fact:
+        worker_ip: "{{ worker_ip.stdout }}"
+    
+    - name: get master node ip address
+      shell: hostname -I | awk '{print $1}'
+      register: master_ip
+
+    - name: set master ip
+      set_fact:
+        master_ip: "{{ master_ip.stdout_lines[0] }}"
+
+    - name: remove netguard-data dir if exists
+      shell: rm -rf "{{ dir_master[2] }}"
+      ignore_errors: yes
+
+    - name: create netguard-data dir
+      shell: mkdir "{{ dir_master[2] }}"
+
+    - name: chmod for netguard-data dir
+      shell: chmod -R 777 "{{ dir_master[2] }}"
+
+    - name: update default mode for netguard-data dir
+      shell: setfacl -R -d -m o::rwx "{{ dir_master[2] }}"
+
+    - name: expose nfs dir
+      shell: echo "{{ dir_master[2] }} {{master_ip}}(rw,insecure,async,no_subtree_check,no_root_squash)" > /etc/exports
+
+    - name: expose nfs dir
+      shell: echo "{{ dir_master[2] }} {{worker_ip}}(rw,insecure,async,no_subtree_check,no_root_squash)" >> /etc/exports
+
+    - name: start nfs service
+      shell: systemctl enable rpcbind && systemctl enable nfs-server && systemctl enable nfs-lock && systemctl enable nfs-idmap && systemctl start rpcbind && systemctl start nfs-server && systemctl start nfs-lock && systemctl start nfs-idmap
+
+    - name: restart nfs server
+      shell: systemctl restart nfs-server
+
+#    - name: deploy NFS Subdir External Provisioner
+#      shell: PATH=$PATH:/usr/local/bin && helm repo add nfs-subdir-external-provisioner https://kubernetes-sigs.github.io/nfs-subdir-external-provisioner/
+    
+    - name: copy helm chart nfs-subdir-external-provisioner
+      copy:
+        src: was-packages/nfs-subdir-external-provisioner.tgz
+        dest: "{{ dir_master[0] }}"
+    
+    - name: unzip chart nfs-subdir-external-provisioner
+      shell: tar -xzvf nfs-subdir-external-provisioner.tgz    
+      args:
+        chdir: "{{ dir_master[0] }}"
+
+    - name: get master node ip address
+      shell: hostname -I | awk '{print $1}'
+      register: master_ip
+
+    - name: set master ip
+      set_fact:
+        master_ip: "{{ master_ip.stdout_lines[0] }}"
+
+    - name: install nfs-client storageclass
+      shell: PATH=$PATH:/usr/local/bin && helm install --name nfs-subdir-external-provisioner "{{ dir_master[0] }}"/nfs-subdir-external-provisioner --set nfs.server={{ master_ip }} --set nfs.path="{{ dir_master[2] }}"
+      ignore_errors: yes
+

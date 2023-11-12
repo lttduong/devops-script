@@ -1,0 +1,21 @@
+cluster_name: "my-cluster"
+
+maxscale:
+  maxscale_site_conf: |-
+    [maxscale]
+    threads = 2
+    [RWSplit-Service]
+    use_sql_variables_in = master
+    max_sescmd_history = 100
+
+mariadb:
+  audit_logging:
+    enabled: true
+  users:
+    - name: mariadbuser
+      password:
+      host: "%"
+      object: "*.*"
+      privilege: ALL
+      requires: "SSL"
+      with: "GRANT OPTION"

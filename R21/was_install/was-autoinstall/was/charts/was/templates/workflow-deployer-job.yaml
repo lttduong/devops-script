@@ -1,0 +1,62 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "name" . }}-workflow-deployer
+  labels:
+    app: {{ template "name" . }}
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": {{ .Values.deployer.hookWeight | quote }}
+spec:
+  template:
+    spec:
+      securityContext:
+        runAsUser: {{ .Values.deployer.securityContext.user }}
+        fsGroup: {{ .Values.deployer.securityContext.group }}
+      serviceAccountName: {{ template "name" . }}-install
+{{- if .Values.encryptedProperties }}
+      initContainers:
+{{- tpl .Values.global.propertyEncrypter.initContainersTemplate . | indent 8 }}
+{{- end }}
+      containers:
+      - name: {{ template "name" . }}-workflow-deployer
+        image: "{{ .Values.global.registry }}/{{ .Values.deployer.image }}:{{ tpl .Values.deployer.imageTag . }}"
+        imagePullPolicy: "{{ .Values.deployer.imagePullPolicy }}"
+        env:
+          - name: "rest.address"
+            value: "https://{{ .Values.global.serverClusterServiceName }}.{{ .Values.global.APP_NAMESPACE }}.svc:8443"
+          - name: "keycloak.address"
+            value: "https://ckey-ckey.{{ .Values.global.BP_NAMESPACE }}.svc.{{ .Values.global.DNS_DOMAIN }}:8443/auth"
+          - name: "keycloak.realm"
+            value: {{ .Values.realm | quote }}
+          - name: "keycloak.clientId"
+            value: "netguard-workflow-automation"
+          - name: "deploy.dir"
+            value: "/opt/nokia/config/workflows"
+        resources:
+          requests:
+            memory: {{ .Values.deployer.requests.memory | quote }}
+            cpu: {{ .Values.deployer.requests.cpu | quote }}
+          limits:
+            memory: {{ .Values.deployer.limits.memory | quote }}
+            cpu: {{ .Values.deployer.limits.cpu | quote }}
+        volumeMounts:
+        - name: workflows
+          mountPath: "/opt/nokia/config/workflows"
+{{- tpl .Values.global.propertyEncrypter.volumeMountsTemplate . | indent 8 }}
+      restartPolicy: {{ .Values.deployer.restartPolicy | quote }}
+#      nodeSelector:
+#        is_control: "true"
+#      tolerations:
+#        - effect: NoExecute
+#          key: is_control
+#          operator: Equal
+#          value: "true"
+      volumes:
+      - name: workflows
+        hostPath:
+          path: {{ .Values.deployer.workflowsMountDir }}
+          type: DirectoryOrCreate
+{{- tpl .Values.global.propertyEncrypter.volumesTemplate . | indent 6 }}

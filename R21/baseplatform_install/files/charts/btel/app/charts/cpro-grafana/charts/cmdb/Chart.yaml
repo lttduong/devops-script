@@ -1,0 +1,21 @@
+apiVersion: v1
+appVersion: cmdb-4.20-3_mariadb-10.3.24
+description: MariaDB is a third party software package that is a fork of the MySQL
+  project and provides “drop-in” replacement functionality for MySQL Standard Edition,
+  which is significantly different than the MySQL Cluster Edition.
+engine: gotpl
+home: http://nok.it/CMDB
+icon: http://nok.it/CSF-DB_icon
+keywords:
+- mariadb
+- database
+- cmdb
+- maxscale
+- mysql
+- 'X-COMPAAS: { "CATEGORY": "Databases", "SVC_NAME": "MariaDB", "SVC_TYPE": "CMDB",
+  "SVC_SCOPE": [ "PRIVATE" ] }'
+maintainers:
+- email: csf-osdb-domains@list.nokia.com
+  name: CSF CMDB Team
+name: cmdb
+version: 7.12.2

@@ -1,0 +1,45 @@
+## Start of custom chart file for CSFID-2092
+{{- if .Values.global.certManager.used }}
+apiVersion: {{ .Values.global.certManager.api }}
+kind: Certificate
+metadata:
+  name: {{ template "kibana.fullname" . }}-crt
+  namespace: {{ .Release.Namespace }}
+spec:
+  secretName: {{ template "kibana.fullname" . }}-tls
+  issuerRef:
+    name: {{ .Values.global.certManager.issuerRef.name }}
+    kind: {{ .Values.global.certManager.issuerRef.kind }}
+  duration: {{ .Values.global.certManager.duration }}
+  renewBefore: {{ .Values.global.certManager.renewBefore }}
+  keySize: {{ .Values.global.certManager.keySize }}
+  commonName: {{ template "kibana.name" . }}
+  dnsNames:
+    - {{ template "kibana.name" . }}.{{ .Release.Namespace }}.{{ .Values.dns.domain }}
+  usages:
+    - server auth
+    - client auth
+#  organization:
+#    - Nokia
+---
+apiVersion: {{ .Values.global.certManager.api }}
+kind: Certificate
+metadata:
+  name: {{ template "kibana.fullname" . }}-crt-client
+  namespace: {{ .Release.Namespace }}
+spec:
+  secretName: {{ template "kibana.fullname" . }}-tls-client
+  issuerRef:
+    name: {{ .Values.global.certManager.issuerRef.name }}
+    kind: {{ .Values.global.certManager.issuerRef.kind }}
+  duration: {{ .Values.global.certManager.duration }}
+  renewBefore: {{ .Values.global.certManager.renewBefore }}
+  keySize: {{ .Values.global.certManager.keySize }}
+  commonName: {{ template "kibana.name" . }}
+  usages:
+    - server auth
+    - client auth
+#  organization:
+#    - Nokia
+{{- end }}
+## End of custom chart file

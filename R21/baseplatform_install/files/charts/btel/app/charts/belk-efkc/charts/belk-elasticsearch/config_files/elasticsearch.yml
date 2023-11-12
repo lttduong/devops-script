@@ -1,0 +1,64 @@
+cluster:
+  name: ${CLUSTER_NAME}
+  initial_master_nodes: ${CLUSTER_INITIAL_MASTER_NODES}
+
+node:
+  master: ${NODE_MASTER}
+  data: ${NODE_DATA}
+  name: ${NODE_NAME}
+  ingest: ${NODE_INGEST}
+  remote_cluster_client: ${NODE_REMOTE_CLUSTER_CLIENT}
+
+network.host: ${NETWORK_HOST}
+
+path:
+  data: /data/data
+  logs: /data/log
+  repo: ${PATH_REPO}
+
+#bootstrap.memory_lock: true
+
+http:
+  compression: true
+  cors:
+    enabled: ${HTTP_CORS_ENABLE}
+    allow-origin: ${HTTP_CORS_ALLOW_ORIGIN}
+
+discovery:
+  seed_hosts: ${DISCOVERY_SERVICE}
+
+searchguard:
+  ## Start of custom modification of original chart for https://jiradc2.ext.net.nokia.com/browse/CSFID-3451
+  cache.ttl_minutes: 0
+  ## End of Custom modification of original chart
+  ssl.transport:
+    enabled: true
+    enable_openssl_if_available: false
+    keystore_type: ${KEYSTORE_TYPE}
+    keystore_filepath: ${KEYSTORE_FILEPATH}
+    keystore_password: ${KS_PWD}
+    truststore_type: ${TRUSTSTORE_TYPE}
+    truststore_filepath: ${TRUSTSTORE_FILEPATH}
+    truststore_password: ${TS_PWD}
+    enforce_hostname_verification: false
+  ssl.http:
+    enabled: ${HTTP_SSL}
+    clientauth_mode: OPTIONAL
+    enable_openssl_if_available: true
+    keystore_type: ${KEYSTORE_TYPE}
+    keystore_filepath: ${KEYSTORE_FILEPATH}
+    keystore_password: ${KS_PWD}
+    truststore_type: ${TRUSTSTORE_TYPE}
+    truststore_filepath: ${TRUSTSTORE_FILEPATH}
+    truststore_password: ${TS_PWD}
+  authcz.admin_dn:
+    - "${AUTH_ADMIN_DN}"
+  enterprise_modules_enabled: false
+  ## Start of custom modification of original chart - custom nodes_dn with namespace should be removed in next rel
+  nodes_dn:
+    - "${NODES_DN}"
+    - 'CN={{ .Values.global.config.btel.elasticsearchServiceName }}.{{ .Release.Namespace }}.{{ .Values.dns.domain }}'
+  ## End of Custom modification of original chart
+  ssl:
+    cert_reload_enabled: true
+    http.crl.validate: false

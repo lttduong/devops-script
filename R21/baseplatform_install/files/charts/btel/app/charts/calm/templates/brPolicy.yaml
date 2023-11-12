@@ -1,0 +1,36 @@
+{{- if .Values.backuprestore.enabled }}
+apiVersion: "cbur.bcmt.local/v1"
+kind: BrPolicy
+metadata:
+  labels:
+    app: {{ template "alarm.name" . }}
+    chart: {{ .Chart.Name }}
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+    version: {{ .Chart.Version }}
+  name: {{ template "alarm.fullname" . }} #<--must have the same name as deployment/statefulset which you want to backup
+spec:
+  selector:
+    matchLabels:
+      app: {{ template "alarm.name" . }} #<--unique label of pod that identify the pods of deployment and statefulset
+  volumes:
+  - backup #<---volume name you want to backup. NOTE: not mount path
+  backend:
+    mode: "{{ .Values.backuprestore.backendMode }}"           #<---not other mode allowed/supported now
+
+  k8sType: statefulset
+
+  brOption: {{ .Values.backuprestore.brOption }}
+
+  cronSpec: "{{ .Values.backuprestore.cronJob }}"  #<---cronjob frequency, here means very 10 minutes of every day
+
+  maxiCopy: {{ .Values.backuprestore.maxCopy }}               #<---the maximum copy you want to saved.
+
+  hooks:
+  - name: {{ template "alarm.container.fullname" . }}  #<---container name in the pod where you want to execute hooks.
+    commands:
+      preBackupCmd: ["sh", "-c", "/usr/lib/alma/backup.sh /var/lib/calm/backup/calm/"]  #<--command will be executed after sidecar insert
+      postBackupCmd: ["sh", "-c", "rm -rf /var/lib/calm/backup/*"]               #<--command will be executed before removing sidecar and after backup(scp)
+      preRestoreCmd: []               #<--command will be executed after sidecar insert
+      postRestoreCmd: ["sh", "-c", "/usr/lib/alma/restore.sh /var/lib/calm/backup/calm/"] #<-- comand will be executed before removing sidecar and after retore(scp)
+{{- end}}

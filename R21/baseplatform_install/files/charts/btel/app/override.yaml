@@ -1,0 +1,1111 @@
+# Choose the components that prefered to create
+tags:
+  btel_cmdb: false
+  btel_belk: true
+  btel_calm: true
+  btel_cpro: true
+  btel_gen3gppxml: true
+  btel_grafana: true
+  btel_crmq: false
+  btel_ckaf: false
+  btel_ckaf_schema: false
+  btel_cnot: true
+  btel_citm: false
+  belk-fluentd: true
+  belk-elasticsearch: true
+  belk-kibana: true
+  belk-curator: true
+  belk-elasticsearch-exporter: false
+
+belk:
+  belk-elasticsearch:
+    service:
+      prometheus_metrics:
+        enabled: true
+    cbur:
+      enabled: true
+      ignoreFileChanged: true
+      autoUpdateCron: true
+      cbura:
+        imageTag: 1.0.3-983
+    # This value represents the cbura sidecar volume which is 1/2 the size of the data volume for ES
+    backup_restore:
+      size: 25Gi
+    nfsServer:
+      address:
+      backupsPath: /var/nfsshare/bp/elasticsarch-backup
+      mountOptions:
+        - "hard,"
+        - "async,"
+        - "timeo=600,"
+        - "actimeo=300,"
+        - "retrans=16,"
+        - "vers=4.1,"
+    snapshotsCleanupInterval: 7
+    volumes:
+      path:
+        keys: /opt/securitymanager/keystore
+        certs: /input/certs
+    searchguard:
+      enable: true
+      auth_admin_identity: CN=admin
+      nodes_dn: 'CN=elasticsearch'
+
+      sg_configmap:
+        sg_internal_users_yml: |-
+          ---
+          _sg_meta:
+            type: "internalusers"
+            config_version: 2
+
+        # refer https://docs.search-guard.com/latest/action-groups
+        sg_action_groups_yml: |-
+          ---
+          _sg_meta:
+            type: "actiongroups"
+            config_version: 2
+
+        sg_config_yml: |-
+          ---
+          _sg_meta:
+            type: "config"
+            config_version: 2
+
+          sg_config:
+            dynamic:
+              http:
+                anonymous_auth_enabled: false
+                xff:
+                  enabled: true
+                  internalProxies: ".+"
+                  remoteIpHeader: 'x-forwarded-for'
+              authc:
+                proxy_auth_domain:
+                  http_enabled: true
+                  transport_enabled: true
+                  order: 0
+                  http_authenticator:
+                    type: "proxy"
+                    challenge: true
+                    config:
+                      user_header: "netguard-proxy-user"
+                      roles_header: "netguard-proxy-roles"
+                  authentication_backend:
+                    type: "noop"
+                    config: {}
+                clientcert_auth_domain:
+                  http_enabled: true
+                  transport_enabled: true
+                  order: 1
+                  http_authenticator:
+                    type: "clientcert"
+                    challenge: false
+                  authentication_backend:
+                    type: "noop"
+                basic_internal_auth_domain:
+                  http_enabled: true
+                  transport_enabled: true
+                  order: 2
+                  http_authenticator:
+                    type: "basic"
+                    challenge: true   # Set this to false when keycloak authentication is enabled
+                    config: {}
+                  authentication_backend:
+                    type: "intern"
+                    config: {}
+                keycloak_auth_domain:
+                  http_enabled: false              # Set to true to enable keycloak authentication
+                  transport_enabled: true
+                  order: 3
+                  http_authenticator:
+                    type: keycloak
+                    challenge: false
+                    config:
+                      username_key: preferred_username
+                      roles_key: <roles>
+                      keycloak_connect_url: https://<keycloak_ip>:<port>/auth/realms/<realm_name>/.well-known/openid-configuration
+                      client_id: <client_id>
+                      client_secret: <client_secret>
+                  authentication_backend:
+                      type: noop
+
+        sg_roles_yml: |-
+          ---
+          _sg_meta:
+            type: "roles"
+            config_version: 2
+          sg_fluentd:
+            cluster_permissions:
+              - SGS_CLUSTER_COMPOSITE_OPS
+              - SGS_CLUSTER_MONITOR
+            index_permissions:
+              - index_patterns:
+                - 'fluentd*'
+                allowed_actions:
+                - SGS_INDICES_ALL
+          sg_niam:
+            cluster_permissions:
+              - '*'
+            index_permissions:
+              - index_patterns:
+                - '*'
+                allowed_actions:
+                - indices:admin/template/get
+              - index_patterns:
+                - 'commands_niam*'
+                - 'videologsearch*'
+                - 'session*'
+                allowed_actions:
+                - SGS_INDICES_ALL
+          sg_niam_curator:
+            cluster_permissions:
+              - SGS_CLUSTER_COMPOSITE_OPS
+              - SGS_CLUSTER_MONITOR
+            index_permissions:
+              - index_patterns:
+                - 'commands_niam*'
+                - 'videologsearch*'
+                - 'session*'
+                allowed_actions:
+                  - SGS_GET
+                  - SGS_MANAGE_ALIASES
+                  - indices:admin/get
+                  - indices:admin/delete
+              - index_patterns:
+                  - '*'
+                allowed_actions:
+                  - indices:monitor/stats
+                  - indices:monitor/settings/get
+          sg_curator:
+            cluster_permissions:
+              - SGS_CLUSTER_COMPOSITE_OPS
+              - SGS_CLUSTER_MONITOR
+            index_permissions:
+              - index_patterns:
+                  - 'fluentd*'
+                allowed_actions:
+                  - SGS_GET
+                  - SGS_MANAGE_ALIASES
+                  - indices:admin/get
+                  - indices:admin/delete
+              - index_patterns:
+                  - '*'
+                allowed_actions:
+                  - indices:monitor/stats
+                  - indices:monitor/settings/get
+          sg-cpro-server:
+            cluster_permissions:
+              - SGS_CLUSTER_COMPOSITE_OPS
+              - SGS_CLUSTER_MONITOR
+            index_permissions:
+              - index_patterns:
+                  - '*'
+                allowed_actions:
+                  - SGS_GET
+                  - SGS_READ
+                  - SGS_SEARCH
+                  - SGS_INDICES_MONITOR
+                  - indices:admin/aliases/get
+                  - indices:admin/mappings/get
+                  - indices:admin/template/get
+                  - indices:data/read/search/template
+                  - indices:monitor/stats
+                  - indices:monitor/settings/get
+          sg_sso_user:
+            cluster_permissions:
+              - SGS_CLUSTER_COMPOSITE_OPS
+              - SGS_CLUSTER_MONITOR
+            index_permissions:
+              - index_patterns:
+                  - '*'
+                allowed_actions:
+                  - SGS_KIBANA_USER
+                  - SGS_INDICES_ALL
+                  - SGS_GET
+          sg_bp_system_administrator:
+            cluster_permissions:
+              - SGS_UNLIMITED
+            index_permissions:
+              - index_patterns:
+                  - '*'
+                allowed_actions:
+                  - SGS_UNLIMITED
+
+        sg_roles_mapping_yml: |-
+          ---
+          _sg_meta:
+            type: "rolesmapping"
+            config_version: 2
+
+          sg_sso_user:
+            backend_roles:
+              - BP_KIBANA
+
+          SGS_KIBANA_SERVER:
+            users:
+              - 'CN=belk-kibana'
+          sg_fluentd:
+            users:
+              - 'CN=belk-fluentd'
+          sg_niam:
+            users:
+              - 'CN=iam-fluentd'
+          sg_niam_curator:
+            users:
+              - 'CN=iam-niam-curator'
+          sg_curator:
+            users:
+              - 'CN=belk-curator'
+          sg-cpro-server:
+            users:
+              - 'CN=cpro-server'
+          sg_bp_system_administrator:
+            backend_roles:
+              - BP_SYSTEM_ADMIN
+
+        sg_tenants_yml: |-
+          ---
+          _sg_meta:
+            type: "tenants"
+            config_version: 2
+
+    esdata:
+      livenessProbe:
+        periodSeconds: 20
+      readinessProbe:
+        periodSeconds: 20
+
+    elasticsearch_master:
+      livenessProbe:
+        periodSeconds: 20
+      readinessProbe:
+        periodSeconds: 20
+
+  belk-fluentd:
+    fluentd:
+      configFile: |
+        <source>
+        @type tail
+        path /var/log/containers/*netguard*.log,/var/log/messages
+        pos_file /var/log/td-agent/containers.json.access.pos
+        tag kubernetes.*
+        read_from_head true
+        <parse>
+            @type regexp
+            expression /(^(?<header>[^\{]+)?(?<message>\{.+\})$)|(^(?<log>[^\{].+))/
+        </parse>
+        </source>
+
+        <filter kubernetes.var.log.containers.**.log>
+          @type parser
+          key_name message
+          format json
+          time_parse false
+        </filter>
+
+        #this filter is used for C API which remove "[stdout]" from log
+        #if CLOG Unified Logging C API won't be used, this filter can be removed
+        <filter kubernetes.var.log.containers.**.log>
+        @type parser
+        format /^(\[stdout\])*(?<log>.+)$/
+        key_name log
+        suppress_parse_error_log true
+        </filter>
+
+        <filter kubernetes.var.log.containers.**.log>
+         @type record_modifier
+         <record>
+              message ${record["log"]}
+         </record>
+        </filter>
+
+        <filter kubernetes.var.log.containers.**.log>
+         @type record_modifier
+         remove_keys log
+        </filter>
+
+        <filter kubernetes.var.log.containers.**.log>
+        @type kubernetes_metadata
+        kubernetes_url https://kubernetes.default.svc:443
+        de_dot false
+        </filter>
+
+        <match kubernetes.var.log.containers.**.log>
+        @type rewrite_tag_filter
+        <rule>
+          key message
+          pattern ^\s*\{(.+,)?\s*"type":.+\}\s*$
+          tag nokia.logging.json
+        </rule>
+        <rule>
+          key message
+          pattern .+
+          tag nokia.logging.legacy
+        </rule>
+        </match>
+
+        <filter nokia.logging.json>
+          @type parser
+          key_name message
+          reserve_data true
+          format json
+          time_parse false
+        </filter>
+
+        <filter kubernetes.var.log.**>
+        @type record_modifier
+        remove_keys _dummy1_,_dummy2_,_dummy3_,_dummy4_
+        <record>
+          _dummy1_ ${if !record.has_key?("host"); record["host"] = ENV.fetch('HOST', 'UNAVAILABLE'); end;}
+          _dummy2_ ${if !record.has_key?("system"); record["system"] = ENV.fetch('SYSTEM', 'UNAVAILABLE'); end;}
+          _dummy3_ ${if !record.has_key?("systemid"); record["systemid"] = ENV.fetch('SYSTEMID', 'UNAVAILABLE'); end;}
+          _dummy4_ ${if record.has_key?("message"); record["log"] = record["message"]; end;}
+          log ${{"message":record["log"]}}
+          type log
+        </record>
+        </filter>
+
+        <filter kubernetes.var.log.**>
+        @type record_transformer
+        enable_ruby true
+        <record>
+          time ${time.strftime('%Y-%m-%dT%H:%M:%S.%LZ')}
+        </record>
+        </filter>
+
+        <filter nokia.logging.*>
+        @type record_modifier
+        remove_keys _dummy1_
+        <record>
+          _dummy1_ ${record.has_key?("kubernetes") ? record["namespace"]=record["kubernetes"]["namespace_name"]:record["namespace"] = 'UNAVAILABLE'}
+          tenant_msgtype ${record["namespace"]}.${record["type"]}
+        </record>
+        </filter>
+
+        <match kubernetes.var.log.**>
+        @type rewrite_tag_filter
+        <rule>
+          key log
+          pattern .+
+          tag nokia.logging.default.legacy
+        </rule>
+        </match>
+
+        <filter nokia.logging.legacy>
+        @type record_modifier
+        <record>
+          log ${{"message":record["message"]}}
+          type log
+        </record>
+        </filter>
+
+        <match nokia.logging.json>
+        @type rewrite_tag_filter
+        <rule>
+          key "type"
+          pattern ^(.+)$
+          tag "nokia.logging.$1"
+        </rule>
+        </match>
+
+        ##Here is a sample for fluent-plugin-brevity-control
+        ##this plugin can be used to remove reduplicative records
+        ##for more details, please refer to CLOG User Guide
+        #<filter nokia.logging.log>
+        #  @type brevity_control
+        #  interval 10
+        #  num 2
+        #  attr_keys log.message, level
+        #  max_slot_num 100000
+        #  stats_msg_fields kubernetes
+        #</filter>
+
+        <filter nokia.logging.**>
+        @type clog
+        </filter>
+
+        <match nokia.logging.*>
+          @type rewrite_tag_filter
+          <rule>
+              key tenant_msgtype
+              pattern ^(.+)\.log$
+              tag nokia.logging.$1.tmp
+          </rule>
+          <rule>
+              key tenant_msgtype
+              pattern ^(.+\..+)$
+              tag nokia.logging.$1
+          </rule>
+          <rule>
+              key tenant_msgtype
+              pattern ^(.+)\.$
+              tag nokia.logging.$1.legacy
+          </rule>
+        </match>
+
+        <match nokia.logging.*.tmp>
+          @type rewrite_tag_filter
+          <rule>
+            key facility
+            pattern 24
+            tag nokia.logging.${tag_parts[2]}.authlog
+          </rule>
+          <rule>
+            key message
+            pattern ^\s*\{(.+)?\s*"event-type":.+\}\s*$
+            tag nokia.logging.${tag_parts[2]}.auditlog
+          </rule>
+          <rule>
+              key message
+              pattern ^\s*\{(.+)?\s*"message":.+\}\s*$
+              tag nokia.logging.${tag_parts[2]}.log
+          </rule>
+          <rule>
+              key message
+              pattern .+
+              tag nokia.logging.${tag_parts[2]}.log2
+          </rule>
+        </match>
+
+        <filter nokia.logging.*.*>
+          @type record_modifier
+          remove_keys priority, _uid, _gid, _systemd_slice, _machine_id, _transport, _cap_effective, _comm, _exe, _cmdline, _hostname, _systemd_cgroup, _systemd_unit, _selinux_context, _boot_id, _pid, message, container_id_full, container_name, container_tag, _source_realtime_timestamp, docker, kubernetes, tenant_msgtype
+        </filter>
+
+        #############################
+        ## prometheus config start ##
+        #############################
+        <source>
+        @type prometheus
+        </source>
+
+        <filter nokia.logging.*.counter>
+        @type record_modifier
+        <record>
+            counter_value ${record["counter"]["value"]}
+            counter_mid ${record["counter"]["mid"]}
+            counter_object ${record["counter"]["object"]}
+            counter_id ${record["counter"]["id"]}
+        </record>
+        </filter>
+
+        #
+        # WARNING: Don't use the match directive here. Otherwise, the messages of counter
+        # cannot be processed further by other parts behind this block.
+        #
+        <filter nokia.logging.*.counter>
+        @type prometheus
+        <metric>
+            name meas_gauge
+            type gauge
+            desc "measurement exported via fluent-plugin-prometheus"
+            key counter_value
+            <labels>
+                mid ${counter_mid}
+                object ${counter_object}
+                id ${counter_id}
+                host ${host}
+                namespace ${namespace}
+            </labels>
+        </metric>
+        </filter>
+
+        #############################
+        ## prometheus config end   ##
+        #############################
+
+        <match nokia.logging.*.*>
+          @type relabel
+          @label @NOKIA-LOGGING-ROUTING
+        </match>
+
+        <label @NOKIA-LOGGING-ROUTING>
+          <filter nokia.logging.*.alarm>
+              @type record_transformer
+              <record>
+                  @class com.nsn.cam.alma.own.api.event.UnifiedLoggingAlarmEvent
+              </record>
+          </filter>
+
+        #
+        # tag: nokia.logging.${namespace}.${type}
+        #
+          <match nokia.logging.*.alarm>
+            @type copy
+          #######################
+          ## amqp config start ##
+          #######################
+             <store>
+                @type amqp
+                host crmq-crmq.<BP_NAMESPACE_PLACEHOLDER>.<DNS_DOMAIN_PLACEHOLDER>:5671
+                vhost /
+                tls true
+                tls_key "/etc/td-agent/certsamqp/tls.key"
+                tls_cert "/etc/td-agent/certsamqp/tls.crt"
+                tls_ca_certificates "/etc/td-agent/certsamqp/ca.crt"
+                tls_verify_peer true
+                auth_mechanism EXTERNAL
+                key event
+                exchange cfw
+                exchange_type direct
+                content_type application/json
+                durable true
+                <buffer>
+                    @type file
+                    path /var/log/td-agent/rabbitmq-buffer/nokia.logging.all.alarm
+                    flush_mode immediate
+                </buffer>
+             </store>
+          #####################
+          ## amqp config end ##
+          #####################
+
+            <store>
+                @type rewrite_tag_filter
+                <rule>
+                  key type
+                  pattern .+
+                  tag ${tag}.es
+                </rule>
+            </store>
+          </match>
+
+          <match nokia.logging.**>
+            @type copy
+            <store>
+                @type elasticsearch_dynamic
+                host elasticsearch.<BP_NAMESPACE_PLACEHOLDER>.<DNS_DOMAIN_PLACEHOLDER>
+                port 9200
+                resurrect_after 5s
+                request_timeout 15s
+                reconnect_on_error true
+                reload_on_failure true
+                reload_connections false
+                type_name fluentd
+                time_key time
+                utc_index true
+                time_key_exclude_timestamp true
+                logstash_format true
+                logstash_prefix fluentd-${tag_parts[2]}-${tag_parts[3]}
+
+                ca_file /etc/td-agent/certs/ca.crt
+                client_cert /etc/td-agent/certs/tls.crt
+                client_key /etc/td-agent/certs/tls.key
+                scheme https
+                ssl_verify true
+                ssl_version TLSv1_2
+
+                <buffer tag, time, namespace, type>
+                    @type file
+                    path /var/log/td-agent/elasticsearch-buffer/nokia.logging.all.all
+                    flush_mode interval
+                    flush_interval 30s
+                    timekey 3600
+                    retry_forever true
+                    retry_max_interval 5s
+                    overflow_action block
+                    chunk_limit_size 8MB
+                    total_limit_size 512m
+                </buffer>
+            </store>
+          </match>
+
+        </label>
+
+  belk-curator:
+    curator:
+      indexRetentionDays: 7
+      schedule: "0 1 * * *"
+      jobSpec:
+        successfulJobsHistoryLimit: 30
+        failedJobsHistoryLimit: 30
+        concurrencyPolicy: Forbid
+        startingDeadlineSeconds: 60
+      jobTemplateSpec:
+        backoffLimit: 7
+
+      configMaps:
+        action_file_yml: |-
+          ---
+          actions:
+            1:
+              action: delete_indices
+              description: "Delete indices older than {{ .Values.curator.indexRetentionDays }} (based on index name)"
+              options:
+                timeout_override:
+                continue_if_exception: False
+                disable_action: False
+                ignore_empty_list: True
+              filters:
+              - filtertype: pattern
+                kind: prefix
+                value: fluentd-
+              - filtertype: age
+                source: name
+                direction: older
+                timestring: '%Y.%m.%d'
+                unit: days
+                unit_count: {{ .Values.curator.indexRetentionDays }}
+        config_yml: |-
+          ---
+          client:
+            # communicating elasticsearch via SG certificates
+            certificate: '/etc/elasticsearch-curator/certs/root-ca.pem'
+            client_cert: '/etc/elasticsearch-curator/ssl/admin.crt.pem'
+            client_key: '/etc/elasticsearch-curator/ssl/admin.key.pem'
+            hosts:
+            - elasticsearch.<BP_NAMESPACE_PLACEHOLDER>.<DNS_DOMAIN_PLACEHOLDER>
+            http_auth: 'Y2hhbmdlaXQK:Y2hhbmdlaXQK' # user not used: https://jiradc2.ext.net.nokia.com/browse/CSFID-3351
+            master_only: 'false'
+            port: 9200
+            # ssl_no_validate property should be 'false' when you are using SG
+            ssl_no_validate: 'false'
+            timeout: '60'
+            url_prefix: ''
+            # use_ssl property should be true when you are using SG.
+            use_ssl: 'true'
+          logging:
+            blacklist:
+            - elasticsearch
+            - urllib3
+            logfile: ''
+            logformat: default
+            loglevel: INFO
+
+    searchguard:
+      enable: true
+
+  belk-kibana:
+    searchguard:
+      enable: true
+      ##Start of custom modification to original chart
+      ##user not used: https://greenhopper.app.alcatel-lucent.com/browse/CSFS-17226
+      base64_kib_es_username: Y2hhbmdlaXQK
+      base64_kib_es_password: Y2hhbmdlaXQK
+      ##End of custom modification to original chart
+      kibana:
+        es_ssl_verification_mode: certificate
+    kibana:
+      configMaps:
+        kibana_configmap_yml: |-
+          ---
+          # Donot change sever name and host. This is default configuration.
+          server.name: kibana
+          server.host: "0"
+          #Enable server.ssl.supportedProtocols when SG is enabled.
+          server.ssl.supportedProtocols: ["TLSv1.2"]
+          server.ssl.enabled: true
+          server.ssl.certificate: /usr/share/kibana/ssl/tls.crt
+          server.ssl.key: /usr/share/kibana/ssl/tls.key
+          elasticsearch.requestHeadersWhitelist: [ "sgtenant", "x-forwarded-for", "x-forwarded-by", "netguard-proxy-user", "netguard-proxy-roles", "cookie", "x-real-ip" ]
+          elasticsearch.ssl.certificate: /usr/share/kibana/client-ssl/tls.crt
+          elasticsearch.ssl.key: /usr/share/kibana/client-ssl/tls.key
+          elasticsearch.ssl.alwaysPresentCertificate: false
+          searchguard.allow_client_certificates: true
+          searchguard.auth.type: "proxy"
+          csp.strict: true
+
+      env:
+        # if searchguard enabled use https instead of http. Please provide proper elasticsearch url to connect elasticsearch.
+        # value is http://<elasticsearch_service_name>.<namespace>:9200.
+        # Namespace is required only when elasticsearch and kibana are in different namespace
+        # if SG is enabled then uncomment SSl and certificate parameters. Do not change the certificate names, since the certificates are getting created by this name.
+        - name: "ELASTICSEARCH_HOSTS"
+          value: "https://elasticsearch.<BP_NAMESPACE_PLACEHOLDER>.<DNS_DOMAIN_PLACEHOLDER>:9200"
+      initialDelaySeconds: 360
+    ingress:
+      enabled: true
+      annotations:
+        nginx.ingress.kubernetes.io/configuration-snippet: |
+          access_by_lua_block {
+            require("keycloak").authenticate().andRequireReamlRole("BP_KIBANA").andSetProxyAuthHeaders()
+          }
+        nginx.ingress.kubernetes.io/limit-connections: "100"
+        nginx.ingress.kubernetes.io/limit-rps: "100"
+        nginx.ingress.kubernetes.io/rewrite-target: /$1
+        nginx.ingress.kubernetes.io/secure-backends: "true"
+        nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+        nginx.ingress.kubernetes.io/ssl-redirect: "true"
+        nginx.ingress.kubernetes.io/proxy-buffer-size: "128k"
+        nginx.ingress.kubernetes.io/proxy_buffers: "4 256k"
+        nginx.ingress.kubernetes.io/proxy_busy_buffers_size: "256k"
+        ingress.citm.nokia.com/sticky-route-services: ""
+
+cnot:
+  volumes:
+    path:
+      keys: /output/keystore
+      certs: /input/certs
+# Copy cnot-configmap from values.yaml. This is a workarround to update email addresses in installation file using --set option.
+# https://github.com/helm/helm/issues/5711
+  cnot-configmap:
+    cnotFiles:
+      app_conf.yaml:
+        PROFILES:
+          - id: ProfileForCPRO
+            channels:
+              - type: ALARM
+                content:
+                  - filter:
+                      location: $.alerts[*]
+                    transform:
+                      alarmId:
+                        selected: $.labels.id
+                        required: true
+                      alarmName:
+                        selected: $.labels.name
+                        required: true
+                      alarmSeverity:
+                        selected: $[?(@.status == 'firing')].labels.severity
+                        default: CLEARED
+                      alarmKey:
+                        selected: $.labels.key
+                        default: ''
+                      alarmTask:
+                        default: NOTIFY
+                      alarmText:
+                        selected: $.labels.text
+                        required: true
+                      alarmEventType:
+                        selected: $.labels.eventType
+                        required: true
+                      alarmProbableCause:
+                        selected: $.labels.probableCause
+                        required: true
+                      alarmData:
+                        selected: $.annotations.description
+                      time:
+                        selected: $.startsAt
+                      host:
+                        selected: $.labels.host
+                      system:
+                        selected: $.labels.system
+                      systemId:
+                        selected: $.labels.systemid
+                      extension.source:
+                        selected: $.labels.source
+                      extension.Enterprise:
+                        selected: $.labels.namespace
+          - id: ProfileForCALM
+            channels:
+              - type: EMAIL
+                content:
+                  - filter:
+                      location: $.alerts[*]
+                    transform:
+                      subject:
+                        default: AlarmNotice
+                      text:
+                        template: EmailTemplate1
+                        variables:
+                          alarmId:
+                            selected: $.labels.id
+                            required: true
+                          alarmName:
+                            selected: $.labels.name
+                            required: true
+                          alarmTask:
+                            selected: $.labels.task
+                            required: true
+                          alarmSeverity:
+                            selected: $.labels.severity
+                            required: true
+                          alarmKey:
+                            selected: $.labels.key
+                          alarmText:
+                            selected: $.labels.text
+                            required: true
+                          alarmEventType:
+                            selected: $.labels.eventType
+                            required: true
+                          alarmProbableCause:
+                            selected: $.labels.probableCause
+                            required: true
+                          alarmData:
+                            selected: $.annotations.description
+                          time:
+                            selected: $.time
+                          timeZone:
+                            selected: $.timezone
+                          process:
+                            selected: $.process
+                          service:
+                            selected: $.service
+                          container:
+                            selected: $.container
+                          host:
+                            selected: $.host
+                          system:
+                            selected: $.system
+                          systemId:
+                            selected: $.systemid
+                          source:
+                            selected: $.labels.source
+                          namespace:
+                            selected: $.labels.namespace
+                      from:
+                        default: someone@nokia.com
+                      sendAsHtml:
+                        default: false
+                      to:
+                        default: to1@nokia.com
+
+calm:
+  volumes:
+    path:
+      keys: /output/keystore
+      certs: /input/certs
+  #logLevel: DEBUG
+  passphrase: mypassphrase
+  cnot:
+    passphrase: 123
+  mq:
+    passphrase: mypassphrase
+  serviceType: ClusterIP
+  snmpNodePort: 31161
+  snmpTrapNodePort: 31162
+
+  ###################################
+  ## Northbound OSS Related Settings#
+  ###################################
+
+  snmpv2cUserConfiguration:
+    - securityName: sec1
+      communityName: test11
+      context: contexta
+
+  groupConfiguration:
+    - groupName: v2cgroup1
+      securityModel: SNMPv2c
+      userName: sec1
+      context: contexta
+    - groupName: v3group1
+      securityModel: USM
+      userName: test1
+
+  accessConfiguration:
+    - groupName: v2cgroup1
+      securityModel: SNMPv2c
+      securityLevel: noAuthNoPriv
+      readView: fullReadView
+      writeView: fullWriteView
+      notifyView: fullNotifyView
+      context: contexta
+    - groupName: v3group1
+      securityModel: USM
+      securityLevel: authPriv
+      readView: fullReadView
+      writeView: fullWriteView
+      notifyView: fullNotifyView
+
+  notificationParametersConfiguration:
+    - notifyParamsName: v2cParams
+      notifyUser: sec1
+      notifySecurityModel: SNMPv2c
+      notifySecurityLevel: noAuthNoPriv
+      context: contexta
+    - notifyParamsName: v3Params1
+      notifyUser: test1
+      notifySecurityModel: USM
+      notifySecurityLevel: authPriv
+
+  viewConfiguration:
+    - viewName: fullReadView
+      oid: 1.3
+      context:
+    - viewName: fullWriteView
+      oid: 1.3
+      context:
+    - viewName: fullNotifyView
+      oid: 1.3
+      context:
+
+  snmpv3UserConfiguration:
+    - userName: test1
+      authProtocol: MD5
+      authPassword: U2FsdGVkX1+0gy24BhfY4s8Pu1z9Jsk817UOA6+3/rE=
+      privProtocol: DES
+      privPassword: U2FsdGVkX1+0gy24BhfY4s8Pu1z9Jsk817UOA6+3/rE=
+      passPhrase: mypassphrase
+      context:
+
+cpro:
+  alertmanagerFiles:
+    alertmanager.yml:
+      receivers:
+        - name: default-receiver
+          webhook_configs:
+            - url: 'https://cnot.<BP_NAMESPACE_PLACEHOLDER>.<DNS_DOMAIN_PLACEHOLDER>:443/api/cnot/v1/notif'
+              http_config:
+                tls_config:
+                  ca_file: /etc/config/alertmanager/tls/alertmanager.cert
+  serverFiles:
+    prometheus.yml:
+      global:
+        scrape_interval: 2m
+  prometheus.yml:
+      scrape_configs:
+        - job_name: fluentd
+          targets: ['fluentd.<BP_NAMESPACE_PLACEHOLDER>.<DNS_DOMAIN_PLACEHOLDER>:24224']
+          scheme: http
+  server:
+    cbur:
+      enabled: false
+    retention:
+      size: 8GB
+    block_duration:
+      min: 1h
+      max: 1h
+
+  customScrapeJobs:
+    - job_name: es-prometheus
+      tls_config:
+        insecure_skip_verify: true
+        ca_file: /etc/tls/ca.crt
+        cert_file: /etc/tls/tls.crt
+        key_file: /etc/tls/tls.key
+      kubernetes_sd_configs:
+        - role: pod
+      relabel_configs:
+        - action: keep
+          regex: elasticsearch
+          source_labels:
+            - __meta_kubernetes_pod_label_component
+        - action: keep
+          regex: true
+          source_labels:
+            - __meta_kubernetes_pod_annotation_prometheus_io_scrape_es
+        - action: replace
+          regex: (https?)
+          source_labels:
+            - __meta_kubernetes_pod_annotation_prometheus_io_scheme
+          target_label: __scheme__
+        - action: replace
+          regex: (.+)
+          source_labels:
+            - __meta_kubernetes_pod_annotation_prometheus_io_path
+          target_label: __metrics_path__
+        - action: replace
+          regex: ([^:]+)(?::\d+)?;(\d+)
+          replacement: $1:$2
+          source_labels:
+            - __address__
+            - __meta_kubernetes_pod_annotation_prometheus_io_port
+          target_label: __address__
+        - action: labelmap
+          regex: __meta_kubernetes_pod_label_(.+)
+        - action: replace
+          source_labels:
+            - __meta_kubernetes_namespace
+          target_label: kubernetes_namespace
+        - action: replace
+          source_labels:
+            - __meta_kubernetes_pod_name
+          target_label: kubernetes_name
+        - action: replace
+          source_labels:
+            - __meta_kubernetes_pod_node_name
+          target_label: kubernetes_io_hostname
+    - job_name: es-prometheus-svc
+      tls_config:
+        insecure_skip_verify: true
+        ca_file: /etc/tls/ca.crt
+        cert_file: /etc/tls/tls.crt
+        key_file: /etc/tls/tls.key
+      kubernetes_sd_configs:
+        - role: endpoints
+      relabel_configs:
+        - action: keep
+          regex: elasticsearch
+          source_labels:
+          - __meta_kubernetes_pod_label_component
+        - action: keep
+          regex: true
+          source_labels:
+          - __meta_kubernetes_service_annotation_prometheus_io_scrape_es
+        - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_scheme]
+          action: replace
+          target_label: __scheme__
+          regex: (https?)
+        - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_path]
+          action: replace
+          target_label: __metrics_path__
+          regex: (.+)
+        - source_labels: [__address__, __meta_kubernetes_service_annotation_prometheus_io_port]
+          action: replace
+          target_label: __address__
+          regex: ([^:]+)(?::\d+)?;(\d+)
+          replacement: $1:$2
+        - action: labelmap
+          regex: __meta_kubernetes_pod_label_(.+)
+        - source_labels: [__meta_kubernetes_namespace]
+          action: replace
+          target_label: namespace
+        - source_labels: [__meta_kubernetes_service_name]
+          action: replace
+          target_label: kubernetes_service_name
+        - source_labels: [__meta_kubernetes_pod_node_name]
+          target_label: kubernetes_io_hostname
+          action: replace
+        - action: replace
+          source_labels:
+          - __meta_kubernetes_pod_name
+          target_label: kubernetes_name
+
+grafana:
+  grafana_ini:
+    server:
+      protocol: https
+      root_url: "%(protocol)s://%(domain)s:%(http_port)s/grafana/"
+      cert_file: /etc/grafana/ssl/server.crt
+      cert_key: /etc/grafana/ssl/server.key
+    auth:
+      disable_login_form: true
+      disable_signout_menu: true
+      ;signout_redirect_url: ""
+    auth.proxy:
+      enabled: true
+      header_name: netguard-proxy-user
+      auto_sign_up: true
+      sync_ttl: 60
+      headers: "Groups:netguard-proxy-roles"
+    auth.generic_oauth:
+        name: ""
+        auth_url: ""
+        token_url: ""
+        api_url: ""
+        introspect_url: ""
+    database:
+      type: mysql
+      name: grafana
+      user: grafana
+      ssl_mode: true
+      ca_cert_path: /etc/grafana/cmdbtls/ca.crt
+      client_key_path: /etc/grafana/cmdbtls/tls.key
+      client_cert_path: /etc/grafana/cmdbtls/tls.crt
+    users:
+      allow_org_create: true
+      allow_sign_up: true
+      auto_assign_org: true
+      auto_assign_org_role: Admin
+  ingress:
+    annotations:
+      nginx.ingress.kubernetes.io/rewrite-target: /$2
+      nginx.ingress.kubernetes.io/limit-connections: "50"
+      nginx.ingress.kubernetes.io/limit-rps: "100"
+      nginx.ingress.kubernetes.io/configuration-snippet: |
+        access_by_lua_block {
+          require("keycloak").authenticate().andRequireReamlRole("BP_GRAFANA").andSetEmptyProxyAuthHeaders().andClearAuthorizationHeader()
+        }
+    path: /grafana(/|$)(.*)
+  cbur:
+    enabled: false
+
+gen3gppxml:
+  cbur:
+    enabled: false
+  service:
+    serviceType: ClusterIP
+    sftpNodePort: 30022
+    restHttpNodePort: 31080
+    restHttpsNodePort: 31081

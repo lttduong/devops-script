@@ -1,0 +1,8 @@
+## Start of custom chart file
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "controller.fullname" . }}-lua-uma
+data:
+{{ (tpl (.Files.Glob "custom_lua/uma.lua").AsConfig . ) | indent 2 }}
+## End of custom chart file

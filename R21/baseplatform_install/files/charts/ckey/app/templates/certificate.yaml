@@ -1,0 +1,22 @@
+## Start of custom chart file - CSFID-3066
+{{- if .Values.certManager.used }}
+apiVersion: {{ .Values.certManager.api }}
+kind: Certificate
+metadata:
+  name: {{ .Values.externalTlsCertificate.tlsSecretName }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  secretName: {{ .Values.externalTlsCertificate.tlsSecretName }}
+  duration: {{ .Values.certManager.duration }}
+  renewBefore: {{ .Values.certManager.renewBefore }}
+  keySize: {{ .Values.certManager.keySize }}
+  commonName: {{ template "keycloak.fullname" . }}
+  dnsNames:
+    - {{ printf "%s.%s.%s" (include "keycloak.fullname" .) .Release.Namespace .Values.dns.domain | quote }}
+#  organization:
+#    - Nokia
+  issuerRef:
+    name: {{ .Values.certManager.issuerRef.name }}
+    kind: {{ .Values.certManager.issuerRef.kind }}
+{{- end }}
+## End of custom chart file

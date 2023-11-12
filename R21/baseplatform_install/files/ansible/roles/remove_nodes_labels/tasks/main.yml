@@ -1,0 +1,8 @@
+---
+- name: "Remove label for CMDB from worker nodes"
+  shell: kubectl label node "{{ item }}" "{{ cmdbLabel.key }}"- --overwrite
+  with_items: "{{ cmdbNodes }}"
+
+- name: "Remove label for CRMQ from worker nodes"
+  shell: kubectl label node "{{ item }}" "{{ crmqLabel.key }}"- --overwrite
+  with_items: "{{ crmqNodes }}"

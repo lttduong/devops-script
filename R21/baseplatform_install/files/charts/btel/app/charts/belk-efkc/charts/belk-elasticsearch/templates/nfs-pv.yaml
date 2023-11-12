@@ -1,0 +1,22 @@
+## Start of custom chart file
+{{- if .Values.cbur.enabled }}
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{ template "fullname" . }}-nfs-pv
+  annotations:
+    helm.sh/immutable-resource-policy: ignore
+spec:
+  capacity:
+    storage: 1Mi # doesn't matter - NFS share (having its own size) is mounted
+  accessModes:
+    - ReadWriteMany
+  nfs:
+    server: {{ .Values.nfsServer.address }}
+    path: {{ .Values.nfsServer.backupsPath }}
+  mountOptions:
+    {{ .Values.nfsServer.mountOptions }}
+  persistentVolumeReclaimPolicy: Delete
+{{- end }}
+## End of custom chart file

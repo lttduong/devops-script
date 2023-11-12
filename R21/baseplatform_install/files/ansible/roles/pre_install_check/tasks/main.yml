@@ -1,0 +1,20 @@
+- name: "Collect profile stats"
+  include: 01_collect_profile_stats.yml
+
+- name: "Collect override stats"
+  include: 02_collect_override_stats.yml
+
+- name: Check validity of netguard admin password
+  fail:
+    msg: "Password may not contain spaces nor be empty"
+  when: not NETGUARD_ADMIN_PASSWORD  or ' ' in NETGUARD_ADMIN_PASSWORD
+
+- name: Check validity of security login banner
+  fail:
+    msg: "LOGIN_SECURITY_BANNER should be defined, not empty and shorter than 255 characters"
+  when: not LOGIN_SECURITY_BANNER or LOGIN_SECURITY_BANNER is not defined or LOGIN_SECURITY_BANNER|length > 255
+
+- name: Check validity of characters in login banner
+  fail:
+    msg: "LOGIN_SECURITY_BANNER can only consists of characters from the following list: a-z A-Z 0-9 .,?!;:'\"\\ /<>{}()`~[]@#$^&*_+=|- and spaces"
+  when: LOGIN_SECURITY_BANNER is match(".*[^a-zA-Z0-9.,><}{)(`~!@#$^&*_+=;:'\"|\?\]\[\\\/ \t\b-].*")

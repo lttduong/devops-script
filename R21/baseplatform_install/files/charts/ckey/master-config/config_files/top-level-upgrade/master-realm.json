@@ -1,0 +1,10 @@
+{
+  "realm": "master",
+  "eventsListeners": [
+    "CSFEventMetricsListener",
+    {{- if .Values.config.ckey.csfPushEventListenerEnabled }}
+    "CSFPushEventListener",
+    {{- end }}
+    "jboss-logging"
+  ]
+}

@@ -1,0 +1,13 @@
+mariadb:
+  username: mariadbuser
+  password: Ma%8adbuser512
+  host: cmdb-mysql
+  port: 3306
+
+cbur:
+  enabled: true
+  backendMode: local
+  cronSpec: "0 0 * * *"
+  dataEncryption: true
+  autoEnableCron: false
+  autoUpdateCron: false

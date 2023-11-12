@@ -1,0 +1,68 @@
+{{ if gt (int .Values.prescalein ) 0 }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "zookeeper.name" . }}-zk-prescalein-job
+  annotations:
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: {{ .Values.global.seccompAllowedProfileNames }}
+    seccomp.security.alpha.kubernetes.io/defaultProfileName: {{ .Values.global.seccompDefaultProfileName }}
+spec:
+  template:
+    metadata:
+      labels:
+        app: {{ .Chart.Name }}
+        release: {{ .Release.Name }}
+      annotations:
+        sidecar.istio.io/inject: "false"
+    spec:
+      {{- if .Values.global.rbacEnable }}
+      serviceAccountName: {{ template "zkserviceAccount.name" . }}
+      {{- end }}
+      {{- if eq .Values.security.enabled true }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: {{ .Values.security.runAsUser }}
+        fsGroup: {{ .Values.security.fsGroup }}
+      {{- end }}
+      restartPolicy: Never
+      containers:
+      - name: ckaf-zookeeper-zk-prescalein
+        image: "{{ .Values.global.registry3}}/{{ .Values.kubectlImage }}:{{ .Values.kubectlTag }}"
+        imagePullPolicy: IfNotPresent
+        {{- if eq .Values.security.enabled true }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          privileged: false
+          capabilities:
+            drop:
+              - all
+        {{- end }}
+        resources:
+{{ toYaml .Values.jobResources | indent 10 }}
+        command:
+        - sh
+        - -c
+        - |
+          ZK_BEFORE_SCALEIN=$(kubectl get pods -l release={{ .Release.Name }} -n {{ .Release.Namespace }} | grep {{ template "zookeeper.name" . }} | wc -l)
+          ZK_AFTER_SCALEIN={{ .Values.servers }}
+          CONSTRUCT_FQDN="reconfig -remove "
+          for (( i=${ZK_AFTER_SCALEIN}; i<${ZK_BEFORE_SCALEIN}; i++ ));do
+          SERVER_ID=$((${i}+1))
+          CONSTRUCT_FQDN+=${SERVER_ID}
+          CONSTRUCT_FQDN+=','
+          done;
+          CONSTRUCT_FQDN=${CONSTRUCT_FQDN::-1}
+          echo "${CONSTRUCT_FQDN}" | kubectl exec -i {{ template "zookeeper.name" . }}-0 -c ckaf-zookeeper-server -n {{ .Release.Namespace }} -- bash -c  "env -i zookeeper-shell "{{ template "zookeeper.name" . }}"-0."{{ template "zookeeper.name" . }}"-headless."{{ .Release.Namespace }}".svc"{{ .Values.global.domainName }}":2181"
+          sleep 10
+          for (( i=${ZK_AFTER_SCALEIN}; i<${ZK_BEFORE_SCALEIN}; i++ ));do
+          CHECK_AFTER_RECONFIG_REMOVE=$(echo "config" | kubectl exec -i {{ template "zookeeper.name" . }}-0 -c ckaf-zookeeper-server -n {{ .Release.Namespace }} -- bash -c  "env -i zookeeper-shell  "{{ template "zookeeper.name" . }}"-0."{{ template "zookeeper.name" . }}"-headless."{{ .Release.Namespace }}".svc"{{ .Values.global.domainName }}":2181" | grep -c {{ template "zookeeper.name" . }}-${i})
+          if (( $CHECK_AFTER_RECONFIG_REMOVE ));then
+          SERVER_ID=$((${i}+1))
+          echo "Failed to remove server.${SERVER_ID}..Retrying"
+          echo "reconfig -remove ${SERVER_ID}"| kubectl exec -i {{ template "zookeeper.name" . }}-0 -c ckaf-zookeeper-server -n {{ .Release.Namespace }} -- bash -c  "env -i zookeeper-shell "{{ template "zookeeper.name" . }}"-0."{{ template "zookeeper.name" . }}"-headless."{{ .Release.Namespace }}".svc"{{ .Values.global.domainName }}":2181"
+          fi;
+          done;
+          CONFIG_MAP=$(echo "config" | kubectl exec -i {{ template "zookeeper.name" . }}-0 -c ckaf-zookeeper-server -n {{ .Release.Namespace }} -- bash -c  "env -i zookeeper-shell  "{{ template "zookeeper.name" . }}"-0."{{ template "zookeeper.name" . }}"-headless."{{ .Release.Namespace }}".svc"{{ .Values.global.domainName }}":2181" | grep server)
+          { echo "data:"; echo "   dynamicfileorg.cfg.dynamic: |-"; sed 's/^/      /'  <<<"$CONFIG_MAP"; } > /tmp/configmap.yaml
+          kubectl patch configmap {{ template "zookeeper.name" . }}-dynamic-config -n {{ .Release.Namespace }} --type merge -p "$(cat /tmp/configmap.yaml)"
+{{- end }}

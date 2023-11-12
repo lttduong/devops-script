@@ -1,0 +1,57 @@
+{{- if and .Values.istio.enable .Values.kubeStateMetrics.enabled}}
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+{{- if .Values.global.labels }}
+  labels:
+{{- include "prometheus-labels" (tuple .Values.global.labels) | indent 4}}
+{{- end }}
+  name: {{ template "prometheus.kubeStateMetrics.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+{{- if .Values.global.annotations }}
+  annotations:
+{{- include "prometheus-annotations" (tuple .Values.global.annotations) | indent 4}}
+{{- end }}
+spec:
+  # Start of custom modification of original chart for CSFS-31473
+  host: "{{ template "prometheus.kubeStateMetrics.fullname" . }}.{{ .Release.Namespace }}.{{ .Values.dns.domain }}"
+  # End of custom modification of original chart for CSFS-31473
+  trafficPolicy:
+{{- if .Values.istio.mtls_enable }}
+    tls:
+      mode: ISTIO_MUTUAL
+{{- else }}
+    tls:
+      mode: DISABLE
+{{- end }}
+{{- end }}
+
+---
+
+{{- if and .Values.istio.enable .Values.kubeStateMetrics.enabled}}
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+{{- if .Values.global.labels }}
+  labels:
+{{- include "prometheus-labels" (tuple .Values.global.labels) | indent 4}}
+{{- end }}
+  name: {{ template "prometheus.kubeStateMetrics.fullname" . }}-scr
+  namespace: {{ .Release.Namespace }}
+{{- if .Values.global.annotations }}
+  annotations:
+{{- include "prometheus-annotations" (tuple .Values.global.annotations) | indent 4}}
+{{- end }}
+spec:
+  # Start of custom modification of original chart for CSFS-31473
+  host: "{{ template "prometheus.kubeStateMetrics.fullname" . }}-scr.{{ .Release.Namespace }}.{{ .Values.dns.domain }}"
+  # End of custom modification of original chart for CSFS-31473
+  trafficPolicy:
+{{- if .Values.istio.mtls_enable }}
+    tls:
+      mode: ISTIO_MUTUAL
+{{- else }}
+    tls:
+      mode: DISABLE
+{{- end }}
+{{- end }}

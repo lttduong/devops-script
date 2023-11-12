@@ -1,0 +1,1015 @@
+type: object
+properties:
+  replicaCount:
+    description: replicate count.
+    type: integer
+    minimum: 1
+    maxinum: 3
+    default: 1
+  pspEnabled:
+    description: "create psp on deploy if the value is set to true"
+    type: boolean
+    default: false
+  pspUseAppArmor:
+    description: "use apparmor annotation if the value is set to true"
+    type: boolean
+    default: false
+  global:
+    description: global configuration.
+    type: object
+    properties:
+      registry:
+        description: Gen3gppxml image registry.
+        type: string
+        default: "csf-docker-delivered.repo.lab.pl.alcatel-lucent.com"
+      registry2:
+        description: Cbur, kubectl image registry.
+        type: string
+        default: "csf-docker-delivered.repo.lab.pl.alcatel-lucent.com"
+      istioVersion:
+        description: istio version
+        type: integer
+        default: 1.4
+      podNamePrefix:
+        description: custom prefix for pod name
+        type: string
+        default: ""
+      containerNamePrefix:
+        description: custom prefix for container name
+        type: string
+        default: ""
+      annotations:
+        description: "Annotations section for Gen3gppxml"
+        type: object
+        properties:
+          seccomp.security.alpha.kubernetes.io/allowedProfileNames:
+            desciption: "Annotation that specifies which values are allowed for the pod seccomp annotations"
+            type: string
+            default: "runtime/default"
+          seccomp.security.alpha.kubernetes.io/defaultProfileName:
+            desciption: "Annotation that specifies the default seccomp profile to apply to containers"
+            type: string
+            default: "runtime/default"
+          apparmor.security.beta.kubernetes.io/allowedProfileNames:
+            desciption: "Annotation will be used when pspUseApparmor is enabled, specifies a list of profiles that Pod containers are allowed to be run with"
+            type: string
+            default: "runtime/default"
+          apparmor.security.beta.kubernetes.io/defaultProfileName:
+            desciption: "Annotation will be used when pspUseApparmor is enabled, specifies the profile to apply to containers by default when none is specified"
+            type: string
+            default: "runtime/default"
+  customResourceNames:
+    description: custom resource name for pod and containers
+    type: object
+    properties:
+      resourceNameLimit:
+        description: custom resource name limit 
+        type: integer
+        default: 63
+      gen3gppxmlPod:
+        description: custom name for gen3gppxml container
+        type: object
+        properties:
+          gen3gppxmlContainer:
+            description: custom container name for gen3gppxml container in the pod
+            type: string
+            default: ""
+          sftpContainer:
+            description: custom container name for sftp container in the pod
+            type: string
+            default: ""
+          configMapReloadContainer:
+            description: custom container name for configmapreload container in the pod
+            type: string
+            default: ""
+      postDeleteJobPod:
+        description: custom name for postDeletejobPod container
+        type: object
+        properties:
+          name:
+            description: custom pod name for postDeletejobPod pod
+            type: string
+            default: ""
+          postDeletePvcContainer:
+            description: custom container name for postDeletePvcContainer in postDeletejobPod
+            type: string
+            default: "" 
+  antiAffinityMode:
+    description: whether the pod affinity is hard(requiredDuringSchedulingIgnoredDuringExecution)/soft(preferredDuringSchedulingIgnoredDuringExecution)
+    type: string
+    default: "soft"
+
+  helm3:
+    description: whether the chart will be deployed using helm3
+    type: boolean
+    default: false
+  lcm:
+    description: lcm configuration set
+    type: object
+    properties:
+    scale:
+      description: lcm scale configuration set
+      type: object
+      properties:
+        timeout:
+          description: scale timeout
+          type: integer
+          default: 180
+  image:
+    description: Docker image name and tag.
+    type: object
+    properties:
+      imageRepo: 
+        description: cpro-gen3gppxml docker image registry.
+        type: string
+        default: "cpro-gen3gppxml"
+      imageTag: 
+        description: cpro-gen3gppxml docker image tag.
+        type: string
+        default: "latest"
+      pullPolicy: 
+        description: cpro-gen3gppxml docker image pull policy.
+        type: string
+        default: "Always"
+  resources:
+    description: Configure resource requests and limits
+    type: object
+    properties:
+      memory:
+        description: |
+          Memory request size reserved for a service.
+        type: string
+        default: "256Mi"
+        pattern: '^[1-9][0-9]*(Gi|Mi)$'
+      cpu:
+        description: |
+          CPU request reserved for a service.
+        type: string
+        default: "250m"
+        pattern: '^[1-9][0-9]*m?$'
+      memoryLimit:
+        description: |
+          Memory limit for a service.
+        type: string
+        default: "1Gi"
+        pattern: '^[1-9][0-9]*(Gi|Mi)$'
+      cpuLimit:
+        description: |
+          CPU limit for a service.
+        type: string
+        default: "500m"
+        pattern: '^[1-9][0-9]*m?$'
+  cbur:
+    description: cpro-gen3gppxml backup restore.
+    type: object
+    properties:
+      enabled:
+        description: if enable backup restore.
+        type: boolean
+        default: true
+      image:
+        description: The image information of cbur component
+        type: object
+        properties:
+          repository:
+            description: Docker image full path under the repository
+            type: string
+            default: cbur/cbura
+          tag:
+            description:  cbur docker tag
+            type: string
+            default: 1.0.3-232
+          pullPolicy:
+            description: Specify a imagePullPolicy
+            type: string
+            default: IfNotPresent
+      resources:
+        description: Configure resource requests and limits
+        type: object
+        properties:
+          memory:
+            description: |
+              Memory request size reserved for a service.
+            type: string
+            default: "256Mi"
+            pattern: '^[1-9][0-9]*(Gi|Mi)$'
+          cpu:
+            description: |
+              CPU request reserved for a service.
+            type: string
+            default: "250m"
+            pattern: '^[1-9][0-9]*m?$'
+          memoryLimit:
+            description: |
+              Memory limit for a service.
+            type: string
+            default: "1Gi"
+            pattern: '^[1-9][0-9]*(Gi|Mi)$'
+          cpuLimit:
+            description: |
+              CPU limit for a service.
+            type: string
+            default: "500m"
+            pattern: '^[1-9][0-9]*m?$'
+      backendMode:
+        description: Three modes supported now, "local","NETBKUP","AVAMAR", case insensitive
+        type: string
+        default: "local"
+      autoEnableCron:
+        description: To activate the cronJob parameter and start the backup. Allowed values are true/false. Default is set to false.
+        type: boolean
+        default: false
+      autoUpdateCron:
+        description: To allow or not to allow update of cronJob parameter at runtime. Allowed values are true/false. Default is set to false.
+        type: boolean
+        default: false
+      cronJob:
+        description: same format of cron job setting. It is used for scheduled backup task. Empty string is allowed for no scheduled backup.
+        type: string
+        default: "*/10 * * * *"
+      maxCopy:
+        description: Limit the number of copies that can be saved. Once it is reached, the newer backup will overwritten the oldest one.
+        type: integer
+        default: 5
+  istio:
+    description: istio config
+    type: object
+    properties:
+      enable:
+        description: whether the chart will deploy on istio
+        type: boolean
+        default: false
+      mtls_enable:
+        description: whether the chart will deploy on istio with mTLS inside istio mesh
+        type: boolean
+        default: false
+  istioIngress:
+    description: istio ingress gateway config
+    type: object
+    properties:
+      enabled:
+        description: wether config the istio ingress gateway
+        type: boolean
+        default: false
+      selector:
+        description: select which istio ingress pod to use
+        type: object
+        default: {istio: ingressgateway-cpro-gen3gppxml}
+      host:
+        description: host name for the ingress gateway
+        type: string
+        default: "gen3gppxml.example.com"
+      httpPort:
+        description: http host port inside the ingress gateway pod
+        type:  integer
+        default: 80
+      sftpPort:
+        description: sftp port inside the ingress gateway pod
+        type: integer
+        default: ss
+      tls:
+        description: use tls connection config for ingress gateway
+        type: object
+        properties:
+          enabled:
+            description: whether use tls connection
+            type: boolean
+            default: false
+          httpsPort:
+            description: https host port inside the ingress gateway pod
+            type: integer
+            default: 443
+          mode:
+            description: ingress gateway mode for tls connection, could be SIMPLE, MUTUAL, PASSTHROUGH
+            type: string
+            default: PASSTHROUGH
+  service:
+    description: cpro-gen3gppxml service.
+    type: object
+    properties:
+      name:
+        description: cpro-gen3gppxml service name.
+        type: string
+        default: "gen3gppxml"
+      serviceType:
+        description: cpro-gen3gppxml service type.
+        type: string
+        default: "NodePort"
+      sftpPort:
+        description: cpro-gen3gppxml sftp port.
+        type: integer
+        minimum: 30000
+        maxinum: 32767
+        default: 22
+      restHttpPort:
+        description: cpro-gen3gppxml rest http port.
+        type: integer
+        minimum: 30000
+        maxinum: 32767
+        default: 8080
+      restHttpsPort:
+        description: cpro-gen3gppxml rest https port.
+        type: integer
+        minimum: 30000
+        maxinum: 32767
+        default: 8081
+  configmapReload:
+    description: cpro-gen3gppxml configmap reload configuration.
+    type: object
+    properties:
+      image:
+        description: The image information of configmap reload
+        type: object
+        properties:
+          repository:
+            description: Docker image full path under the repository
+            type: string
+            default: cpro/registry4/configmap-reload
+          tag:
+            description:  docker tag
+            type: string
+            default: v0.2.1
+          pullPolicy:
+            description: Specify a imagePullPolicy
+            type: string
+            default: IfNotPresent
+      resources:
+        description: Configure resource requests and limits
+        type: object
+        properties:
+          memory:
+            description: |
+              Memory request size reserved for a service.
+            type: string
+            default: "256Mi"
+            pattern: '^[1-9][0-9]*(Gi|Mi)$'
+          cpu:
+            description: |
+              CPU request reserved for a service.
+            type: string
+            default: "250m"
+            pattern: '^[1-9][0-9]*m?$'
+          memoryLimit:
+            description: |
+              Memory limit for a service.
+            type: string
+            default: "1Gi"
+            pattern: '^[1-9][0-9]*(Gi|Mi)$'
+          cpuLimit:
+            description: |
+              CPU limit for a service.
+            type: string
+            default: "500m"
+            pattern: '^[1-9][0-9]*m?$'
+  containerSecurityContext:
+    description: cpro-gen3gppxml container security context
+    type: object
+    properties:
+      runAsUser:
+        description: cpro-gen3gppxml container will be started with UID provided here
+        type: integer
+        default: 1001
+
+  sftp:
+    description: sftp configuration.
+    type: object
+    properties:
+      image:
+        description: The image information of sftp
+        type: object
+        properties:
+          repository:
+            description: Docker image full path under the repository
+            type: string
+            default: cpro-gen3gppxml-sftp
+          tag:
+            description:  docker tag
+            type: string
+            default: latest
+          pullPolicy:
+            description: Specify a imagePullPolicy
+            type: string
+            default: Always
+      resources:
+        description: Configure resource requests and limits
+        type: object
+        properties:
+          memory:
+            description: |
+              Memory request size reserved for a service.
+            type: string
+            default: "256Mi"
+            pattern: '^[1-9][0-9]*(Gi|Mi)$'
+          cpu:
+            description: |
+              CPU request reserved for a service.
+            type: string
+            default: "250m"
+            pattern: '^[1-9][0-9]*m?$'
+          memoryLimit:
+            description: |
+              Memory limit for a service.
+            type: string
+            default: "1Gi"
+            pattern: '^[1-9][0-9]*(Gi|Mi)$'
+          cpuLimit:
+            description: |
+              CPU limit for a service.
+            type: string
+            default: "500m"
+            pattern: '^[1-9][0-9]*m?$'
+      user:
+        description: sftp user
+        type: string
+        format: text-area
+        default: "sftp"
+      authentication:
+        description: authentication configuration.
+        type: object
+        properties:
+          passwd:
+            description: password configuration.
+            type: object
+            properties:
+              enabled:
+                description: if enable password authentication.
+                type: boolean
+                default: true
+              passwd:
+                type: string
+                format: text-area
+                default: "SAg4Thm/XYsc7QfIIeiEnf3NWC1ACUTmGAqdJsOe6lzsvDwXvkCgRzpW2YiaS35LRnN2GmvVZrnMvlxzig9w7xE0jPyAy95qsNMDQgNZoNLAMKc45CbDQyPeLokLWHMbT4mFI6BZ846o+YkQNULjndlilLXr4c349dNJNt30QheYjFxyIgfwN/KDg8N+iDs/jtbnJi1a12KKCQrLojJtnX8VokHGpeIt2vs9xvYQ7T/cIJFTKTlpdEuVl9jSXcTUZydMl22mPRvAqVIonB/3gfiRexAAnZ1paei7XNfRBXNRnIZn+H8tsFEY+0aUilz+YiOwq47kqZ2xVDDCMHuYCQ=="
+              key:
+                description: the key for decrypt the password.
+                type: string
+                format: text-area
+                default: |+
+                  -----BEGIN PRIVATE KEY-----
+                  MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDC526cVPBRwYZr
+                  TdBLDd7Dcs7sK1MIAzH2HnnGvCv8Y5SqcYUJA5KKjBCj/afRY4unqk/bGg6iJH0q
+                  0oUQY3xNwdmLDaCN7FJhSygEK4r93D7edd9XZ61KQ8ueIRF/jarOMxC6/eIrWxdt
+                  F7/RyU9vU0LsqcTujzXZJI3w5DzQrz3qIoD4LMExrW5BCEDuLzUlCPYYs2j9VJEu
+                  eJvPdjo90e5b6VQUEIsZrukedd72bjKR3LVUai3FCoZ+fRV8SFFGU193dy0LKCmP
+                  ul9+p79mHovLoREwslk3zvFkBqSoSlfNkm4EUuQguAGD2Kk1oQXmcdIYCAhnJkw9
+                  g4B6do6xAgMBAAECggEAbOmCh913BViNUr0C3k3741/ufU6gcWPHsW7KQeG4+qpy
+                  0uPooWbbpowqaFlAQ+PKkIC9awQelUCqqRlGvie5uIHQnMGarHQYfMHQtLPYUY+X
+                  mhxoF6GZ1lwYFl8INizl+5/Rg4yHrA6VAqM4z3Qc7WqrhTBBGcXxI0wn/SqtSTcK
+                  DAh9rupgFVJjGmoywDyQtLJtqp85SEOXMauep2twBXTnY0ZbSfnOiLgFvzFoeU49
+                  eevZgRC5YFxsL6hYVURlI+/pANI0SwRF7SXNb5vEYtRIOWVe3SY8udORzHwqqO4a
+                  GJdua9nQ1trWcFZfSVz17sSrrGyB/B3mwOasrPZXWQKBgQDp1yx+aV6XaZ5iGVRf
+                  HR17vGZUUtMpp+86RVvweTl42UBuoBK49ezRqIZz869+j/W+gE+FGADJZJ+DvUxd
+                  Eq779UTWJ8w+mBGQ7gpT40CnHpK45C4c9INcp8COPjYvT/w4f3ztZyI2hdV8LbIZ
+                  Umgrl7QZa/lBRQ11r+ZccMTAawKBgQDVX67g2sae4rsI4MUHOdTGo7zUQ4cpyv7A
+                  ziphziYcVLGe4aTRG9bMl4Rgl9DoBZDGN8Pw08dd90VUO8FO+Rdod8MMVTk7nUOU
+                  VGBhIYLGz1mHLE6BLz5k5mYToBNR5XLbNt2LcKj6GkBAjrJfEaZwKxJ7qrNJF9YE
+                  tjQmH5+EUwKBgQCiZ3rTYML9TbFeWFEsrb/oS/SV4+AcMjIHulwcK1UrBVemfS4D
+                  n2kWQ4D9zuS3dawq3lpcCUuik2vlxvbePTeibbmdMo67eknY6jnqAQ7KAoXMO017
+                  dqY1F5y4LaTcPyTg6EoPZ21viIu4btQemgkXHYlLjp3SIu8yKTRIR1meeQKBgC/h
+                  IqrOLNemZPXfChdPANH6F/tBk+jq5jN5j8UWrzKYRqsyUvuhVZffQBM0venypcP0
+                  64D05L3PKL14Ey6Xcos8pIX18bvQ1ENKk733+RKHoL1WUd9nLIcTtEAfIXa1GArc
+                  yuXpR+GnVlemLZxrp39wCtu5ODXkpV+1Swpq+i6FAoGABpJbHsQM39oyo/D8250J
+                  y23QQ+izJ27DBJ1OWpfXTgfW55Nvfld5ULveD/yPLoxuRZYix4fsZWMONjdv6AFg
+                  Ge05/JkIyQP2UKuCuqjv5QyoeKx4POIKIY2W45ufE5WtuvnTmGIBm5dkFjGoCQlp
+                  kQtMJnSg6tD9JkKa0Tdgr9c=
+                  -----END PRIVATE KEY-----
+          key:
+            description: key based authentication configuration.
+            type: object
+            properties:
+              enabled:
+                description: if enable key based authentication.
+                type: boolean
+                default: true
+              key:
+                description: the key for sftp authentication.
+                type: string
+                format: text-area
+                default: |+
+                  ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDr08MPtb0fW8zjbuh/w9in5Bf9yLuJLpoYvHxpOAwSxyqiLqkNE757uCUIxAq1cTqWfJVVO/G25Y4+pR9RKulKqwYWh+o7iwYr9f6oDS+LkNa5Z6CVRPQTgiUy2EwYPTECbeT1Dpz7bj8afez5RSwJGcTwjjyAC3OUshNeGeRPA0MlkpQZso7ke3KfLONrzCTAolF3wfPcyZeuicb9c4ISr/8I99qEfdWY16JdDnYCZuH39Oejq/g0h+G3KoemfdtVlNpKJs7tHdHIvc90h/8p09Br9i5garpc8JYHdIRYOvL2NU2S/g3nrCpHKOBaK1eMZeOU/m4405/dn3NTYpkd yatianx@CV0037184N0
+  configOverride:
+    description: override the configuration
+    type: string
+    format: text-area
+    default: |+
+      OVERRIDE_prometheus_url = http://localhost:9090/api/v1
+  configs:
+    description: cpro-gen3gppxml configuration.
+    type: object
+    properties:
+      Gen3GPPXML: 
+        description: cpro-gen3gppxml default configuration.
+        type: string
+        format: text-area
+        default: '{
+    "measCollecFile" :
+    {
+        "xmlns" : "http://www.3gpp.org/ftp/specs/archive/32_series/32.435#measCollec",
+        "xmlns:xsi" : "http://www.w3.org/2001/XMLSchema-instance",
+        "xmlns:schemaLocation" : "http://www.3gpp.org/ftp/specs/archive/32_series/32.435#measCollec http://www.3gpp.org/ftp/specs/archive/32_series/32.435#measCollec",
+        "fileHeader" :
+        {
+            "fileFormatVersion" : "32.435 V9.1.0",
+            "vendorName" : "NOKIA",
+            "dnPrefix" :"dn",
+            "elementType" : "eletype"
+        }
+    },
+    "REST" : 
+    {
+        "HTTP" :
+        {
+            "enable":true,
+            "httpPort":8080
+        },
+        "HTTPS":
+        {
+            "enable":false,
+            "httpsPort" : 8081,
+            "verifyClient" : false,
+            "securityFiles" :
+            {
+                "caCert":"/etc/gen3gppxml/secret/restCa",
+                "cert":"/etc/gen3gppxml/secret/restCert",
+                "key":"/etc/gen3gppxml/secret/restKey"
+            }
+        },
+        "SSO":
+        {
+            "enable":false,
+            "validationUrl":"http://localhost:8280/auth/realms/myrealm/protocol/openid-connect/userinfo",
+            "HTTPS": false,
+            "securityFiles" :
+            {
+                "caCert":"/etc/gen3gppxml/secret/ssoCa",
+                "cert":"/etc/gen3gppxml/secret/ssoCert",
+                "key":"/etc/gen3gppxml/secret/ssoKey"
+            }
+        }
+    },
+    "prometheus" :
+    {
+        "url" : "http://localhost:9090/api/v1",
+        "HTTPS" : false,
+        "securityFiles" :
+        {
+            "caCert":"/etc/gen3gppxml/secret/prometheusCa",
+            "cert":"/etc/gen3gppxml/secret/prometheusCert",
+            "key":"/etc/gen3gppxml/secret/prometheusKey"
+        },
+        "authentication" :
+        {
+            "enable":"false",
+            "username" : "root",
+            "password" : "P8KaOyx504Vpby+hNFUGHicuO9TKArmVhGXAlCIBut2R7i/DDd0Hx2W6OG2Q/XjJ8/NNxb1IljPSwErOIrxPrHB30uvvH7vOhA2BhuMBFgYb4n/+uKJaVqFSo8s7dH8c0tKPbPGxhei9m64Nb/fMhCnacD2yn5p04wl73ZlY7fPuJVbzV1luXhuaIG42UqCntZTKjxhqEFczLqKcb7JAVABBMjiRmb91iYd44tKP73Lcj0JiF6GyuuCGJaGTIyAAouTLTNhGZw==",
+            "key" : "/etc/gen3gppxml/secret/prometheusAuthKey"
+        }
+    },
+    "plugins" :
+    {
+        "vesAgent" :
+        {
+            "enable" : "false",
+            "connectString" : "127.0.0.1:9991",
+            "appName" : "csf"
+        }
+    },
+    "postFix" : "gen3gppxmlDefaultPostFix",
+    "logLevel" : "INFO",
+    "reportLocation" : "/var/3gppxml/",
+    "expiredDays" : "14",
+    "notUseColonInQuery" : "false",
+    "threadPoolSize" : 20,
+    "misfireGraceTime" : 1,
+    "filter" : ["job=''node''", "component=''node-exporter''"],
+    "defaultGranPeriod" : ["5m"],
+    "defaultRule" : "avg",
+    "defaultValueType" : "integer",
+    "orientation" : "vertical",
+    "hideNonExistentMetrics" : "true",
+    "invalidValue" : "0",
+    "FastPass" : {
+        "enable" : "true",
+        "maxAttributeValueEachLength" : 80,
+        "maxAttributeTypeEachLength" : 6,
+        "maxAttributeTypeNum" : 10,
+        "replaceInvalidCharInMeasObjLdnWith" : "_"
+    },
+    "measGroups" :
+    [
+        {
+            "measInfoId" : "M1",
+            "objects" : {"PLTFM":"1"},
+            "metrics" :
+            [
+                {"metric":"node_boot_time_seconds"}
+            ]
+        },
+        {
+            "measInfoId" : "M2",
+            "objects" : {"PLTFM":"1"},
+            "metrics" :
+            [
+                {"metric":"node_ipvs_incoming_bytes_total", "rule":"max"},
+                {"metric":"node_ipvs_outgoing_bytes_total", "rule":"max"}
+            ]
+        },
+        {
+            "measInfoId" : "M3",
+            "objects" : {"PLTFM":"1"},
+            "dnLabels" : ["CPU"],
+            "labelRename": {"CPU":"cpu"},
+            "metrics" :
+            [
+                {
+                    "metric" : "node_cpu_seconds_total",
+                    "rule" : "max",
+                    "label" :
+                    {
+                        "name" : "mode",
+                        "value" : ["idle", "iowait", "irq", "nice", "softirq", "steal", "system", "user"]
+                    }
+                }
+            ]
+        },
+        {
+            "measInfoId" : "M4",
+            "objects" : {"PLTFM":"1"},
+            "dnLabels" : ["DISK"],
+            "labelRename": {"DISK":"device"},
+            "metrics" :
+            [
+                {"metric":"node_disk_read_bytes_total", "rule":"max"},
+                {"metric":"node_disk_written_bytes_total", "rule":"max"},
+                {"metric":"node_disk_io_now"},
+                {"metric":"node_disk_io_time_seconds_total"}
+            ]
+        },
+        {
+            "measInfoId" : "M5",
+            "objects" : {"PLTFM":"1"},
+            "metrics" :
+            [
+                {"metric":"node_entropy_available_bits"}
+            ]
+        },
+        {
+            "measInfoId" : "M6",
+            "objects" : {"PLTFM":"1"},
+            "metrics" :
+            [
+                {"metric":"node_load1"},
+                {"metric":"node_load5"},
+                {"metric":"node_load15"}
+            ]
+        },
+        {
+            "measInfoId" : "M7",
+            "objects" : {"PLTFM":"1"},
+            "metrics" :
+            [
+                {"metric":"node_memory_AnonPages_bytes"},
+                {"metric":"node_memory_Buffers_bytes"},
+                {"metric":"node_memory_Cached_bytes"},
+                {"metric":"node_memory_Dirty_bytes"},
+                {"metric":"node_memory_HardwareCorrupted_bytes"},
+                {"metric":"node_memory_Mapped_bytes"},
+                {"metric":"node_memory_MemFree_bytes"},
+                {"metric":"node_memory_MemTotal_bytes"},
+                {"metric":"node_memory_MemAvailable_bytes"},
+                {"metric":"node_memory_Shmem_bytes"},
+                {"metric":"node_memory_SwapFree_bytes"},
+                {"metric":"node_memory_SwapTotal_bytes"},
+                {"metric":"node_memory_Writeback_bytes"}
+            ]
+        },
+        {
+            "measInfoId" : "M8",
+            "objects" : {"PLTFM":"1"},
+            "metrics" :
+            [
+                {"metric":"node_ipvs_incoming_packets_total", "rule":"max"},
+                {"metric":"node_ipvs_outgoing_packets_total", "rule":"max"}
+            ]
+        },
+        {
+            "measInfoId" : "M9",
+            "objects" : {"PLTFM":"1"},
+            "metrics" :
+            [
+                {"metric":"node_procs_blocked"},
+                {"metric":"node_procs_running"},
+                {"metric":"node_context_switches_total", "rule":"max"}
+            ]
+        },
+        {
+            "measInfoId" : "M10",
+            "objects" : {"PLTFM":"1"},
+            "metrics" :
+            [
+                {"metric":"node_netstat_Tcp_AttemptFails"},
+                {"metric":"node_netstat_Tcp_InSegs"},
+                {"metric":"node_netstat_Tcp_OutSegs"},
+                {"metric":"node_netstat_Tcp_RetransSegs"},
+                {"metric":"node_netstat_TcpExt_ListenDrops"}
+            ]
+        },
+        {
+            "measInfoId" : "M11",
+            "objects" : {"PLTFM":"1"},
+            "metrics" :
+            [
+                {"metric":"node_netstat_Udp_InDatagrams"},
+                {"metric":"node_netstat_Udp_InErrors"},
+                {"metric":"node_netstat_Udp_OutDatagrams"}
+            ]
+        },
+        {
+            "measInfoId" : "M12",
+            "objects" : {"PLTFM":"1"},
+            "metrics" :
+            [
+                {"metric":"node_vmstat_pgpgin"},
+                {"metric":"node_vmstat_pgpgout"}
+            ]
+        },
+        {
+            "measInfoId" : "M13",
+            "objects" : {"PLTFM":"1"},
+            "dnLabels" : ["IF"],
+            "labelRename": {"IF":"device"},
+            "metrics" :
+            [
+                {"metric":"node_network_receive_bytes_total"},
+                {"metric":"node_network_receive_drop_total"},
+                {"metric":"node_network_receive_errs_total"},
+                {"metric":"node_network_receive_packets_total"}
+            ]
+        },
+        {
+            "measInfoId" : "M14",
+            "objects" : {"PLTFM":"1"},
+            "dnLabels" : ["IF"],
+            "labelRename": {"IF":"device"},
+            "metrics" :
+            [
+                {"metric":"node_network_transmit_bytes_total"},
+                {"metric":"node_network_transmit_drop_total"},
+                {"metric":"node_network_transmit_errs_total"},
+                {"metric":"node_network_transmit_packets_total"}
+            ]
+        },
+        {
+            "measInfoId" : "M15",
+            "objects" : {"PLTFM":"1"},
+            "dnLabels" : ["DISK", "FS", "MP"],
+            "labelRename": {"DISK":"device", "FS":"fstype", "MP":"mountpoint"},
+            "metrics" :
+            [
+                {"metric":"node_filesystem_free_bytes"},
+                {"metric":"node_filesystem_size_bytes"}
+            ]
+        }
+    ]
+}'
+  secrets:
+    description: cpro-gen3gppxml secrets.
+    type: object
+    properties:
+      prometheusCa:
+        description: promethues CA.
+        type: string
+        format: text-area
+        default: |+
+          -----BEGIN CERTIFICATE-----
+          MIIC7jCCAdagAwIBAgIBAjANBgkqhkiG9w0BAQsFADATMREwDwYDVQQDDAhNeVRl
+          c3RDQTAeFw0xODAzMjIxMDA4MTFaFw0xOTAzMjIxMDA4MTFaMDExHjAcBgNVBAMM
+          FXl1bWwtdGVzdC5sb2NhbGRvbWFpbjEPMA0GA1UECgwGY2xpZW50MIIBIjANBgkq
+          hkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA01FXQ7ItSD5zsKZ/Hw1aIwGeuf6PhI79
+          CtaHcU8RrKAd7zBDoqc8p89dWOIfsn1E/lVlG1zvFfpgNgtPzeNnzJVLvIZJAzAm
+          0jJtXaxYDnKiLrR9hzNeJXuLgp6FYjaXllY2VRVuX+3XX6IGle5olazlte/k+kHB
+          UuOLlUbei8HqVCRFfp+UWkWz85u+QrQlz/EmfB/O8uZ4LJmO6yBDyB123gRyVmi/
+          7c9jIyVclz9+f2uu3jo0Eg5NMuRKkHv8Hh8v9Nx0FrIaz/yr3MX2wqzVuVbEQXYb
+          vXkdzvjyzeswNDEPbO1ER5efTQlIIpAqIe5Iz0phyT7tbh1OM7EiDQIDAQABoy8w
+          LTAJBgNVHRMEAjAAMAsGA1UdDwQEAwIFoDATBgNVHSUEDDAKBggrBgEFBQcDAjAN
+          BgkqhkiG9w0BAQsFAAOCAQEAEQM+e+8peUh49cdpKCxsGKShkcSw8DOPWbTb26Z2
+          6jS+gE2XhWvvP2qk6i/A0SLvFtpPC2sf+cilA9ZonrH08jQAy/mw0spzG41lQ7Ir
+          nE9jklhKrb8azrorNXMsYI7D7wKhGX4oL8aq7UND2A0cxQhYRvIg9pn/DIFiSAY4
+          O4AyB2JqwBJRj7Wvgymtfqc1QVhuQD+iAUGcfBMZQctbpiQqZKi4wyzj6AnEn+pI
+          3fGCSzLXVZlN2m4aXbhzRZd4mok1YcTa1yalxJymMoguakpzVGNO1UXyPQIXxeQH
+          kJdafMTyYWPXygCdsaSHeggbr6oTpwd395bsA7lcE6d6xw==
+          -----END CERTIFICATE-----
+      prometheusCert:
+        description: prometheus cert.
+        type: string
+        format: text-area
+        default: |+
+          -----BEGIN CERTIFICATE-----
+          MIIC7jCCAdagAwIBAgIBAjANBgkqhkiG9w0BAQsFADATMREwDwYDVQQDDAhNeVRl
+          c3RDQTAeFw0xODAzMjIxMDA4MTFaFw0xOTAzMjIxMDA4MTFaMDExHjAcBgNVBAMM
+          FXl1bWwtdGVzdC5sb2NhbGRvbWFpbjEPMA0GA1UECgwGY2xpZW50MIIBIjANBgkq
+          hkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA01FXQ7ItSD5zsKZ/Hw1aIwGeuf6PhI79
+          CtaHcU8RrKAd7zBDoqc8p89dWOIfsn1E/lVlG1zvFfpgNgtPzeNnzJVLvIZJAzAm
+          0jJtXaxYDnKiLrR9hzNeJXuLgp6FYjaXllY2VRVuX+3XX6IGle5olazlte/k+kHB
+          UuOLlUbei8HqVCRFfp+UWkWz85u+QrQlz/EmfB/O8uZ4LJmO6yBDyB123gRyVmi/
+          7c9jIyVclz9+f2uu3jo0Eg5NMuRKkHv8Hh8v9Nx0FrIaz/yr3MX2wqzVuVbEQXYb
+          vXkdzvjyzeswNDEPbO1ER5efTQlIIpAqIe5Iz0phyT7tbh1OM7EiDQIDAQABoy8w
+          LTAJBgNVHRMEAjAAMAsGA1UdDwQEAwIFoDATBgNVHSUEDDAKBggrBgEFBQcDAjAN
+          BgkqhkiG9w0BAQsFAAOCAQEAEQM+e+8peUh49cdpKCxsGKShkcSw8DOPWbTb26Z2
+          6jS+gE2XhWvvP2qk6i/A0SLvFtpPC2sf+cilA9ZonrH08jQAy/mw0spzG41lQ7Ir
+          nE9jklhKrb8azrorNXMsYI7D7wKhGX4oL8aq7UND2A0cxQhYRvIg9pn/DIFiSAY4
+          O4AyB2JqwBJRj7Wvgymtfqc1QVhuQD+iAUGcfBMZQctbpiQqZKi4wyzj6AnEn+pI
+          3fGCSzLXVZlN2m4aXbhzRZd4mok1YcTa1yalxJymMoguakpzVGNO1UXyPQIXxeQH
+          kJdafMTyYWPXygCdsaSHeggbr6oTpwd395bsA7lcE6d6xw==
+          -----END CERTIFICATE-----
+      prometheusKey:
+        description: prometheus key.
+        type: string
+        format: text-area
+        default: |+
+          -----BEGIN CERTIFICATE-----
+          MIIC7jCCAdagAwIBAgIBAjANBgkqhkiG9w0BAQsFADATMREwDwYDVQQDDAhNeVRl
+          c3RDQTAeFw0xODAzMjIxMDA4MTFaFw0xOTAzMjIxMDA4MTFaMDExHjAcBgNVBAMM
+          FXl1bWwtdGVzdC5sb2NhbGRvbWFpbjEPMA0GA1UECgwGY2xpZW50MIIBIjANBgkq
+          hkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA01FXQ7ItSD5zsKZ/Hw1aIwGeuf6PhI79
+          CtaHcU8RrKAd7zBDoqc8p89dWOIfsn1E/lVlG1zvFfpgNgtPzeNnzJVLvIZJAzAm
+          0jJtXaxYDnKiLrR9hzNeJXuLgp6FYjaXllY2VRVuX+3XX6IGle5olazlte/k+kHB
+          UuOLlUbei8HqVCRFfp+UWkWz85u+QrQlz/EmfB/O8uZ4LJmO6yBDyB123gRyVmi/
+          7c9jIyVclz9+f2uu3jo0Eg5NMuRKkHv8Hh8v9Nx0FrIaz/yr3MX2wqzVuVbEQXYb
+          vXkdzvjyzeswNDEPbO1ER5efTQlIIpAqIe5Iz0phyT7tbh1OM7EiDQIDAQABoy8w
+          LTAJBgNVHRMEAjAAMAsGA1UdDwQEAwIFoDATBgNVHSUEDDAKBggrBgEFBQcDAjAN
+          BgkqhkiG9w0BAQsFAAOCAQEAEQM+e+8peUh49cdpKCxsGKShkcSw8DOPWbTb26Z2
+          6jS+gE2XhWvvP2qk6i/A0SLvFtpPC2sf+cilA9ZonrH08jQAy/mw0spzG41lQ7Ir
+          nE9jklhKrb8azrorNXMsYI7D7wKhGX4oL8aq7UND2A0cxQhYRvIg9pn/DIFiSAY4
+          O4AyB2JqwBJRj7Wvgymtfqc1QVhuQD+iAUGcfBMZQctbpiQqZKi4wyzj6AnEn+pI
+          3fGCSzLXVZlN2m4aXbhzRZd4mok1YcTa1yalxJymMoguakpzVGNO1UXyPQIXxeQH
+          kJdafMTyYWPXygCdsaSHeggbr6oTpwd395bsA7lcE6d6xw==
+          -----END CERTIFICATE-----
+      prometheusAuthKey:
+        description: prometheus auth key.
+        type: string
+        format: text-area
+        default: |+
+          -----BEGIN CERTIFICATE-----
+          MIIC7jCCAdagAwIBAgIBAjANBgkqhkiG9w0BAQsFADATMREwDwYDVQQDDAhNeVRl
+          c3RDQTAeFw0xODAzMjIxMDA4MTFaFw0xOTAzMjIxMDA4MTFaMDExHjAcBgNVBAMM
+          FXl1bWwtdGVzdC5sb2NhbGRvbWFpbjEPMA0GA1UECgwGY2xpZW50MIIBIjANBgkq
+          hkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA01FXQ7ItSD5zsKZ/Hw1aIwGeuf6PhI79
+          CtaHcU8RrKAd7zBDoqc8p89dWOIfsn1E/lVlG1zvFfpgNgtPzeNnzJVLvIZJAzAm
+          0jJtXaxYDnKiLrR9hzNeJXuLgp6FYjaXllY2VRVuX+3XX6IGle5olazlte/k+kHB
+          UuOLlUbei8HqVCRFfp+UWkWz85u+QrQlz/EmfB/O8uZ4LJmO6yBDyB123gRyVmi/
+          7c9jIyVclz9+f2uu3jo0Eg5NMuRKkHv8Hh8v9Nx0FrIaz/yr3MX2wqzVuVbEQXYb
+          vXkdzvjyzeswNDEPbO1ER5efTQlIIpAqIe5Iz0phyT7tbh1OM7EiDQIDAQABoy8w
+          LTAJBgNVHRMEAjAAMAsGA1UdDwQEAwIFoDATBgNVHSUEDDAKBggrBgEFBQcDAjAN
+          BgkqhkiG9w0BAQsFAAOCAQEAEQM+e+8peUh49cdpKCxsGKShkcSw8DOPWbTb26Z2
+          6jS+gE2XhWvvP2qk6i/A0SLvFtpPC2sf+cilA9ZonrH08jQAy/mw0spzG41lQ7Ir
+          nE9jklhKrb8azrorNXMsYI7D7wKhGX4oL8aq7UND2A0cxQhYRvIg9pn/DIFiSAY4
+          O4AyB2JqwBJRj7Wvgymtfqc1QVhuQD+iAUGcfBMZQctbpiQqZKi4wyzj6AnEn+pI
+          3fGCSzLXVZlN2m4aXbhzRZd4mok1YcTa1yalxJymMoguakpzVGNO1UXyPQIXxeQH
+          kJdafMTyYWPXygCdsaSHeggbr6oTpwd395bsA7lcE6d6xw==
+          -----END CERTIFICATE-----
+      restCa:
+        description: REST API CA.
+        type: string
+        format: text-area
+        default: |+
+          -----BEGIN CERTIFICATE-----
+          MIIC7jCCAdagAwIBAgIBAjANBgkqhkiG9w0BAQsFADATMREwDwYDVQQDDAhNeVRl
+          c3RDQTAeFw0xODAzMjIxMDA4MTFaFw0xOTAzMjIxMDA4MTFaMDExHjAcBgNVBAMM
+          FXl1bWwtdGVzdC5sb2NhbGRvbWFpbjEPMA0GA1UECgwGY2xpZW50MIIBIjANBgkq
+          hkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA01FXQ7ItSD5zsKZ/Hw1aIwGeuf6PhI79
+          CtaHcU8RrKAd7zBDoqc8p89dWOIfsn1E/lVlG1zvFfpgNgtPzeNnzJVLvIZJAzAm
+          0jJtXaxYDnKiLrR9hzNeJXuLgp6FYjaXllY2VRVuX+3XX6IGle5olazlte/k+kHB
+          UuOLlUbei8HqVCRFfp+UWkWz85u+QrQlz/EmfB/O8uZ4LJmO6yBDyB123gRyVmi/
+          7c9jIyVclz9+f2uu3jo0Eg5NMuRKkHv8Hh8v9Nx0FrIaz/yr3MX2wqzVuVbEQXYb
+          vXkdzvjyzeswNDEPbO1ER5efTQlIIpAqIe5Iz0phyT7tbh1OM7EiDQIDAQABoy8w
+          LTAJBgNVHRMEAjAAMAsGA1UdDwQEAwIFoDATBgNVHSUEDDAKBggrBgEFBQcDAjAN
+          BgkqhkiG9w0BAQsFAAOCAQEAEQM+e+8peUh49cdpKCxsGKShkcSw8DOPWbTb26Z2
+          6jS+gE2XhWvvP2qk6i/A0SLvFtpPC2sf+cilA9ZonrH08jQAy/mw0spzG41lQ7Ir
+          nE9jklhKrb8azrorNXMsYI7D7wKhGX4oL8aq7UND2A0cxQhYRvIg9pn/DIFiSAY4
+          O4AyB2JqwBJRj7Wvgymtfqc1QVhuQD+iAUGcfBMZQctbpiQqZKi4wyzj6AnEn+pI
+          3fGCSzLXVZlN2m4aXbhzRZd4mok1YcTa1yalxJymMoguakpzVGNO1UXyPQIXxeQH
+          kJdafMTyYWPXygCdsaSHeggbr6oTpwd395bsA7lcE6d6xw==
+          -----END CERTIFICATE-----
+      restCert:
+        description: REST API cert.
+        type: string
+        format: text-area
+        default: |+
+          -----BEGIN CERTIFICATE-----
+          MIIC7jCCAdagAwIBAgIBAjANBgkqhkiG9w0BAQsFADATMREwDwYDVQQDDAhNeVRl
+          c3RDQTAeFw0xODAzMjIxMDA4MTFaFw0xOTAzMjIxMDA4MTFaMDExHjAcBgNVBAMM
+          FXl1bWwtdGVzdC5sb2NhbGRvbWFpbjEPMA0GA1UECgwGY2xpZW50MIIBIjANBgkq
+          hkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA01FXQ7ItSD5zsKZ/Hw1aIwGeuf6PhI79
+          CtaHcU8RrKAd7zBDoqc8p89dWOIfsn1E/lVlG1zvFfpgNgtPzeNnzJVLvIZJAzAm
+          0jJtXaxYDnKiLrR9hzNeJXuLgp6FYjaXllY2VRVuX+3XX6IGle5olazlte/k+kHB
+          UuOLlUbei8HqVCRFfp+UWkWz85u+QrQlz/EmfB/O8uZ4LJmO6yBDyB123gRyVmi/
+          7c9jIyVclz9+f2uu3jo0Eg5NMuRKkHv8Hh8v9Nx0FrIaz/yr3MX2wqzVuVbEQXYb
+          vXkdzvjyzeswNDEPbO1ER5efTQlIIpAqIe5Iz0phyT7tbh1OM7EiDQIDAQABoy8w
+          LTAJBgNVHRMEAjAAMAsGA1UdDwQEAwIFoDATBgNVHSUEDDAKBggrBgEFBQcDAjAN
+          BgkqhkiG9w0BAQsFAAOCAQEAEQM+e+8peUh49cdpKCxsGKShkcSw8DOPWbTb26Z2
+          6jS+gE2XhWvvP2qk6i/A0SLvFtpPC2sf+cilA9ZonrH08jQAy/mw0spzG41lQ7Ir
+          nE9jklhKrb8azrorNXMsYI7D7wKhGX4oL8aq7UND2A0cxQhYRvIg9pn/DIFiSAY4
+          O4AyB2JqwBJRj7Wvgymtfqc1QVhuQD+iAUGcfBMZQctbpiQqZKi4wyzj6AnEn+pI
+          3fGCSzLXVZlN2m4aXbhzRZd4mok1YcTa1yalxJymMoguakpzVGNO1UXyPQIXxeQH
+          kJdafMTyYWPXygCdsaSHeggbr6oTpwd395bsA7lcE6d6xw==
+          -----END CERTIFICATE-----
+      restKey:
+        description: REST API key.
+        type: string
+        format: text-area
+        default: |+
+          -----BEGIN CERTIFICATE-----
+          MIIC7jCCAdagAwIBAgIBAjANBgkqhkiG9w0BAQsFADATMREwDwYDVQQDDAhNeVRl
+          c3RDQTAeFw0xODAzMjIxMDA4MTFaFw0xOTAzMjIxMDA4MTFaMDExHjAcBgNVBAMM
+          FXl1bWwtdGVzdC5sb2NhbGRvbWFpbjEPMA0GA1UECgwGY2xpZW50MIIBIjANBgkq
+          hkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA01FXQ7ItSD5zsKZ/Hw1aIwGeuf6PhI79
+          CtaHcU8RrKAd7zBDoqc8p89dWOIfsn1E/lVlG1zvFfpgNgtPzeNnzJVLvIZJAzAm
+          0jJtXaxYDnKiLrR9hzNeJXuLgp6FYjaXllY2VRVuX+3XX6IGle5olazlte/k+kHB
+          UuOLlUbei8HqVCRFfp+UWkWz85u+QrQlz/EmfB/O8uZ4LJmO6yBDyB123gRyVmi/
+          7c9jIyVclz9+f2uu3jo0Eg5NMuRKkHv8Hh8v9Nx0FrIaz/yr3MX2wqzVuVbEQXYb
+          vXkdzvjyzeswNDEPbO1ER5efTQlIIpAqIe5Iz0phyT7tbh1OM7EiDQIDAQABoy8w
+          LTAJBgNVHRMEAjAAMAsGA1UdDwQEAwIFoDATBgNVHSUEDDAKBggrBgEFBQcDAjAN
+          BgkqhkiG9w0BAQsFAAOCAQEAEQM+e+8peUh49cdpKCxsGKShkcSw8DOPWbTb26Z2
+          6jS+gE2XhWvvP2qk6i/A0SLvFtpPC2sf+cilA9ZonrH08jQAy/mw0spzG41lQ7Ir
+          nE9jklhKrb8azrorNXMsYI7D7wKhGX4oL8aq7UND2A0cxQhYRvIg9pn/DIFiSAY4
+          O4AyB2JqwBJRj7Wvgymtfqc1QVhuQD+iAUGcfBMZQctbpiQqZKi4wyzj6AnEn+pI
+          3fGCSzLXVZlN2m4aXbhzRZd4mok1YcTa1yalxJymMoguakpzVGNO1UXyPQIXxeQH
+          kJdafMTyYWPXygCdsaSHeggbr6oTpwd395bsA7lcE6d6xw==
+          -----END CERTIFICATE-----
+      ssoCa:
+        description: SSO CA.
+        type: string
+        format: text-area
+        default: |+
+          -----BEGIN CERTIFICATE-----
+          MIIC7jCCAdagAwIBAgIBAjANBgkqhkiG9w0BAQsFADATMREwDwYDVQQDDAhNeVRl
+          c3RDQTAeFw0xODAzMjIxMDA4MTFaFw0xOTAzMjIxMDA4MTFaMDExHjAcBgNVBAMM
+          FXl1bWwtdGVzdC5sb2NhbGRvbWFpbjEPMA0GA1UECgwGY2xpZW50MIIBIjANBgkq
+          hkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA01FXQ7ItSD5zsKZ/Hw1aIwGeuf6PhI79
+          CtaHcU8RrKAd7zBDoqc8p89dWOIfsn1E/lVlG1zvFfpgNgtPzeNnzJVLvIZJAzAm
+          0jJtXaxYDnKiLrR9hzNeJXuLgp6FYjaXllY2VRVuX+3XX6IGle5olazlte/k+kHB
+          UuOLlUbei8HqVCRFfp+UWkWz85u+QrQlz/EmfB/O8uZ4LJmO6yBDyB123gRyVmi/
+          7c9jIyVclz9+f2uu3jo0Eg5NMuRKkHv8Hh8v9Nx0FrIaz/yr3MX2wqzVuVbEQXYb
+          vXkdzvjyzeswNDEPbO1ER5efTQlIIpAqIe5Iz0phyT7tbh1OM7EiDQIDAQABoy8w
+          LTAJBgNVHRMEAjAAMAsGA1UdDwQEAwIFoDATBgNVHSUEDDAKBggrBgEFBQcDAjAN
+          BgkqhkiG9w0BAQsFAAOCAQEAEQM+e+8peUh49cdpKCxsGKShkcSw8DOPWbTb26Z2
+          6jS+gE2XhWvvP2qk6i/A0SLvFtpPC2sf+cilA9ZonrH08jQAy/mw0spzG41lQ7Ir
+          nE9jklhKrb8azrorNXMsYI7D7wKhGX4oL8aq7UND2A0cxQhYRvIg9pn/DIFiSAY4
+          O4AyB2JqwBJRj7Wvgymtfqc1QVhuQD+iAUGcfBMZQctbpiQqZKi4wyzj6AnEn+pI
+          3fGCSzLXVZlN2m4aXbhzRZd4mok1YcTa1yalxJymMoguakpzVGNO1UXyPQIXxeQH
+          kJdafMTyYWPXygCdsaSHeggbr6oTpwd395bsA7lcE6d6xw==
+          -----END CERTIFICATE-----
+      ssoCert:
+        description: SSO cert.
+        type: string
+        format: text-area
+        default: |+
+          -----BEGIN CERTIFICATE-----
+          MIIC7jCCAdagAwIBAgIBAjANBgkqhkiG9w0BAQsFADATMREwDwYDVQQDDAhNeVRl
+          c3RDQTAeFw0xODAzMjIxMDA4MTFaFw0xOTAzMjIxMDA4MTFaMDExHjAcBgNVBAMM
+          FXl1bWwtdGVzdC5sb2NhbGRvbWFpbjEPMA0GA1UECgwGY2xpZW50MIIBIjANBgkq
+          hkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA01FXQ7ItSD5zsKZ/Hw1aIwGeuf6PhI79
+          CtaHcU8RrKAd7zBDoqc8p89dWOIfsn1E/lVlG1zvFfpgNgtPzeNnzJVLvIZJAzAm
+          0jJtXaxYDnKiLrR9hzNeJXuLgp6FYjaXllY2VRVuX+3XX6IGle5olazlte/k+kHB
+          UuOLlUbei8HqVCRFfp+UWkWz85u+QrQlz/EmfB/O8uZ4LJmO6yBDyB123gRyVmi/
+          7c9jIyVclz9+f2uu3jo0Eg5NMuRKkHv8Hh8v9Nx0FrIaz/yr3MX2wqzVuVbEQXYb
+          vXkdzvjyzeswNDEPbO1ER5efTQlIIpAqIe5Iz0phyT7tbh1OM7EiDQIDAQABoy8w
+          LTAJBgNVHRMEAjAAMAsGA1UdDwQEAwIFoDATBgNVHSUEDDAKBggrBgEFBQcDAjAN
+          BgkqhkiG9w0BAQsFAAOCAQEAEQM+e+8peUh49cdpKCxsGKShkcSw8DOPWbTb26Z2
+          6jS+gE2XhWvvP2qk6i/A0SLvFtpPC2sf+cilA9ZonrH08jQAy/mw0spzG41lQ7Ir
+          nE9jklhKrb8azrorNXMsYI7D7wKhGX4oL8aq7UND2A0cxQhYRvIg9pn/DIFiSAY4
+          O4AyB2JqwBJRj7Wvgymtfqc1QVhuQD+iAUGcfBMZQctbpiQqZKi4wyzj6AnEn+pI
+          3fGCSzLXVZlN2m4aXbhzRZd4mok1YcTa1yalxJymMoguakpzVGNO1UXyPQIXxeQH
+          kJdafMTyYWPXygCdsaSHeggbr6oTpwd395bsA7lcE6d6xw==
+          -----END CERTIFICATE-----
+      ssoKey:
+        description: SSO key.
+        type: string
+        format: text-area
+        default: |+
+          -----BEGIN CERTIFICATE-----
+          MIIC7jCCAdagAwIBAgIBAjANBgkqhkiG9w0BAQsFADATMREwDwYDVQQDDAhNeVRl
+          c3RDQTAeFw0xODAzMjIxMDA4MTFaFw0xOTAzMjIxMDA4MTFaMDExHjAcBgNVBAMM
+          FXl1bWwtdGVzdC5sb2NhbGRvbWFpbjEPMA0GA1UECgwGY2xpZW50MIIBIjANBgkq
+          hkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA01FXQ7ItSD5zsKZ/Hw1aIwGeuf6PhI79
+          CtaHcU8RrKAd7zBDoqc8p89dWOIfsn1E/lVlG1zvFfpgNgtPzeNnzJVLvIZJAzAm
+          0jJtXaxYDnKiLrR9hzNeJXuLgp6FYjaXllY2VRVuX+3XX6IGle5olazlte/k+kHB
+          UuOLlUbei8HqVCRFfp+UWkWz85u+QrQlz/EmfB/O8uZ4LJmO6yBDyB123gRyVmi/
+          7c9jIyVclz9+f2uu3jo0Eg5NMuRKkHv8Hh8v9Nx0FrIaz/yr3MX2wqzVuVbEQXYb
+          vXkdzvjyzeswNDEPbO1ER5efTQlIIpAqIe5Iz0phyT7tbh1OM7EiDQIDAQABoy8w
+          LTAJBgNVHRMEAjAAMAsGA1UdDwQEAwIFoDATBgNVHSUEDDAKBggrBgEFBQcDAjAN
+          BgkqhkiG9w0BAQsFAAOCAQEAEQM+e+8peUh49cdpKCxsGKShkcSw8DOPWbTb26Z2
+          6jS+gE2XhWvvP2qk6i/A0SLvFtpPC2sf+cilA9ZonrH08jQAy/mw0spzG41lQ7Ir
+          nE9jklhKrb8azrorNXMsYI7D7wKhGX4oL8aq7UND2A0cxQhYRvIg9pn/DIFiSAY4
+          O4AyB2JqwBJRj7Wvgymtfqc1QVhuQD+iAUGcfBMZQctbpiQqZKi4wyzj6AnEn+pI
+          3fGCSzLXVZlN2m4aXbhzRZd4mok1YcTa1yalxJymMoguakpzVGNO1UXyPQIXxeQH
+          kJdafMTyYWPXygCdsaSHeggbr6oTpwd395bsA7lcE6d6xw==
+          -----END CERTIFICATE-----
+  persistentVolumeClaim:
+    description: cpro-gen3gppxml persistent valume claim.
+    type: object
+    properties:
+      size:
+        description: cpro-gen3gppxml pvc size.
+        type: string
+        default: "1Gi"

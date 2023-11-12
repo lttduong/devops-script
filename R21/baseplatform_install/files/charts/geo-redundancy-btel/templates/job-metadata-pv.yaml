@@ -1,0 +1,18 @@
+{{- if .Values.geoRedundancyBtel.persistence.createPv }}
+{{- if .Values.cbur.enabled }}
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{ .Chart.Name }}-job-metadata-pv
+spec:
+  capacity:
+    storage: {{ .Values.geoRedundancyBtel.persistence.size }}
+  accessModes:
+    - {{ .Values.geoRedundancyBtel.persistence.accessMode }}
+  hostPath:
+    path:  {{ .Values.geoRedundancyBtel.volumes.hostPath.restoreMetadata }}
+  storageClassName: "{{ .Values.geoRedundancyBtel.persistence.storageClass }}"
+  persistentVolumeReclaimPolicy: {{ .Values.geoRedundancyBtel.persistence.resourcePolicyPv }}
+{{- end }}
+{{- end }}

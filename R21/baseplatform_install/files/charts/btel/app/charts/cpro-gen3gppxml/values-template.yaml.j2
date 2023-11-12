@@ -1,0 +1,162 @@
+replicaCount: {{ (replicaCount) | default(model.properties.replicaCount.default) }}
+rbac:
+  enabled: true
+pspUseAppArmor: {{ (rbac.pspUseAppArmor | default(model.properties.pspUserAppArmor.default)) }}
+global:
+  registry: {{ (global | default("")).registry | default(model.properties.global.properties.registry.default) }}
+  registry2: {{ (global | default("")).registry2 | default(model.properties.global.properties.registry2.default) }}
+  To configure annotations and labels for gen3gpp resources
+  annotations: {}
+  labels: {}
+  istioVersion: {{ (global.istioVersion | default(model.properties.global.properties.istioVersion.default)) }}
+  podNamePrefix: {{ (global.podNamePrefix | default(model.properties.global.properties.podNamePrefix.default)) }}
+  containerNamePrefix: {{ (global.containerNamePrefix | default(model.properties.global.properties.containerNamePrefix.default)) }}
+
+custom:
+# To configure customized annotations and labels for gen3gpp psp
+  psp:
+    annotations:
+      seccomp.security.alpha.kubernetes.io/allowedProfileNames: {{ (global.annotations.seccomp.security.alpha.kubernetes.io/allowedProfileNames | default(model.properties.global.properties.annotations.properties.seccomp.security.alpha.kubernetes.io/allowedProfileNames.default))}}
+      seccomp.security.alpha.kubernetes.io/defaultProfileName: {{ (global.annotations.seccomp.security.alpha.kubernetes.io/defaultProfileName | default(model.properties.global.properties.annotations.properties.seccomp.security.alpha.kubernetes.io/defaultProfileName.default))}}
+    apparmorAnnotations:
+      apparmor.security.beta.kubernetes.io/allowedProfileNames: {{ (global.annotations.apparmor.security.beta.kubernetes.io/allowedProfileNames | default(model.properties.global.properties.annotations.properties.apparmor.security.beta.kubernetes.io/allowedProfileNames.default))}}
+      apparmor.security.beta.kubernetes.io/defaultProfileName: {{ (global.annotations.apparmor.security.beta.kubernetes.io/defaultProfileName | default(model.properties.global.properties.annotations.properties.apparmor.security.beta.kubernetes.io/defaultProfileName.default))}}
+    labels: {}
+# To configure customized annotations and labels for gen3gpp pod
+  pod:
+    annotations:
+      seccomp.security.alpha.kubernetes.io/allowedProfileNames: {{ (custom.pod.annotations.seccomp.security.alpha.kubernetes.io/allowedProfileNames | default(model.properties.annotations.properties.seccomp.security.alpha.kubernetes.io/allowedProfileNames.default))}}
+      seccomp.security.alpha.kubernetes.io/defaultProfileName: {{ (custom.pod.annotations.seccomp.security.alpha.kubernetes.io/defaultProfileName | default(model.properties.annotations.properties.seccomp.security.alpha.kubernetes.io/defaultProfileName.default))}}
+    apparmorAnnotations:
+      apparmor.security.beta.kubernetes.io/allowedProfileNames: {{ (custom.pod.annotations.apparmor.security.beta.kubernetes.io/allowedProfileNames | default(model.properties.annotations.properties.apparmor.security.beta.kubernetes.io/allowedProfileNames.default))}}
+      apparmor.security.beta.kubernetes.io/defaultProfileName: {{ (custom.pod.annotations.apparmor.security.beta.kubernetes.io/defaultProfileName | default(model.properties.annotations.properties.apparmor.security.beta.kubernetes.io/defaultProfileName.default))}}
+    labels: {}
+
+customResourceNames: 
+  resourceNameLimit: {{ (customResourceNames.resourceNameLimit | default(model.properties.customResourceNames.properties.resourceNameLimit.default)) }}
+  gen3gppxmlPod:
+    gen3gppxmlContainer: {{ (customResourceNames.gen3gppxmlPod.gen3gppxmlContainer | default(model.properties.customResourceNames.properties.gen3gppxmlPod.properties.gen3gppxmlContainer.default)) }}
+    sftpContainer: {{ (customResourceNames.gen3gppxmlPod.sftpContainer | default(model.properties.customResourceNames.properties.gen3gppxmlPod.properties.sftpContainer.default)) }}
+    configMapReloadContainer: {{ (customResourceNames.gen3gppxmlPod.configMapReloadContainer | default(model.properties.customResourceNames.properties.gen3gppxmlPod.properties.configMapReloadContainer.default)) }}
+  postDeleteJobPod:
+    name: {{ (customResourceNames.postDeletejobPod.name | default(model.properties.customResourceNames.properties.postDeletejobPod.properties.name.default)) }}
+    postDeletePvcContainer: {{ (customResourceNames.postDeletejobPod.postDeletePvcContainer | default(model.properties.customResourceNames.properties.postDeletejobPod.properties.postDeletePvcContainer.default)) }}
+
+serviceAccountName:
+
+antiAffinityMode: {{ (antiAffinityMode) | default(model.properties.antiAffinityMode.default) }} 
+
+helm3: {{ (helm3) | default(model.properties.helm3.default) }} 
+lcm:
+  scale:
+    timeout: {{ (lcm.scale | default("")).timeout | default(model.properties.lcm.properties.scale.properties.timeout.default ) }}
+image:
+  imageRepo: {{ (image | default("")).imageRepo | default(model.properties.image.properties.imageRepo.default) }}
+  imageTag: {{ (image | default("")).imageTag | default(model.properties.image.properties.imageTag.default) }}
+  pullPolicy: {{ (image | default("")).pullPolicy | default(model.properties.image.properties.pullPolicy.default) }}
+resources: 
+  requests:
+    memory: {{ (resources | default("")).memory | default(model.properties.resources.properties.memory.default ) }}
+    cpu: {{ (resources | default("")).cpu | default(model.properties.resources.properties.cpu.default ) }}
+  limits:
+    memory: {{ (resources | default("")).memoryLimit | default(model.properties.resources.properties.memoryLimit.default ) }}
+    cpu: {{ (resources | default("")).cpuLimit | default(model.properties.resources.properties.cpuLimit.default ) }}
+cbur:
+  enabled: {{ (cbur | default("")).enabled | default(model.properties.cbur.properties.enabled.default) }}
+  image:
+    repository: {{ (cbur.image | default("")).repository | default(model.properties.cbur.properties.image.properties.repository.default) }}
+    tag: {{ (cbur.image | default("")).tag | default(model.properties.cbur.properties.image.properties.tag.default) }}
+    pullPolicy: {{ (cbur.image | default("")).pullPolicy | default(model.properties.cbur.properties.image.properties.pullPolicy.default) }}
+  backendMode: {{ (cbur | default("")).backendMode | default(model.properties.cbur.properties.backendMode.default) }}
+  autoEnableCron: {{ (cbur | default(false)).autoEnableCron | default(model.properties.cbur.properties.autoEnableCron.default) }}
+  autoUpdateCron: {{ (cbur | default(false)).autoUpdateCron | default(model.properties.cbur.properties.autoUpdateCron.default) }}
+  cronJob: {{ (cbur | default("")).cronJob | default(model.properties.cbur.properties.cronJob.default) }}
+  maxCopy: {{ (cbur | default("")).maxCopy | default(model.properties.cbur.properties.maxCopy.default) }}
+  resources: 
+    requests:
+      memory: {{ (cbur.resources | default("")).memory | default(model.properties.cbur.properties.resources.properties.memory.default ) }}
+      cpu: {{ (cbur.resources | default("")).cpu | default(model.properties.cbur.properties.resources.properties.cpu.default ) }}
+    limits:
+      memory: {{ (cbur.resources | default("")).memoryLimit | default(model.properties.cbur.properties.resources.properties.memoryLimit.default ) }}
+      cpu: {{ (cbur.resources | default("")).cpuLimit | default(model.properties.cbur.properties.resources.properties.cpuLimit.default ) }}
+istio:
+  enable:{{ (enable) | default(model.properties.istio.enable.default) }}
+  mtls_enable:{{ (mtls_enable) | default(model.properties.istio.mtls_enable.default) }}
+istioIngress:
+  enabled: {{ (istioIngress | default("")).enabled | default(model.properties.istioIngress.properties.enabled.default) }}
+  selector: {{ (istioIngress | default("")).selector | default(model.properties.istioIngress.properties.selector.default) }}
+  host: {{ (istioIngress | default("")).host | default(model.properties.istioIngress.properties.host.default) }}
+  httpPort: {{ (istioIngress | default("")).httpPort | default(model.properties.istioIngress.properties.httpPort.default) }}
+  sftpPort: {{ (istioIngress | default("")).sftpPort | default(model.properties.istioIngress.properties.sftpPort.default) }}
+  tls:
+    enabled: {{ (istioIngress.tls | default("")).enabled | default(model.properties.istioIngress.properties.tls.properties.enabled.default ) }}
+    httpsPort: {{ (istioIngress.tls | default("")).httpsPort | default(model.properties.istioIngress.properties.tls.properties.httpsPort.default ) }}
+    mode: {{ (istioIngress.tls | default("")).mode | default(model.properties.istioIngress.properties.tls.properties.mode.default ) }}
+configmapReload:
+  image:
+    repository: {{ (configmapReload.image | default("")).repository | default(model.properties.configmapReload.properties.image.properties.repository.default) }}
+    tag: {{ (configmapReload.image | default("")).tag | default(model.properties.configmapReload.properties.image.properties.tag.default) }}
+    pullPolicy: {{ (configmapReload.image | default("")).pullPolicy | default(model.properties.configmapReload.properties.image.properties.pullPolicy.default) }}
+  resources: 
+    requests:
+      memory: {{ (configmapReload.resources | default("")).memory | default(model.properties.configmapReload.properties.resources.properties.memory.default ) }}
+      cpu: {{ (configmapReload.resources | default("")).cpu | default(model.properties.configmapReload.properties.resources.properties.cpu.default ) }}
+    limits:
+      memory: {{ (configmapReload.resources | default("")).memoryLimit | default(model.properties.configmapReload.properties.resources.properties.memoryLimit.default ) }}
+      cpu: {{ (configmapReload.resources | default("")).cpuLimit | default(model.properties.configmapReload.properties.resources.properties.cpuLimit.default ) }}
+containerSecurityContext:
+  runAsUser: {{ (containerSecurityContext | default("")).runAsUser | default(model.properties.containerSecurityContext.properties.runAsUser.default) }}
+sftp:
+  image:
+    repository: {{ (sftp.image | default("")).repository | default(model.properties.sftp.properties.image.properties.repository.default) }}
+    tag: {{ (sftp.image | default("")).tag | default(model.properties.sftp.properties.image.properties.tag.default) }}
+    pullPolicy: {{ (sftp.image | default("")).pullPolicy | default(model.properties.sftp.properties.image.properties.pullPolicy.default) }}
+  resources: 
+    requests:
+      memory: {{ (sftp.resources | default("")).memory | default(model.properties.sftp.properties.resources.properties.memory.default ) }}
+      cpu: {{ (sftp.resources | default("")).cpu | default(model.properties.sftp.properties.resources.properties.cpu.default ) }}
+    limits:
+      memory: {{ (sftp.resources | default("")).memoryLimit | default(model.properties.sftp.properties.resources.properties.memoryLimit.default ) }}
+      cpu: {{ (sftp.resources | default("")).cpuLimit | default(model.properties.sftp.properties.resources.properties.cpuLimit.default ) }}
+  user: {{ (sftp | default("")).user | default(model.properties.sftp.properties.user.default) }}
+  authentication:
+    passwd:
+      enabled: {{ (sftp.authentication.passwd | default("")).enabled | default(model.properties.sftp.properties.authentication.properties.passwd.properties.enabled.default) }}
+      passwd: {{ (sftp.authentication.passwd | default("")).passwd | default(model.properties.sftp.properties.authentication.properties.passwd.properties.passwd.default) }}
+      key: {{ (sftp.authentication.passwd | default("")).key | default(model.properties.sftp.properties.authentication.properties.passwd.properties.key.default) }}
+    key:
+      enabled: {{ (sftp.authentication.key | default("")).enabled | default(model.properties.sftp.properties.authentication.properties.key.properties.enabled.default) }}
+      key: {{ (sftp.authentication.key | default("")).key | default(model.properties.sftp.properties.authentication.properties.key.properties.key.default) }}
+service:
+  name: {{ (service | default("")).name | default(model.properties.service.properties.name.default) }}
+  serviceType: {{ (service | default("")).serviceType | default(model.properties.service.properties.serviceType.default) }}
+  sftpPort: {{ (service | default("")).sftpPort | default(model.properties.service.properties.sftpPort.default) }}
+  restHttpPort: {{ (service | default("")).restHttpPort | default(model.properties.service.properties.restHttpPort.default) }}
+  restHttpsPort: {{ (service | default("")).restHttpsPort | default(model.properties.service.properties.restHttpsPort.default) }}
+configOverride: |+
+  {{ (configOverride | default("")) | default(model.properties.configOverride.default) | indent(width=2) }}
+configs:
+  Gen3GPPXML: {{ (configs | default("")).Gen3GPPXML | default(model.properties.configs.properties.Gen3GPPXML.default) }}
+secrets:
+  prometheusCa: |+
+    {{ (secrets | default("")).prometheusCa | default(model.properties.secrets.properties.prometheusCa.default) | indent(width=4) }}
+  prometheusCert: |+
+    {{ (secrets | default("")).prometheusCert | default(model.properties.secrets.properties.prometheusCert.default) |indent(width=4) }}
+  promethuesKey: |+
+    {{ (secrets | default("")).prometheusKey | default(model.properties.secrets.properties.prometheusKey.default) |indent(width=4) }}
+  promethuesAuthKey: |+
+    {{ (secrets | default("")).prometheusAuthKey | default(model.properties.secrets.properties.prometheusAuthKey.default) |indent(width=4) }}
+  restCa: |+
+    {{ (secrets | default("")).restCa | default(model.properties.secrets.properties.restCa.default) | indent(width=4) }}
+  restCert: |+
+    {{ (secrets | default("")).restCert | default(model.properties.secrets.properties.restCert.default) |indent(width=4) }}
+  restKey: |+
+    {{ (secrets | default("")).restKey | default(model.properties.secrets.properties.restKey.default) |indent(width=4) }}
+  ssoCa: |+
+    {{ (secrets | default("")).ssoCa | default(model.properties.secrets.properties.ssoCa.default) | indent(width=4) }}
+  ssoCert: |+
+    {{ (secrets | default("")).ssoCert | default(model.properties.secrets.properties.ssoCert.default) |indent(width=4) }}
+  ssoKey: |+
+    {{ (secrets | default("")).ssoKey | default(model.properties.secrets.properties.ssoKey.default) |indent(width=4) }}
+persistentVolumeClaim:
+  size: {{ (persistentVolumeClaim | default("")).size | default(model.properties.persistentVolumeClaim.properties.size.default) }}

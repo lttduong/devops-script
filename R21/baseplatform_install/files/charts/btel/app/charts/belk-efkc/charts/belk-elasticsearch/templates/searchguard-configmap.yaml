@@ -1,0 +1,19 @@
+{{- if .Values.searchguard.enable }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "elasticsearch.fullname" . }}-searchguard-config
+  labels:
+    app: {{ template "elasticsearch.fullname" . }}
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+data:
+  sg_internal_users.yml: {{ toYaml .Values.searchguard.sg_configmap.sg_internal_users_yml | indent 2 }}
+  sg_action_groups.yml: {{ toYaml .Values.searchguard.sg_configmap.sg_action_groups_yml | indent 2 }}
+  sg_config.yml: {{ tpl (toYaml .Values.searchguard.sg_configmap.sg_config_yml) . | default "" | indent 2 }}
+  sg_roles.yml: {{ toYaml .Values.searchguard.sg_configmap.sg_roles_yml | indent 2 }}
+  sg_roles_mapping.yml: {{ toYaml .Values.searchguard.sg_configmap.sg_roles_mapping_yml | indent 2 }}
+  sg_blocks.yml: {{ toYaml .Values.searchguard.sg_configmap.sg_blocks_yml | indent 2 }}
+  sg_tenants.yml: {{ toYaml .Values.searchguard.sg_configmap.sg_tenants_yml | indent 2 }}
+{{- end -}}

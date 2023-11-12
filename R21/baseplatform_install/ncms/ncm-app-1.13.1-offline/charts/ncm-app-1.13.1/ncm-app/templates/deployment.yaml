@@ -1,0 +1,443 @@
+{{ $root_home :=  "/root/.helm"  }}
+{{ $default_home := $root_home }}
+{{- if  .Values.helmHostPath }}
+{{ $default_home = .Values.helmHostPath }}
+{{- else }} 
+{{- if semverCompare ">=1.18.0-0" .Capabilities.KubeVersion.GitVersion }}
+            {{ $default_home =  "/opt/bcmt/storage/helm_home"  }}
+{{- end }}
+{{- end }}
+
+{{- if semverCompare "<1.16.0" .Capabilities.KubeVersion.GitVersion }}
+apiVersion: extensions/v1beta1
+{{- else }}
+apiVersion: apps/v1
+{{- end }}
+kind: Deployment
+metadata:
+  name: {{ template "ncm-app.fullname" . }}
+  labels:
+    {{- include "ncm-app.labels" . | nindent 4 }}
+spec:
+  strategy:
+   rollingUpdate:
+    maxUnavailable: {{ .Values.maxUnavailable }}
+  replicas: {{ .Values.replicas }}
+{{- if semverCompare "<1.16.0" .Capabilities.KubeVersion.GitVersion }}
+{{- else }}
+  selector:
+    matchLabels:
+      app: {{ template "ncm-app.fullname" . }}
+{{- end }}
+  template:
+    metadata:
+      labels:
+        app: {{ template "ncm-app.fullname" . }}
+    spec:
+      dnsPolicy: ClusterFirstWithHostNet
+      hostNetwork: true
+{{- if .Values.priorityClassName }}
+      priorityClassName: {{ .Values.priorityClassName }}
+{{- end }}
+{{-  if .Values.hostNetwork }}
+      hostNetwork: true
+{{- end }}
+{{- if .Values.rbac }}
+{{- if .Values.rbac.enabled }}
+      serviceAccountName: {{ template "ncm-app.fullname" . }}-account
+{{- else if .Values.serviceAccountName }}
+      serviceAccountName: {{ .Values.serviceAccountName }}
+{{- end }}
+{{- end }}
+      initContainers:
+      - name: "ncm-configurator"
+        image: "{{ .Values.global.registry }}/{{ .Values.image.name }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ default "IfNotPresent" .Values.imagePullPolicy | quote }}
+        securityContext:
+          runAsUser: 0
+        env:
+          - name: NCM_HOST
+            value: {{ template "ncmHost" . }}
+          - name: NCM_PORT
+            value: "{{ .Values.service.httpPort }}"
+        command:
+          - bash
+          - "-c"
+          - |
+            cp -f $CONF/* /conf/.
+{{- if or .Values.dev }}
+            sed -e "s/bundleinstaller.poll=[0-9].*/bundleinstaller.poll=1000/" -e "s/as.config.file.period=[0-9].*/as.config.file.period=1000/" $ASRCONF/felix.properties > /conf2/felix.properties;
+{{ else }}
+            sed -e "s/bundleinstaller.poll=[0-9].*/bundleinstaller.poll=100000/" -e "s/as.config.file.period=[0-9].*/as.config.file.period=100000/" $ASRCONF/felix.properties > /conf2/felix.properties;
+{{- end }}
+            SERVERCONF=com.nokia.as.jaxrs.jersey.ServersConf.cfg.patch;
+{{- if .Values.keycloak.enabled }}
+            sed -e "s|^-keycloak.json=.*|keycloak-json=keycloak.json|" $CONF/$SERVERCONF > /conf/$SERVERCONF;
+{{ else }}
+            sed -e "s|^keycloak-json=.*|-keycloak.json=|" $CONF/$SERVERCONF > /conf/$SERVERCONF;
+{{- end }}
+            echo "global.alias=/{{ .Values.rootPath }}" >> /conf/$SERVERCONF;
+{{- if .Values.jvmOptions }}
+            echo "-server -Djavax.net.ssl.trustStore=/home/cacerts -Djavax.net.ssl.trustStorePassword=changeit -Dagent.launcherMode=true -Dconfig.dir=instance,/casr/conf,/tmp/conf {{.Values.jvmOptions}}" | sed 's/\(.*\)-XX:+UnlockExperimentalVMOptions\(.*\)/\1\2/' | sed 's/\(.*\)-XX:+UseCGroupMemoryLimitForHeap\(.*\)/\1\2/' > /conf2/jvm.opt;
+            grep -q  "\-XX:+UseContainerSupport" /conf2/jvm.opt ||  sed -i 's/$/ -XX:+UseContainerSupport/' /conf2/jvm.opt
+{{ else }}
+            cp /conf/jvm.opt /conf2/jvm.opt;
+{{- end }}
+{{- if .Values.controller }}
+            sed -i 's/$/ -Dcom.nokia.csf.ncms.controller.Releases:true -Dcom.nokia.csf.ncms.controller.Profiles:true -Dcom.nokia.csf.ncms.controller.Secrets:true/' /conf2/jvm.opt
+{{- end }}
+
+{{- if .Values.profileEndpoint }}
+            sed -i -e 's/$/ -Dcom.nokia.csf.ncms.{{.Values.profileEndpoint}}ProfileEndpoint:true/' /conf2/jvm.opt;
+{{ else }}
+            sed -i -e 's/$/ -Dcom.nokia.csf.ncms.LegacyProfileEndpoint:true/' /conf2/jvm.opt;
+{{- end }}
+            cat /conf2/jvm.opt;
+{{- if or .Values.persistence .Values.autonomous }}
+{{- if or .Values.persistence.enabled .Values.autonomous.enabled }}
+            token=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+            forceMigrate={{ $default_home }}/.domigrate
+            if [ ! -f ${forceMigrate} ]; then
+            xdg_share_home={{ $default_home }}/helm3/.local/share
+            project_home={{ $default_home }}
+            profile_home={{ $default_home }}/profiles
+            echo "original: xdg_share_home is $xdg_share_home and project_home is $project_home and profile_home is $profile_home"
+            [[ -d $xdg_share_home ]] && project_home=$xdg_share_home/projects && profile_home=$xdg_share_home/profiles
+            echo "if xdg_share_home exists, then default_home is {{$default_home}} and project_home is $project_home and profile_home is $profile_home"
+            {{- if .Values.env }}
+            {{- if .Values.env.MT }}
+            mkdir -p $project_home/migrateproject/profiles/migratetest
+            touch $project_home/migrateproject/profiles/migratetest/app_list.yaml
+            result=$(curl -ks -H "Authorization: Bearer ${token}" -H "NCM-Project: migrateproject" -H "NCM-Tiller-NS: wedontcare" -X GET https://$NCM_HOST:$NCM_PORT/ncm/profiles |grep -o migratetest)
+            {{- else }}
+            mkdir -p $profile_home/migratetest
+            touch $profile_home/migratetest/app_list.yaml
+            result=$(curl -ks -H "Authorization: Bearer ${token}" -X GET https://$NCM_HOST:$NCM_PORT/ncm/profiles |grep -o migratetest)
+            {{- end }}
+            {{- end }}
+            echo "migration check is $result"
+            else
+            echo "detecting migration ${forceMigrate}, removing it, readd to restart migration again"
+            result= "migratetest"
+            rm -f ${forceMigrate}
+            fi
+            if [[ $result = "migratetest" ]]
+            then
+                echo "GlusterFS used, need to migrate data"
+                ls -al {{ $default_home  }}
+                [[ -d {{ $default_home }}/helm3/.local/share/profiles || -d {{ $default_home }}/helm3/.local/share/projects ]] && cp -Rv {{ $default_home }}/helm3/. /tmp || {
+                   cp -Rv {{ $default_home }} /tmp/
+                } 
+                {{- if .Values.env }}
+                {{- if .Values.env.MT }}
+                rm -rf /tmp/.helm/migrateproject
+                {{- else }}
+                rm -rf /tmp/.helm/profiles/migratetest
+                {{- end }}
+                {{- end }}
+            else
+                echo "PV already used, no migration needed"
+            fi
+            {{- if .Values.env }}
+            {{- if .Values.env.MT }}
+            rm -rf  $project_home/migrateproject
+            {{- else }}
+            rm -rf $profile_home/migratetest
+            {{- end }}
+            {{- end }}
+{{- end }}
+{{- end }}
+{{- $password := "password" }}
+            echo "what is the password: {{$password}}"
+            ls /cert
+            MAX={{ default 10 .Values.certManager.generationTimeout }}; timeout=0; until [ -s /cert/tls.crt ] && [ -s /cert/tls.key ] && [ -s /cert/ca.crt ] || (( ++timeout > $MAX )); do  sleep 1s;done; [[ $timeout > $MAX ]]  && cat /cert/* && echo "Secret created by cert-manager not yet completed in time $MAX, pls retry differnt certManager generationTimeout" && exit 1
+            cat /cert/*
+            openssl pkcs12 -export -in /cert/tls.crt -inkey /cert/tls.key -certfile /cert/ca.crt -out server.p12 -passout pass:{{$password}}
+            keytool -importkeystore -srckeystore server.p12 -srcstoretype pkcs12 -destkeystore server.ks -deststoretype JKS -srcstorepass {{$password}} -deststorepass {{$password}}
+            cp server.ks /conf/
+            ls /conf/
+            sed -i "s/password/{{$password}}/g" /conf/defJaxRsServer.txt
+            cat /conf/defJaxRsServer.txt
+            sed -i "s/8443/{{ .Values.service.httpPort }}/g" /conf/defJaxRsServer.txt
+{{- if .Values.idleTimeout }}
+            sed -i "s/1200000/{{ .Values.idleTimeout | default 1200000 }}/" /conf/defJaxRsServer.txt
+{{- end }}
+{{- if .Values.processingPoolSize }}
+            sed "s/system.processing-tpool.size=0/system.processing-tpool.size={{ .Values.processingPoolSize | default 0 }}/" $ASRCONF/com.alcatel.as.service.concurrent.impl.PlatformExecutorsImpl.cfg > /conf2/com.alcatel.as.service.concurrent.impl.PlatformExecutorsImpl.cfg
+{{- end }}
+        volumeMounts:
+        - name: conf
+          mountPath: /conf
+        - name: mainconf
+          mountPath: /conf2
+        {{- if or .Values.persistence .Values.autonomous }}
+        {{- if or .Values.persistence.enabled .Values.autonomous.enabled }}
+        - name: helm-dir
+          mountPath: {{ $default_home  }}
+          readOnly: false
+        - name: "pv-helm-dir"
+          mountPath: /tmp
+        {{- end }}
+        {{- end }}
+        - name: certificate
+          mountPath: /cert
+          readOnly: true
+
+      containers:
+{{- if .Values.cbur }}
+{{- if .Values.cbur.enabled }}
+      - name: cbura-sidecar
+        image: "{{ .Values.global.registry }}/{{ .Values.cbur.cburagent.repo }}:{{ .Values.cbur.cburagent.tag }}"
+        imagePullPolicy: {{ .Values.cbur.cburagent.imagePullPolicy }}
+        securityContext:
+            runAsUser: 0
+        volumeMounts:
+        - mountPath: /pv-helm-dir
+          name: "pv-helm-dir"
+        resources:
+{{ toYaml .Values.resources | indent 10 }}
+{{- end }}
+{{- end }}
+
+      - name: {{ template "ncm-app.fullname" . }}
+        image: "{{ .Values.global.registry }}/{{ .Values.image.name }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
+        securityContext:
+          runAsUser: 0
+        ports:
+        - name: http
+          containerPort: 8080
+        - name: https
+          containerPort: {{ .Values.service.httpPort }}
+        env:
+        - name: NCM_SELF_SIGNED_CERT
+          value: {{  .Values.cert }}
+        - name: ROOTPATH
+          value: {{ .Values.rootPath }}
+        - name: ncms.uri
+          value: {{ .Values.ncmsUri }}
+        - name: RELEASE
+          value: {{ .Release.Name }}
+        - name: NAMESPACE
+          value: {{ .Release.Namespace }}
+{{- if .Values.keycloak.enabled }}
+{{- range $key, $value := .Values.keycloak.parameters }}
+        - name: KEYCLOAK_{{ $key | upper }}
+          value: {{ required "this values is required!" $value }}
+{{- end }}
+{{- end }}
+{{- if .Values.env }}
+{{- $root := . -}}
+{{- range $key, $value := .Values.env }}
+{{- if or $root.Values.persistence $root.Values.autonomous }}
+{{- if or $root.Values.persistence.enabled $root.Values.autonomous.enabled }}
+{{- if not (hasPrefix "XDG" $key)}}
+        - name: {{ $key }}
+          value: "{{ $value }}"
+{{- end }}
+{{- else }}
+        - name: {{ $key }}
+          value: "{{ $value }}"
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- if or .Values.persistence .Values.autonomous }}
+{{- if or .Values.persistence.enabled .Values.autonomous.enabled }}
+        - name: HELM_HOME
+          value: /root/.helm/
+{{- else }}
+        - name: XDG_DATA_HOME
+          value: "{{ $default_home }}/helm3/.local/share"
+        - name: XDG_CONFIG_HOME
+          value:  "{{ $default_home }}/helm3/.config"
+        - name: XDG_CACHE_HOME
+          value: "{{ $default_home }}/helm3/.cache"
+        - name: HELM_HOME
+          value: "{{ $default_home }}"
+{{- end }}
+{{- end }}
+{{- if .Values.autonomous }}
+{{- if .Values.autonomous.tiller }}
+{{- if .Values.autonomous.tiller.enabled }}
+{{- range $key, $value := .Values.autonomous.tiller }}
+        - name: {{ $key | upper }}
+          value: {{ $value | quote }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
+        command:
+          - bash
+          - "-c"
+          - |
+            {{- if and .Values.autonomous.tiller .Values.autonomous.tiller.enabled }}
+            {{- if eq .Values.autonomous.tiller.imagePushPolicy "IfNotPresent" }}
+            if [[ $REGISTRY = *bcmt-registry* ]]; then
+                curl -k https://$REGISTRY/v2/$REPOSITORY/manifests/$TAG -o null -w %{http_code} | grep 200 && RESULT=0 || RESULT=1
+            else
+                TOKEN=$(curl -k -u $USERNAME:$PASSWORD "https://$REGISTRY/service/token?service="harbor-registry"&scope="repository:$REPOSITORY:pull"" |  jq -j .token)
+                curl -k -H "Authorization: Bearer $TOKEN" https://$REGISTRY/v2/$REPOSITORY/manifests/$TAG -o null -w %{http_code} | grep 200 && RESULT=0 || RESULT=1
+
+            fi
+            if [ $RESULT -eq 0 ]; then
+                echo "Tiller image found"
+                TILLER_IMAGE=$REGISTRY/$REPOSITORY:$TAG
+                echo "TILLER_IMAGE is $TILLER_IMAGE"
+            else
+                echo "Tiller image not found, upload embedded image"
+                mkdir /casr/N-1/gcr.io_kubernetes-helm_tiller-v2.16.9
+                tar -xvf /casr/N-1/gcr.io_kubernetes-helm_tiller-v2.16.9.tgz -C /casr/N-1/gcr.io_kubernetes-helm_tiller-v2.16.9
+                sh /casr/imagepushing.sh $REGISTRY $REPOSITORY /casr/N-1/gcr.io_kubernetes-helm_tiller-v2.16.9 $TAG $USERNAME $PASSWORD
+                TILLER_IMAGE=$REGISTRY/$REPOSITORY:$TAG
+                echo "TILLER_IMAGE is $TILLER_IMAGE"
+            fi
+            {{- else if eq .Values.autonomous.tiller.imagePushPolicy "Always" }}
+            sh /casr/imagepushing.sh $REGISTRY $REPOSITORY /casr/N-1/gcr.io_kubernetes-helm_tiller-v2.16.9 $TAG $USERNAME $PASSWORD
+            TILLER_IMAGE=$REGISTRY/$REPOSITORY:$TAG
+            echo "TILLER_IMAGE is $TILLER_IMAGE"
+            {{- end }} 
+            {{- if and .Values.rbac }}
+            {{- if .Values.rbac.enabled }}
+            /casr/N-1/helm init --upgrade --tiller-image $TILLER_IMAGE --service-account {{ template "ncm-app.fullname" . }}-account --tiller-namespace $NAMESPACE  --stable-repo-url ${STABLE_URL} --debug
+            {{- else if .Values.serviceAccountName }}
+            /casr/N-1/helm init --upgrade --tiller-image $TILLER_IMAGE --service-account {{ .Values.serviceAccountName }} --tiller-namespace $NAMESPACE  --stable-repo-url ${STABLE_URL} --debug
+            {{- end }}
+            {{- end }}
+            sleep 10
+            /casr/N-1/helm --tiller-namespace $NAMESPACE version
+            {{- end }}
+            CBUR_ENDPOINT=${CBUR_MASTER_CBUR_PORT#"tcp://"} ./start.sh -f -l "${LOGGERS}"
+
+{{- if .Values.liveness }}
+        livenessProbe:
+          exec:
+           command:
+           - bash
+           - -c
+           - "curl -s -X GET http://0.0.0.0:8080/${ROOTPATH}/version -m {{ .Values.livenessMaxTime | default 10 }} -o null -w %{http_code}|grep 200&& touch ${HELM_HOME}/.writable"
+          initialDelaySeconds: 10
+          failureThreshold: {{ default 3 .Values.failureThreshold }}
+          timeoutSeconds: 20
+{{- end }}
+{{- if .Values.readiness }}
+        readinessProbe:
+          exec:
+           command:
+           - bash
+           - -c
+           - "curl -s -X GET http://0.0.0.0:8080/${ROOTPATH}/helm -o null -w %{http_code}|grep 200"
+          initialDelaySeconds: 10
+          timeoutSeconds: 8
+          failureThreshold: {{ default 3 .Values.failureThreshold }}
+          periodSeconds: 20
+{{- end }}
+        resources:
+{{ toYaml .Values.resources | indent 10 }}
+        volumeMounts:
+        {{- if .Values.autonomous }}
+        {{- if .Values.autonomous.tiller }}
+        {{- if .Values.autonomous.tiller.enabled }}
+        - name: "host-docker"
+          mountPath: "/var/run/docker.sock"
+        {{- end }}
+        {{- end }}
+        {{- end }}
+        {{- if or .Values.persistence .Values.autonomous }}
+        {{- if or .Values.persistence.enabled .Values.autonomous.enabled }}
+        - name: "pv-helm-dir"
+          mountPath: /root
+        {{- end }}
+        {{- end }}
+{{- if .Values.dev }}
+{{- range .Values.devHostPathMounts }}
+        - name: {{ .name }}
+          mountPath: {{ .mountPath }}
+{{- if .subPath }}
+          subPath: {{ .subPath }}
+{{- end }}
+          readOnly: {{ .readOnly }}
+{{- end }}
+{{- end }}
+{{- if or (not .Values.autonomous) (and .Values.autonomous (not .Values.autonomous.enabled)) }}
+        - name: {{ .Values.localBinHostPathMount.name }}
+          mountPath: {{ .Values.localBinHostPathMount.mountPath }}
+{{- if .Values.localBinHostPathMount.subPath }}
+          subPath: {{ .Values.localBinHostPathMount.subPath }}
+{{- end }}
+          readOnly: {{ .Values.localBinHostPathMount.readOnly }}
+{{- end }}
+
+{{- if or .Values.persistence .Values.autonomous }}
+{{- if and (not .Values.persistence.enabled) (not .Values.autonomous.enabled) }}
+{{- if .Values.appHostPathMounts }}
+{{- range .Values.appHostPathMounts }}
+        - name: {{ .name }}
+          mountPath: {{ .mountPath }}
+          readOnly: {{ .readOnly }}
+{{- end }}
+        - name: helm-dir
+          mountPath: {{ $default_home  }}
+          readOnly: false
+{{- end }}
+{{- end }}
+{{- end }}
+        - name: conf
+          mountPath: /casr/conf
+        - name: mainconf
+          mountPath: /conf
+      {{- include "placement.spec" . | nindent 6}}
+      volumes:
+        {{- if or (not .Values.autonomous) (and .Values.autonomous (not .Values.autonomous.enabled)) }}
+        - name: {{ .Values.localBinHostPathMount.name }}
+          hostPath:
+            path: {{ .Values.localBinHostPathMount.hostPath }}
+        {{- end }}
+        {{- if .Values.autonomous }}
+        {{- if .Values.autonomous.tiller }}
+        {{- if .Values.autonomous.tiller.enabled }}
+        - name: "host-docker"
+          hostPath:
+            path: /var/run/docker.sock
+            type: File
+        {{- end }}
+        {{- end }}
+        {{- end }}
+        {{- if .Values.certSecretName }}
+        - name: certificate
+          secret:
+            secretName: {{ .Values.certSecretName }}
+        {{- else }}
+        - name: certificate
+          secret:
+            secretName: {{ template "ncm-app.fullname" . }}-tls
+        {{- end }}
+        {{- if or .Values.persistence .Values.autonomous }}
+        {{- if or .Values.persistence.enabled .Values.autonomous.enabled }}
+        - name: "pv-helm-dir"
+          persistentVolumeClaim:
+            claimName: {{ template "ncm-app.fullname" . }}-pvc
+        {{- end }}
+        {{- end }}
+        - name: conf
+          emptyDir: {}
+        - name: mainconf
+          emptyDir: {}
+      {{- if .Values.appHostPathMounts }}
+      {{- range .Values.appHostPathMounts }}
+        - name: {{ .name }}
+          hostPath:
+            path: {{ .hostPath }}
+      {{- end }}
+      {{- end }}
+        - name: helm-dir
+          hostPath:
+            path: {{ $default_home }}
+      {{- if .Values.dev }}
+      {{- range .Values.devHostPathMounts }}
+        - name: {{ .name }}
+          hostPath:
+            path: {{ .hostPath }}
+      {{- end }}
+      {{- end }}
+

@@ -1,0 +1,12 @@
+---
+- name: "Installing virtual IPs"
+  shell: >
+    {{ helm }} install {{ chartsPath }}/virtual-ip/app
+    --wait
+    --name-template {{ virtualIpName }}
+    --namespace {{ BP_NAMESPACE }}
+    --set virtualIp.enabled={{ VIRTUAL_IP.ENABLED }}
+    --set instanceGroup.interface={{ VIRTUAL_IP.INTERFACE | quote }}
+    {{ vipAddressIPv4 | default('') }}
+    {{ vipAddressIPv6 | default('') }}
+  when: VIRTUAL_IP.ENABLED

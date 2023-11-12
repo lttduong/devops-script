@@ -1,0 +1,7 @@
+---
+- name: "Set ingress class"
+  replace:
+    dest: "{{ startPageConfigurationProfile.stat.path }}"
+    regexp: '<INGRESS_CLASS_PLACEHOLDER>'
+    replace: "{{ INGRESS_CLASS }}"
+  when: startPageConfigurationProfile.stat.exists and (INGRESS_CLASS is defined and INGRESS_CLASS | length > 0)

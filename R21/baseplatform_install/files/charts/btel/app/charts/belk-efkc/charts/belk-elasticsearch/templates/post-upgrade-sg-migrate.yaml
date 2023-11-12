@@ -1,0 +1,133 @@
+#post upgrade script is added to migrate searchguard index from v6 to v7.
+#SG Migrate requires SG-6 config files and it will migrate all the users, roles etc created in Sg-6 to SG-7.
+#Since helm upgrade deletes the old SG-6 configmap(cm), in pre-upgrade the old SG-6 configmap will be saved.
+#In post upgrade the newly created SG-7 cm will be deleted and old Sg-6 cm backup which is taken in pre-upgrade will be used to create the SG-6 cm.
+#Sg migration should run only when atleast one data node has joined the cluster. This is checked by monitoring client pod logs.If a data pod is Running, is ELK 7 and has joined the cluster, SG migration is triggered on client pod.
+#SG-6 cm will require some time to get reflected inside the client  pod.
+#So added some sleep and migrate-sg script will be run in any client pod which has all SG-6 configuration data inside it.
+#So on the successfully migrated pod, all the configuration files are copied into the kubectl container's /tmp directory.
+#From /tmp of kubectl container new SG-7 cm is created.
+{{- if .Values.searchguard.enable }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "es.postUpgradejob.name" . }}
+  labels:
+    app: {{ template "elasticsearch.name" . }}
+  annotations:
+    "helm.sh/hook-weight": "-6"
+    "helm.sh/hook": post-upgrade
+    "helm.sh/hook-delete-policy": {{ .Values.upgrade.hookDelPolicy }}
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: {{ .Values.global.seccompAllowedProfileNames }}
+    seccomp.security.alpha.kubernetes.io/defaultProfileName: {{ .Values.global.seccompDefaultProfileName }}
+spec:
+  template:
+    metadata:
+      labels:
+        app: {{ template "elasticsearch.name" . }}
+      {{- if .Values.istio.enabled }}
+      annotations:
+        sidecar.istio.io/inject: "false"
+      {{- end }}
+    spec:
+      serviceAccountName: {{ default ( default (printf "%s-es-sa" ( include "elasticsearch.fullname" . )) .Values.global.serviceAccountName ) .Values.serviceAccountName }}
+      restartPolicy: Never
+      containers:
+      - name: {{ template "es.postUpgradeSgMigrateContainer.name" . }}
+        image: "{{ .Values.global.registry1 }}/{{ .Values.kubectl.image.repo }}:{{ .Values.kubectl.image.tag }}"
+        securityContext:
+          allowPrivilegeEscalation: false
+          privileged: false
+          capabilities:
+            drop:
+              - all
+        resources:
+{{ toYaml .Values.jobResources | indent 10 }}
+        command:
+        - sh
+        - "-c"
+        - |
+          kubectl get cm elk-version-check --namespace {{ .Release.Namespace }}
+          if [ $? -eq 0 ]; then
+            echo "`date +'%Y-%m-%dT%H:%M:%S'` - Found elk-version-check cm - SG migration is needed"
+            kubectl get cm {{ template "elasticsearch.fullname" . }}-searchguard-config-6 --namespace {{ .Release.Namespace }} -o yaml > /tmp/sg-6-cm.yml
+
+            cd /tmp
+            var=$(grep name: sg-6-cm.yml) && sed -i "s/$var/${var::-2}/g" sg-6-cm.yml
+            sleep 5
+            kubectl delete cm {{ template "elasticsearch.fullname" . }}-searchguard-config --namespace {{ .Release.Namespace }}
+            kubectl create -f sg-6-cm.yml
+            echo "Created cm with SG 6 backed up config..."
+            sleep 60
+            while true
+            do
+              # Getting list of running client pods
+              for pod_id in $(kubectl get pods  --namespace {{ .Release.Namespace }} -l role=client,component=elasticsearch --no-headers=true | grep Running | grep {{ .Release.Name }} | sort -r |  awk '{ print$1 }')
+              do
+               # Checking if clientd pod is ELK 7
+               echo "Checking if $pod_id is ELK 7"
+               kubectl exec -i ${pod_id} --namespace {{ .Release.Namespace }} -c {{ template "elasticsearch.client.container" . }} -- [ -d /usr/share/elasticsearch/plugins/search-guard-7 ]
+
+               if [ $? -eq 0 ];then
+                echo "Pod ${pod_id} is ELK 7. Monitoring ${pod_id} logs"
+                kubectl logs -f ${pod_id} --namespace {{ .Release.Namespace }} -c {{ template "elasticsearch.client.container" . }} > /tmp/es-${pod_id}.log &
+                data_ct=$(kubectl get cm elk-version-check --namespace {{ .Release.Namespace }} -o yaml | grep DataNodes | cut -f2 -d"\"")
+                data_pod_list=$(for i in $(seq 0 $(( data_ct-1 )));  do echo "{{ template "elasticsearch.data.fullname" . }}-$i"; done)
+                echo "ELK 6 cluster data pod list - $data_pod_list"
+                while true
+                do
+                 for data_pod in $data_pod_list
+                 do
+                   sleep 1
+                   echo "Checking if $data_pod is ELK 7"
+                   kubectl exec -i ${data_pod} --namespace {{ .Release.Namespace }} -c {{ template "elasticsearch.data.container" . }} -- [ -d /usr/share/elasticsearch/plugins/search-guard-7 ]
+                   if [ $? -eq 0 ];then
+                      echo "$data_pod is ELK 7"
+                      pod_status=$(kubectl get pods ${data_pod} --namespace {{ .Release.Namespace }} --no-headers | awk '{ print $3}')
+                      if [ ! -z $pod_status ] && [ $pod_status == "Running" ] && $(grep -q -m 1 -E "added.*($data_pod)" /tmp/es-${pod_id}.log); then
+                          echo "`date +'%Y-%m-%dT%H:%M:%S'` - $data_pod joined elasticsearch cluster"
+                          es7_data=$data_pod
+                          echo "---------------------------------------------------------"
+                          tail /tmp/es-${pod_id}.log -n20
+                          break
+                      else
+                        echo "$data_pod is not running or not joined cluster yet"
+                      fi
+                   fi
+                 done
+                 if [[ -v es7_data ]]; then
+                    echo "---------- $es7_data joined elasticsearch cluster ----------"
+                    break
+                 fi
+                done
+
+               fi
+
+               echo "Checking if SG 6 configurations are updated in client pod: $pod_id"
+               kubectl exec -i ${pod_id} --namespace {{ .Release.Namespace }} -c {{ template "elasticsearch.client.container" . }} -- grep -ir "config_version" /usr/share/elasticsearch/plugins/search-guard-7/sgconfig/sg_internal_users.yml
+               if [ $? -ne 0 ]; then
+                sleep 5
+                echo "`date +'%Y-%m-%dT%H:%M:%S'` - Running migrate_sg.sh on $pod_id"
+                kubectl exec -i ${pod_id} --namespace {{ .Release.Namespace }} -c {{ template "elasticsearch.client.container" . }} -- /opt/elasticsearch/scripts/migrate-sg.sh
+                kubectl exec -i ${pod_id} --namespace {{ .Release.Namespace }} -c {{ template "elasticsearch.client.container" . }} -- [ -d /usr/share/elasticsearch/sg_migrate/v7 ]
+                if [ $? -eq 0 ]; then
+                   echo "-----------------SG migration successful on $pod_id ---------------------"
+                   success_pod=$pod_id
+                   break
+                fi
+               else
+                echo "Waiting for configmap to be updated"
+               fi
+              done
+              if [[ -v success_pod ]]; then
+                break;
+              fi
+            done
+            kubectl cp {{ .Release.Namespace }}/$success_pod:/usr/share/elasticsearch/sg_migrate/v7 /tmp/ -c {{ template "elasticsearch.client.container" . }}
+            kubectl delete cm {{ template "elasticsearch.fullname" . }}-searchguard-config --namespace {{ .Release.Namespace }}
+            kubectl delete cm {{ template "elasticsearch.fullname" . }}-searchguard-config-6 --namespace {{ .Release.Namespace }}
+            kubectl create configmap {{ template "elasticsearch.fullname" . }}-searchguard-config --from-file=/tmp/sg_action_groups.yml --from-file=/tmp/sg_config.yml --from-file=/tmp/sg_internal_users.yml --from-file=/tmp/sg_roles_mapping.yml --from-file=/tmp/sg_roles.yml --from-file=/tmp/sg_tenants.yml --namespace {{ .Release.Namespace }}
+            kubectl delete cm elk-version-check --namespace {{ .Release.Namespace }}
+          fi
+
+{{- end }}

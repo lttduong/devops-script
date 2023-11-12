@@ -1,0 +1,118 @@
+---
+- name: Get info WAS 
+  hosts: localhost
+  connection: local
+  collections:
+    - azure.azcollection
+
+  vars:
+    nmaster: "{{ lookup('env', 'mastername') }}"
+    nworker: "{{ lookup('env', 'workername') }}"
+    resource_group: "{{ lookup('env', 'rg') }}"
+
+  tasks:
+    - name: Get public IP of Master node
+      shell: sudo az vm show -g "{{ resource_group }}" -n "{{ nmaster }}"  --query privateIps -d --out tsv > ./wasip.txt
+      
+    - name: Query Public IP vm master node
+      shell: sudo az vm show -g "{{ resource_group }}" -n "{{ nmaster }}"  --query privateIps -d --out tsv 
+      register: ipmaster  
+
+    - name: Print out URL of WAS
+      debug:
+        msg: "This is URL of WAS: https://{{ipmaster.stdout}}"
+
+    - name: Get NETGUARD_ADMIN_PASSWORD
+      shell: awk '{if(NR==83) print $2}' ./was-install/playbook/bp-packages/bp_config_vars.yml >> ./wasip.txt
+    
+    - name: Show out NETGUARD_ADMIN_PASSWORD
+      shell: awk '{if(NR==83) print $2}' ./was-install/playbook/bp-packages/bp_config_vars.yml
+      register: netguard_admin
+
+    - name: Print out NETGUARD_ADMIN_PASSWORD
+      debug: 
+        msg: "This is NETGUARD_ADMIN_PASSWORD: {{ netguard_admin.stdout }} "
+
+    - name: Show out KEYCLOAK_ADMIN_PASSWORD
+      shell: awk '{if(NR==126) print $2}' ./was-install/playbook/bp-packages/bp_config_vars.yml
+      register: keycloak_admin
+
+    - name: Print out KEYCLOAK_ADMIN_PASSWORD
+      debug:
+        msg: "This is KEYCLOAK_ADMIN_PASSWORD: {{ keycloak_admin.stdout }} "
+
+    - name: Show out KEYCLOAK_DB_PASSWORD
+      shell: awk '{if(NR==125) print $2}' ./was-install/playbook/bp-packages/bp_config_vars.yml
+      register: keycloak_db
+
+    - name: Print out KEYCLOAK_DB_PASSWORD
+      debug:
+        msg: "This is KEYCLOAK_DB_PASSWORD: {{ keycloak_db.stdout }} "
+
+    - name: Show out MARIADB_USER_PASSWORD
+      shell: awk '{if(NR==127) print $2}' ./was-install/playbook/bp-packages/bp_config_vars.yml
+      register: mariadb_user
+
+    - name: Print out MARIADB_USER_PASSWORD
+      debug:
+        msg: "This is MARIADB_USER_PASSWORD: {{ mariadb_user.stdout }} "
+
+    - name: Show out MAXSCALE_USER_PASSWORD
+      shell: awk '{if(NR==128) print $2}' ./was-install/playbook/bp-packages/bp_config_vars.yml
+      register: maxscale_user
+
+    - name: Print out MAXSCALE_USER_PASSWORD
+      debug:
+        msg: "This is MAXSCALE_USER_PASSWORD: {{ maxscale_user.stdout }} "
+
+    - name: Show out REPL_USER_PASSWORD
+      shell: awk '{if(NR==129) print $2}' ./was-install/playbook/bp-packages/bp_config_vars.yml
+      register: repl_user
+
+    - name: Print out REPL_USER_PASSWORD
+      debug:
+        msg: "This is REPL_USER_PASSWORD: {{ repl_user.stdout }} "
+
+    - name: Show out METRICS_USER_PASSWORD
+      shell: awk '{if(NR==130) print $2}' ./was-install/playbook/bp-packages/bp_config_vars.yml
+      register: metrics_user
+
+    - name: Print out METRICS_USER_PASSWORD
+      debug:
+        msg: "This is METRICS_USER_PASSWORD: {{ metrics_user.stdout }} "
+
+    - name: Show out GRAFANA_DB_PASSWORD
+      shell: awk '{if(NR==132) print $2}' ./was-install/playbook/bp-packages/bp_config_vars.yml
+      register: grafana_db
+
+    - name: Print out GRAFANA_DB_PASSWORD
+      debug:
+        msg: "This is GRAFANA_DB_PASSWORD: {{ grafana_db.stdout }} "
+
+    - name: Show out CALM_DB_PASSWORD
+      shell: awk '{if(NR==133) print $2}' ./was-install/playbook/bp-packages/bp_config_vars.yml
+      register: calm_db
+
+    - name: Print out CALM_DB_PASSWORD
+      debug:
+        msg: "This is CALM_DB_PASSWORD: {{ calm_db.stdout }} "
+
+    - name: Show out CMDB_ROOT_PASSWORD
+      shell: awk '{if(NR==134) print $2}' ./was-install/playbook/bp-packages/bp_config_vars.yml
+      register: cmdb_root
+
+    - name: Print out CMDB_ROOT_PASSWORD
+      debug:
+        msg: "This is CMDB_ROOT_PASSWORD: {{ cmdb_root.stdout }} "
+
+    - name: Print out VM name of masternode
+      debug:
+        msg: "This is VM name of masternode: {{ nmaster }} "
+
+    - name: Print out VM name of workernode
+      debug:
+        msg: "This is VM name of workernode: {{ nworker }} "
+
+    - name: Print out Resource Group of Cluster
+      debug:
+        msg: "This is Resource group of Cluster: {{ resource_group }} "

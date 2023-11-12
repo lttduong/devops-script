@@ -1,0 +1,4 @@
+apiVersion: v1
+description: RMQ configuration
+name: crmq-configurator-config
+version: 1.0.0

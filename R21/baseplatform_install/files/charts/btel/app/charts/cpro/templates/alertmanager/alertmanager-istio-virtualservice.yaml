@@ -1,0 +1,48 @@
+{{- if and .Values.istio.enable .Values.alertmanager.enabled}}
+{{- if .Values.alertmanager.istioIngress.enabled }}
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService 
+metadata:
+  labels:
+    app: {{ template "prometheus.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    component: "{{ .Values.alertmanager.name }}"
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+{{- include "prometheus-labels" (tuple .Values.global.labels) | indent 4}}
+  name: {{ template "prometheus.alertmanager.fullname" . }}-vs
+{{- if .Values.global.annotations }}
+  annotations:
+{{- include "prometheus-annotations" (tuple .Values.global.annotations) | indent 4}}
+{{- end }}
+spec:
+  hosts:
+  - '{{ .Values.alertmanager.istioIngress.host }}'
+  gateways:
+  {{- if eq .Values.alertmanager.istioIngress.gatewayName "" }}
+  - {{ template "prometheus.alertmanager.fullname" . }}-istio-gateway
+        {{- else }}
+  - {{ .Values.alertmanager.istioIngress.gatewayName }}
+  {{- end }}
+  http:
+  - match:
+    - uri:
+        prefix: /{{ .Values.alertmanager.istioIngress.Contextroot}}
+    rewrite:
+  {{- $rewriteURI := include "alertmanager.routePrefixURL" . -}}
+  {{- if ne $rewriteURI "" }}
+      uri: {{ $rewriteURI }}
+  {{- else }}
+      uri: /
+  {{- end }}
+    route:
+    - destination:
+        {{- if .Values.ha.enabled }}
+        host: {{ template "prometheus.alertmanager.fullname" . }}-ext
+        {{- else }}
+        host: {{ template "prometheus.alertmanager.fullname" . }}
+        {{- end }}
+        port:
+          number: {{ .Values.alertmanager.service.servicePort }}
+{{- end }}
+{{- end }}

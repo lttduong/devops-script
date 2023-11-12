@@ -1,0 +1,105 @@
+---
+- name: Recovery WSHA VM
+  hosts: localhost
+  connection: local
+  collections:
+   - azure.collection
+
+  vars:
+    resource_group: open-wavehub-dev
+    NewRG: "{{ lookup('env', 'rg') }}"
+    vaultName: OriginalWavesuiteBackupVaultEU
+    lraVaultName: "{{ lookup('env', 'vaultname') }}"
+    containerName: "{{ lookup('env', 'containername') }}"
+    storageName: "{{ lookup('env', 'storagename') }}"
+    recoveryPoint: "{{ lookup('env', 'recoverypoint') }}" 
+    vmName: "{{ lookup('env', 'nfmtname') }}"
+    policy: "{{ lookup('env', 'policyvault') }}"
+
+  tasks:
+#  - name: Listing available recovery points
+#    shell: sudo az backup recoverypoint list --resource-group "{{ resource_group }}" --vault-name "{{ vaultName }}" --backup-management-type AzureIaasVM --container-name WSHAForReplicateVM --item-name WSHAForReplicateVM --query [0].name --output tsv
+#    register: recoverypoint
+
+#  - name: Creating a storage account
+#    shell: sudo az storage account create --resource-group "{{ resource_group }}" --name "{{ storageName }}" --sku Standard_LRS -l eastus
+
+  - name: Restore the disk from your recovery point 
+    shell: sudo az backup restore restore-disks --resource-group "{{ resource_group }}" --vault-name "{{ vaultName }}" --container-name "{{ containerName }}" --item-name "{{ containerName }}" --storage-account "{{ storageName }}" --rp-name "{{ recoveryPoint }}" --target-resource-group "{{ NewRG }}" --query name
+    register: backupjob
+
+  - name: Pause for 2 minutes for restore disk
+    pause:
+      minutes: 2   
+
+  - name: Mornitoring the restore job 
+    shell: sudo az backup job list --resource-group "{{ resource_group }}" --vault-name "{{ vaultName }}" --output table
+    register: restorejob
+  
+  - name: Job name of Backup
+    debug: 
+      msg: "{{ restorejob.stdout}}"
+  
+  - name: Fetch the job details
+    shell: sudo az backup job show -v "{{ vaultName }}" -g "{{ resource_group }}" -n "{{ backupjob.stdout }}" --query 'properties.extendedInfo.propertyBag'| grep Template | awk -F '["]' '{print $4}'
+    register: link
+
+  - name: get link
+    debug:
+      msg: "{{ link.stdout }}"
+  
+  - name: Take template name
+    shell: echo "{{ link.stdout }}" | awk -F '[/]' '{print $4; exit}'
+    register: template
+
+  - name: get link
+    debug:
+      msg: "{{ template.stdout }}"
+
+  - name: Take container name
+    shell: echo "{{ link.stdout }}" | awk -F '[/]' '{print $5; exit}'
+    register: cname
+  
+  - name: get link
+    debug:
+      msg: "{{ cname.stdout }}"
+
+  - name: Create Expiretime var
+    shell: date -u -d '30 minutes' +%Y-%m-%dT%H:%MZ
+    register: expiretime
+
+  - name: get expiretime
+    debug:
+      msg: "{{ expiretime.stdout }}"
+
+  - name: Create Connection var
+    command: sudo az storage account show-connection-string --resource-group "{{ resource_group }}" --name "{{ storageName }}" --query connectionString
+    register: connection
+  
+  - name: get connection
+    debug:
+      msg: "{{ connection.stdout }}"
+  
+  - name: Create token for deploy vm 
+    shell: sudo az storage blob generate-sas --container-name {{ template.stdout }} --name {{ cname.stdout }} --expiry {{ expiretime.stdout}} --permissions r --output tsv --connection-string {{ connection.stdout }}
+    register: token
+  
+  - name: get token
+    debug:
+      msg: "{{ token.stdout }}"
+
+  - name: Create Url var for 
+    shell: sudo az storage blob url --container-name {{ template.stdout }} --name {{ cname.stdout }} --output tsv --connection-string {{ connection.stdout }}
+    register: url
+  
+  - name: get url
+    debug:
+      msg: "{{ url.stdout }}"
+
+  - name: Deploy the template to create the VM
+    shell: sudo az deployment group create --resource-group "{{ NewRG }}" --template-uri "{{ url.stdout }}?{{ token.stdout }}" --parameters VirtualMachineName="{{ vmName }}"
+  
+  - name: Enable backup for vm
+    shell: sudo az backup protection enable-for-vm --resource-group "{{ resource_group }}" --vault-name "{{ lraVaultName }}" --vm $(az vm show -g "{{ NewRG }}" -n "{{ vmName }}" --query id | tr -d '"') --policy-name "{{ policy }}"
+    ignore_errors: yes
+  

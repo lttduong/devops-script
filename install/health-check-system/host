@@ -1,0 +1,17 @@
+[openbuilder]
+openbuilder ansible_host=20.224.230.79 ansible_user=DEV_Admin
+
+[prodbuilder]
+prodbuilder ansible_host=13.80.154.105 ansible_user=nminhtuan
+
+[controllervm]
+controllervm ansible_host=20.123.140.188 ansible_user=azureuser 
+
+[smtp_server]
+wshaforreplicatevm ansible_host=20.231.83.47 ansible_user=Mail_Admin ansible_port=22
+
+[kubernetes:children]
+kubernetes_worker_nodes
+kubernetes_master_nodes
+controllervm
+smtp_server

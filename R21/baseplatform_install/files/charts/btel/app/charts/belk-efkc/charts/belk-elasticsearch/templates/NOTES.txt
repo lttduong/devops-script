@@ -1,0 +1,2 @@
+Elasticsearch chart creates following pods in the Release namespace of the chart.
+kubectl get pods --namespace {{ .Release.Namespace }} -l 'component=elasticsearch,role in (client,data,master)'

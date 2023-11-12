@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "kafka.name" . }}-headless
+  labels:
+    app: {{ .Chart.Name }}
+    release: {{ .Release.Name | quote }}
+    heritage: {{ .Release.Service | quote }}
+  annotations:
+    prometheus.io/port: "{{ .Values.JmxExporter.port }}"
+    prometheus.io/scrape: "true"
+    service.alpha.kubernetes.io/tolerate-unready-endpoints: "true"
+spec:
+  ports:
+  - name: tcp-kafka
+    port: 9092
+    targetPort: tcp-kafka
+  clusterIP: None
+  selector:
+    app: {{ .Chart.Name }}
+    release: {{ .Release.Name | quote }}

@@ -1,0 +1,41 @@
+- hosts: kubernetes_master_nodes
+  become: yes
+  vars_files:
+  - env_variables
+  tasks:
+
+    - name: Untain master node
+      shell: kubectl taint node {{edge_node}} node-role.kubernetes.io/master:NoSchedule-
+      ignore_errors: yes
+
+    - name: Copy was value file to master host
+      copy:
+        src: was-packages/was_values.yml
+        dest: "{{ dir_master[0] }}"
+
+    - name: Copy was script file to master host
+      copy:
+        src: was-packages/helm-install.sh
+        dest: "{{ dir_master[0] }}"
+
+    - name: Copy was chart package to master host
+      copy:
+        src: was-packages/was.tgz
+        dest: "{{ dir_master[0] }}"
+
+    - name: Remove was pods if any with was app
+      shell: kubectl get po -n netguard-base | grep  nwas | awk '{print $1}' | xargs -l kubectl delete po -n netguard-netguard-base
+      ignore_errors: yes
+
+    - name: Remove was secret if any was app 
+      shell: kubectl get secret -n netguard-base | grep  nwas | awk '{print $1}' | xargs -l kubectl delete secret -n netguard-netguard-base
+      ignore_errors: yes
+
+    - name: Remove was configmap if any was app
+      shell: kubectl get cm -n netguard-base | grep  nwas | awk '{print $1}' | xargs -l kubectl delete cm -n netguard-netguard-base
+      ignore_errors: yes
+
+    - name: Install was deploy with helm3 scripting
+      shell: bash -x helm-install.sh --action=install --appli-name=was --config-values=was_values.yml
+      args:
+        chdir: "{{ dir_master[0] }}"

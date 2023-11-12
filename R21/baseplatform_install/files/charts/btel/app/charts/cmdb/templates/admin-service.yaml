@@ -1,0 +1,19 @@
+{{- if ne (.Values.cluster_type) "simplex" }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.services.admin.name | default (printf "%s-admin" (include "cmdb.fullname" .)) | quote }}
+  labels:
+    {{- include "cmdb-admin.labels" . | indent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+  - name: tcp-redisio
+    port: 6379
+    targetPort: tcp-redisio
+  selector:
+    {{- include "cmdb-admin.labels" . | indent 4 }}
+    type: admin
+    admin-daemon: "yes"
+{{- end }}

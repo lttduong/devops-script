@@ -1,0 +1,7 @@
+---
+- name: "Creating configuration directories"
+  file:
+    path: "{{ temporaryAppFilesDirectory }}"
+    state: directory
+    recurse: no
+    mode: "0750"

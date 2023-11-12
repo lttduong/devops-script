@@ -1,0 +1,30 @@
+{{- if and (.Values.istio.enable) (.Values.alertmanager.enabled) (ne .Values.global.istioVersion 1.4) }}
+apiVersion: "security.istio.io/v1beta1"
+kind: "PeerAuthentication"
+metadata:
+  labels:
+    app: {{ template "prometheus.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    component: "{{ .Values.alertmanager.name }}"
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+{{- include "prometheus-labels" (tuple .Values.global.labels) | indent 4}}
+  name: {{ template "prometheus.alertmanager.fullname" . }}
+  namespace: "{{.Release.Namespace}}"
+{{- if .Values.global.annotations }}
+  annotations:
+{{- include "prometheus-annotations" (tuple .Values.global.annotations) | indent 4}}
+{{- end }}
+spec:
+  selector:
+    matchLabels:
+      component: "{{ .Values.alertmanager.name }}"
+      release: {{ .Release.Name }}
+      app: {{ template "prometheus.name" . }}
+  mtls:
+{{- if .Values.istio.mtls_enable }}
+    mode: STRICT
+{{- else }}
+    mode: PERMISSIVE
+{{- end }}
+{{- end }}

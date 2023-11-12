@@ -1,0 +1,2 @@
+Namespace {{.Values.namespace}} was created.
+Namespace {{.Values.namespaceConfiguration}} was created.

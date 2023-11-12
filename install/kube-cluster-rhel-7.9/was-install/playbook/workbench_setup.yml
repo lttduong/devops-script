@@ -1,0 +1,44 @@
+- hosts: kubernetes_master_nodes
+  become: yes
+  vars_files:
+  - env_variables
+  tasks:
+
+    - name: untain master node
+      shell: kubectl taint node {{edge_node}} node-role.kubernetes.io/master:NoSchedule-
+      ignore_errors: yes
+
+    - name: copy workbench config file
+      copy:
+        src: workbench-packages/workbench_config_vars.yml 
+        dest: $HOME
+
+    - name: copy workbench package 
+      copy:
+        src: workbench-packages/workbench.tar.gz
+        dest: $HOME
+
+    - name: untar workbench package
+      shell: tar xzvf workbench.tar.gz
+      args:
+        chdir: $HOME
+
+    - name: delete netguard-workbench namespace if already exist
+      shell: kubectl delete ns netguard-workbench
+      ignore_errors: yes
+
+    - name: delete previous workbench secret 
+      shell: kubectl get secret -n netguard-configuration| grep  workbench | awk '{print $1}' | xargs -l kubectl delete secret -n netguard-configuration
+      ignore_errors: yes
+
+    - name: remove previous workbench pod
+      shell: kubectl get po -n netguard-configuration| grep  workbench | awk '{print $1}' | xargs -l kubectl delete po -n netguard-configuration
+      ignore_errors: yes
+
+    - name: create netguard-workbench namespace
+      shell: kubectl create ns netguard-workbench
+
+    - name: install workbench
+      shell:  helm3 install "workbench" ./workbench --version "0.0.525" --namespace "netguard-workbench" --wait --timeout "900s" --values "workbench_config_vars.yml"
+      args:
+        chdir: $HOME

@@ -1,0 +1,72 @@
+{{ if and (gt (int .Values.maxscale.count) 0) .Values.geo_redundancy.enabled }}
+{{ $remote := .Values.geo_redundancy.remote }}
+{{ $remote_parts := splitList ":" (default ":" $remote.master) }}
+{{ $remote_ip := initial $remote_parts | join ":" | trimAll "[]" }}
+{{ $tcp_remote_port := last $remote_parts }}
+{{ if $remote.master }}
+  ## Validate remote host and port and trigger error as needed
+  {{- $ip := (required "A valid geo_redundancy.remote.master must be 'host:port'" $remote_ip) }}
+  {{- $port := (required "A valid geo_redundancy.remote.master must be 'host:port'" $tcp_remote_port) }}
+{{ end }}
+---
+kind: Endpoints
+apiVersion: v1
+metadata:
+  name: {{ template "cmdb.fullname" . }}-master-{{ $remote.name }}
+  labels:
+    {{- include "cmdb-mariadb.labels" . | indent 4 }}
+subsets:
+  # To be added after install
+{{- if $remote.master }}
+  - addresses:
+      - ip: "{{ $remote_ip }}"
+    ports:
+      - port: {{ $tcp_remote_port }}
+        name: "tcp-mariadb"
+{{- else }}
+  []
+{{- end }}
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: {{ template "cmdb.fullname" . }}-master-{{ $remote.name }}
+  labels:
+    {{- include "cmdb-mariadb.labels" . | indent 4 }}
+spec:
+{{- if $remote.master_remote_service_ip }}
+  clusterIP: {{ $remote.master_remote_service_ip }}
+{{- end }}
+  ports:
+  - name: "tcp-mariadb"
+    port: 3306 
+  # To be modified after install
+{{- if $remote.master }}
+    targetPort: {{ $tcp_remote_port }}
+{{- end }}
+
+{{- if .Values.istio.enabled }}
+---
+apiVersion: "authentication.istio.io/v1alpha1"
+kind: "Policy"
+metadata:
+  name: {{ template "cmdb.fullname" . }}-master-{{ $remote.name }}-mtls-authn
+spec:
+  targets:
+  - name: {{ template "cmdb.fullname" . }}-master-{{ $remote.name }}
+  peers:
+  - mtls:
+      mode: STRICT
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: {{ template "cmdb.fullname" . }}-master-{{ $remote.name }}-mlts-dr
+spec:
+  host: {{ template "cmdb.fullname" . }}-master-{{ $remote.name }}
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+{{- end }}
+
+{{- end }}

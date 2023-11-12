@@ -1,0 +1,96 @@
+{{- if gt (int .Values.postscalein ) 0 }}
+{{- if and .Values.persistence.data.enabled (not .Values.persistence.reservePvcForScalein) }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "postScaleinJobName" . }}
+  labels:
+    app: {{ template "rabbitmq.name" . }}
+spec:
+  template:
+    metadata:
+      {{- if .Values.istio.enabled }}
+      annotations:
+        sidecar.istio.io/inject: "false"
+      {{- end }}
+      labels:
+        app: {{ template "rabbitmq.name" . }}
+    spec:
+      restartPolicy: Never      
+      {{- if .Values.rbac.enabled}}
+      serviceAccountName: {{ template "rabbitmq.fullname" . }}-scale
+      {{- else if not ( empty .Values.rbac.serviceAccountNameScale ) }}
+      serviceAccountName: "{{ .Values.rbac.serviceAccountNameScale }}"
+      {{- else }}
+      serviceAccountName: "{{ .Values.rbac.serviceAccountName }}"
+      {{- end }}
+
+      volumes:
+      - name: kubectl
+      containers:
+      - name: {{ template "postScaleinContainerName" . }}
+        image: "{{ .Values.global.registry1 }}/{{ .Values.kubectlImage.repository }}:{{ .Values.kubectlImage.tag }}"
+        volumeMounts:
+        - name: kubectl
+          mountPath: /kubectl
+        command:
+          - bash
+          - "-c"
+          - |
+           pvc_claimName=data-{{ template "rabbitmq.fullname" . }}
+           scalecnt={{ .Values.replicas }}
+           pvc_count=$(kubectl get pvc --namespace {{ .Release.Namespace }} -l release={{ .Release.Name }},app={{ template "rabbitmq.name" . }} | grep -v "ACCESS MODES" | wc -l) 
+           pvc_count=$((pvc_count-1))
+           while [ $((pvc_count)) -ge $((scalecnt)) ]
+           do 
+             kubectl delete pvc --namespace {{ .Release.Namespace }} ${pvc_claimName}-${pvc_count}
+             kubectl exec {{ template "rabbitmq.fullname" . }}-0  rabbitmqctl forget_cluster_node rabbit@{{ template "rabbitmq.fullname" . }}-${pvc_count}
+             pvc_count=$((pvc_count-1))
+           done
+{{- end }}
+{{- if or (not .Values.persistence.data.enabled) .Values.persistence.reservePvcForScalein }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "postScaleinJobName" . }}
+  labels:
+    app: {{ template "rabbitmq.name" . }}
+spec:
+  template:
+    metadata:
+      {{- if .Values.istio.enabled }}
+      annotations:
+        sidecar.istio.io/inject: "false"
+      {{- end }}
+      labels:
+        app: {{ template "rabbitmq.name" . }}
+    spec:
+      restartPolicy: Never
+      {{- if .Values.rbac.enabled }}
+      serviceAccountName: {{ template "rabbitmq.fullname" . }}-admin-forgetnode
+      {{- else }}
+      serviceAccountName: "{{ .Values.rbac.serviceAccountNameAdminForgetnode }}"
+      {{- end }}
+      volumes:
+      - name: kubectl
+      containers:
+      - name: {{ template "postScaleinContainerName" . }}
+        image: "{{ .Values.global.registry1 }}/{{ .Values.kubectlImage.repository }}:{{ .Values.kubectlImage.tag }}"
+        volumeMounts:
+        - name: kubectl
+          mountPath: /kubectl
+        command:
+          - bash
+          - "-c"
+          - |
+           pvc_claimName=data-{{ template "rabbitmq.fullname" . }}
+           scalecnt={{ .Values.replicas }}
+           pvc_count=$(kubectl get pvc --namespace {{ .Release.Namespace }} -l release={{ .Release.Name }} | grep -v "ACCESS MODES" | wc -l)
+           pvc_count=$((pvc_count-1))
+           while [ $((pvc_count)) -ge $((scalecnt)) ]
+           do
+             kubectl exec {{ template "rabbitmq.fullname" . }}-0  rabbitmqctl forget_cluster_node rabbit@{{ template "rabbitmq.fullname" . }}-${pvc_count}
+             pvc_count=$((pvc_count-1))
+           done
+{{- end }}
+{{- end }}

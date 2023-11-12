@@ -1,0 +1,12 @@
+---
+- name: "Installing {{ BP_NAMESPACE }} egress"
+  shell: >
+    {{ helm }} install {{ chartsPath }}/egress/app
+    --wait
+    --name-template {{ egressHelmName }}
+    --namespace {{ BP_NAMESPACE }}
+    --set egress.ipv4.enabled={{ egressIPv4Enabled }}
+    --set egress.ipv6.enabled={{ egressIPv6Enabled }}
+    --set egress.mode={{ EGRESS.EGRESS_MODE }}
+    {{ egressConfigurationOverride }}
+  when: EGRESS.ENABLED

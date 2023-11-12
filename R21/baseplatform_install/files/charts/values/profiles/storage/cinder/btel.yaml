@@ -1,0 +1,37 @@
+belk:
+  persistence:
+    storageClassName: cinder
+  belk-elasticsearch:
+    elasticsearch_master:
+      persistence:
+        createPv: false
+    esdata:
+      persistence:
+        createPv: false
+
+calm:
+  persistence:
+    createPv: false
+    storageClass: cinder
+
+cpro:
+  alertmanager:
+    persistentVolume:
+      storageClass: cinder
+    persistence:
+      createPv: false
+  server:
+    persistentVolume:
+      storageClass: cinder
+    persistence:
+      createPv: false
+
+grafana:
+  persistence:
+    createPv: false
+    storageClass: cinder
+
+gen3gppxml:
+  persistence:
+    createPv: false
+    storageClass: cinder

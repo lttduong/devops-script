@@ -1,0 +1,94 @@
+---
+- name: Reinstallation after the VM is brought up successfully
+  hosts: restore_wsse_vm
+
+  vars:
+    nfmtIp: "{{ lookup('env', 'nfmtIp') }}"
+    nfmtPassWord: "{{ lookup('env', 'nfmtPassWord') }}"
+    vpnProfile: "{{ lookup('env', 'vpnProfile') }}"
+    rootProfile: "{{ lookup('env', 'rootProfile') }}"
+  
+  tasks: 
+    - name: copy wavesuite config file to wsse host
+      copy:
+        src: playbook/wavesuite.yaml 
+        dest: /opt/WaveSuite-Service-Enablement-22-02-0
+      become: true
+   
+    - name: copy hosts file
+      copy:
+        src: playbook/hosts
+        dest: /etc/
+      become: true
+
+    - name: copy openvpn profile
+      copy:
+        src: "{{ rootProfile }}{{ vpnProfile }}/client2.ovpn"
+        dest: /etc/openvpn3
+      become: true        
+
+    - name: Connect VPN to WHLabs
+      shell: |
+        openvpn3 session-start --config /etc/openvpn3/client2.ovpn
+      become_user: WSSE_Admin
+      become: true
+      become_method: su
+      become_flags: '-s /bin/bash'
+
+    - name: Check vpn connaction with NFMT
+      shell: |
+        openvpn3 sessions-list 
+      register: showConnection
+
+    - name: List VPN connections
+      debug:
+        msg: "{{showConnection.stdout}}" 
+
+    - name: Install expect package using yum
+      yum:
+        name: expect
+        state: present 
+      become: true
+
+    - name: Run script to install wsse
+      shell: |
+        spawn sudo ./wsse_installer.sh --install-se
+        expect "Creat evault password:"
+        send "admin@123\r"
+        expect "Confirm vault password:" 
+        send "admin@123\r"
+        expect "NFM-T Password:" 
+        send "{{nfmtPassWord}}\r"
+        expect "Confirm password:"
+        send "{{nfmtPassWord}}\r"
+        interact
+        exit 0
+      args:
+        executable: /usr/bin/expect
+        chdir: /opt/WaveSuite-Service-Enablement-22-02-0
+      become: true
+      ignore_errors: yes
+
+    - name: Change smtp host for configure file
+      shell: sed  -i '153 s/mail/172.20.3.4/g' /opt/WaveSuite-Service-Enablement-22-02-0/wavesuite.yaml
+      become: true
+
+    - name: Run script to upadte SMTP host
+      shell: |
+        spawn sudo ./wsse_installer.sh --update --tags update_smtp_details
+        expect "Vault password: "
+        send "admin@123\r"
+        interact
+        exit 0
+      args:
+        executable: /usr/bin/expect
+        chdir: /opt/WaveSuite-Service-Enablement-22-02-0
+      become: true
+
+    - name: Verify connection to NFM-T
+      shell: |
+        curl -k https://{{ nfmtIp }}/cas/login
+      become: true
+
+ 
+

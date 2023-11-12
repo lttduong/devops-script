@@ -1,0 +1,2 @@
+Fluentd chart creates these pods in the Release namespace of the chart.
+kubectl get pods --namespace {{ .Release.Namespace }} -l k8s-app={{ template "fluentd.fullname" . }}-es

@@ -1,0 +1,82 @@
+{{- if (and (.Release.IsInstall) (.Values.masterRealmConfigurationJob.enabled)) }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: "{{ .Release.Name }}-master-realm-configuration-job"
+  labels:
+    app: {{ template "keycloak.fullname" . }}
+    release: {{ .Release.Name }}
+spec:
+  template:
+    metadata:
+      annotations:
+      {{- if .Values.istio.enabled }}
+        sidecar.istio.io/inject: "true"
+      {{- else }}
+        sidecar.istio.io/inject: "false"
+      {{- end }}
+    spec:
+      # shareProcessNamespace: true
+      restartPolicy: Never
+      {{- if .Values.global.rbacEnable }}
+      serviceAccountName: {{ template "ckeyServiceAccount" . }}
+      {{- end }}
+      securityContext:
+        runAsUser: {{ default 1000 .Values.cbur.securityContext.runAsUser }}
+        runAsGroup:  {{ default 1000 .Values.cbur.securityContext.runAsGroup }}
+        fsGroup: {{ default 1000 .Values.cbur.securityContext.fsGroup }} 
+      containers:
+      - name: master-realm-configuration-job-ckey
+        image: "{{ .Values.global.registry2 }}/{{ .Values.imageRepo }}:{{ .Values.imageTag }}"
+        imagePullPolicy: "{{ .Values.imagePullPolicy }}"
+        env:
+          {{ if .Values.createInitialUser }}
+          - name: KEYCLOAK_USER
+            valueFrom:
+              secretKeyRef:
+                name: {{ template "keycloak.fullname" . }}
+                key: keycloak-admin-user
+          - name: KEYCLOAK_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: {{ template "keycloak.fullname" . }}
+                key: keycloak-admin-password
+          {{ end }}
+          - name: HTTPS_PORT
+            value: {{ .Values.httpsPort | default "8443" | quote }}
+          - name: SERVICE_IP
+            value: {{ template "keycloak.fullname" . }}.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}
+        command:
+        - sh
+        - -c
+        - |
+          set -x
+          {{ if .Values.ingress.enabled }}
+            CONTEXT_PATH = {{ .Values.ingress.path | default "/auth" | quote }}
+          {{ else }}
+            CONTEXT_PATH = "/auth"
+          {{ end }}
+          until curl --insecure --connect-timeout 5 https://{{ template "keycloak.fullname" . }}.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}:{{ .Values.httpsPort }}$CONTEXT_PATH; do
+            echo "Waiting for Keycloak connection..."
+            sleep 2;
+          done;
+          echo 'Keycloak is OK!'
+          echo "Running custom master realm configuration script..."
+          /ckey/custom-scripts/configure-realm-settings.sh
+        volumeMounts:
+          - name: custom-realm-config-scripts
+            mountPath: /ckey/custom-scripts
+            readOnly: true
+        resources:
+          requests:
+            memory: {{ .Values.initBusyBoxContainer.resources.requests.memory | default "256Mi" | quote }}
+            cpu: {{ .Values.initBusyBoxContainer.resources.requests.cpu | default "250m" | quote }}
+          limits:
+            memory: {{ .Values.initBusyBoxContainer.resources.limits.memory | default "256Mi" | quote }}
+            cpu: {{ .Values.initBusyBoxContainer.resources.limits.cpu | default "250m" | quote }}
+      volumes:
+        - name: custom-realm-config-scripts
+          configMap:
+            name: {{ template "keycloak.fullname" . }}-custom-realm-config-scripts
+            defaultMode: 0555
+{{- end }}

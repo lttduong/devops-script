@@ -1,0 +1,4 @@
+---
+ - import_playbook: cleanup-vm/cleanup_master-node.yml
+ - import_playbook: cleanup-vm/cleanup_worker-node.yml
+ - import_playbook: cleanup-vm/teardown-dpa.yml

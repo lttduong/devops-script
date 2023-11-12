@@ -1,0 +1,52 @@
+{{- if and .Values.ingress.enabled (eq .Values.istio.gateway.enabled false) -}}
+{{- $releaseName := .Release.Name -}}
+{{- $servicePort := .Values.ingress.keycloakServicePort -}}
+{{- $servicePath := .Values.ingress.path | default "" -}}
+apiVersion: networking.k8s.io/v1beta1
+kind: Ingress
+metadata:
+  annotations:
+  {{- range $key, $value := .Values.ingress.annotations }}
+    {{ $key }}: {{ $value | quote }}
+  {{- end }}
+  {{ if .Values.istio.enabled }}
+    kubernetes.io/ingress.class: "nginx"
+    nginx.ingress.kubernetes.io/service-upstream: "true"
+    nginx.ingress.kubernetes.io/upstream-vhost: {{ template "keycloak.fullname" . }}.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}
+  {{ end }}
+  labels:
+    app: {{ template "keycloak.fullname" . }}
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+    provider: "csf-paas"
+  name: {{ printf "%s.%s.%.0f" .Release.Namespace $releaseName $servicePort }}
+spec:
+  rules:
+  {{- if .Values.ingress.hosts -}}
+  {{- range .Values.ingress.hosts }}
+  - host: {{ . }}
+    http:
+      paths:
+        {{- if ne $servicePath "" }}
+      - path: {{ printf "%s" $servicePath }}
+        {{ end }}
+        backend:
+          serviceName: {{ template "keycloak.fullname" $ }}
+          servicePort: {{ printf "%.0f" $servicePort }}
+  {{- end }}
+  {{ else }}
+  - http:
+      paths:
+        {{- if ne $servicePath "" }}
+      - path: {{ printf "%s" $servicePath }}
+        {{ end }}
+        backend:
+          serviceName: {{ template "keycloak.fullname" . }}
+          servicePort: {{ printf "%.0f" $servicePort }}
+  {{- end -}}
+  {{- if .Values.ingress.tls }}
+  tls:
+{{ toYaml .Values.ingress.tls | indent 4 }}
+  {{- end -}}
+{{- end -}}

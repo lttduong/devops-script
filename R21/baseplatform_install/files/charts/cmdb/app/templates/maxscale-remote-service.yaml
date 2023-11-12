@@ -1,0 +1,48 @@
+{{ if and (gt (int .Values.maxscale.count) 0) .Values.geo_redundancy.enabled }}
+{{ $remote := .Values.geo_redundancy.remote }}
+{{ $remote_parts := splitList ":" (default ":" $remote.maxscale) }}
+{{ $remote_ip := initial $remote_parts | join ":" | trimAll "[]" }}
+{{ $tcp_remote_port := last $remote_parts }}
+{{ if $remote.maxscale }}
+  ## Validate remote host and port and trigger error as needed
+  {{- $ip := (required "A valid geo_redundancy.remote.maxscale must be 'host:port'" $remote_ip) }}
+  {{- $port := (required "A valid geo_redundancy.remote.maxscale must be 'host:port'" $tcp_remote_port) }}
+{{ end }}
+---
+kind: Endpoints
+apiVersion: v1
+metadata:
+  name: {{ template "cmdb.fullname" . }}-maxscale-{{ $remote.name }}
+  labels:
+    {{- include "cmdb-maxscale.labels" . | indent 4 }}
+subsets:
+  # To be added after install
+{{- if $remote.maxscale }}
+  - addresses:
+      - ip: "{{ $remote_ip }}"
+    ports:
+      - port: {{ $tcp_remote_port }}
+        name: "tcp-maxscale"
+{{- else }}
+  []
+{{- end }}
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: {{ template "cmdb.fullname" . }}-maxscale-{{ $remote.name }}
+  labels:
+    {{- include "cmdb-maxscale.labels" . | indent 4 }}
+spec:
+  ports:
+  - name: "tcp-maxscale"
+    port: {{ .Values.services.maxscale.port }}
+  # To be modified after install
+{{- if $remote.maxscale }}
+    targetPort: {{ $tcp_remote_port }}
+{{- end }}
+{{- if $remote.maxscale }}
+    targetPort: {{ $tcp_remote_port }}
+{{- end }}
+
+{{- end }}

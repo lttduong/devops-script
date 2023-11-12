@@ -1,0 +1,12 @@
+# Common variables
+resourceGroup: open-wavehub-dev
+newRG: "{{ lookup('env', 'rg') }}"
+location: "{{ lookup('env', 'region') }}"
+
+# Components variables
+dpaName: "{{ lookup('env', 'dpaName') }}"
+dpaVaultName: "{{ lookup('env', 'dpaVaultName') }}"
+masterName: "{{ lookup('env', 'masterName') }}"
+masterVaultName: "{{ lookup('env', 'masterVaultName') }}"
+workerName: "{{ lookup('env', 'workerName') }}"
+workerrVaultName: "{{ lookup('env', 'workerrVaultName') }}"

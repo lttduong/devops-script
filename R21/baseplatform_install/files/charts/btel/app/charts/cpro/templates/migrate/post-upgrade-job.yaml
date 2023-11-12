@@ -1,0 +1,54 @@
+{{- if .Values.server.migrate.enabled -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+{{- if or .Values.global.labels .Values.custom.pod.labels }}
+  labels:
+{{- include "prometheus-labels" (tuple .Values.global.labels) | indent 4}}
+{{- end }}
+  name: {{ template "prometheus.migrate.postUpgradePodName" . }}
+  annotations:
+{{- include "prometheus-annotations" (tuple .Values.global.annotations) | indent 4}}
+    "helm.sh/hook": post-upgrade
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": hook-failed, hook-succeeded
+spec:
+  template:
+    metadata:
+      annotations:
+        #TODO CHECK
+        sidecar.istio.io/inject: "false"
+{{- include "custom-annotations" (tuple .Values.custom.pod.annotations) | indent 8}}
+{{- if .Values.rbac.pspUseAppArmor }}
+{{- include "custom-annotations" (tuple .Values.custom.pod.apparmorAnnotations) | indent 8}}
+{{- end }}
+{{- if .Values.custom.pod.labels }}
+      labels:
+{{- include "custom-labels" (tuple .Values.custom.pod.labels) | indent 8}}
+{{- end }}
+    spec:
+      {{- if or .Values.serviceAccountName .Values.global.serviceAccountName }}
+      serviceAccountName: {{ template "prometheus.serviceAccountName" . }}
+      {{- else if .Values.rbac.enabled }}
+      serviceAccountName: {{ template "prometheus.serviceAccount.fullname" . }}-post
+      {{- else }}
+      serviceAccountName: "default"
+      {{- end }}
+      {{- if .Values.seLinuxOptions.enabled }}
+      securityContext:
+        seLinuxOptions:
+          level: {{ .Values.seLinuxOptions.level }}
+          role: {{ .Values.seLinuxOptions.role }}
+          type: {{ .Values.seLinuxOptions.type }}
+          user: {{ .Values.seLinuxOptions.user }}
+      {{- end }}
+      restartPolicy: Never
+      containers:
+        - name: {{ template "prometheus.migrate.postUpgradeContainer" . }} 
+          image: "{{ .Values.global.registry }}/{{ .Values.helmDeleteImage.imageRepo }}:{{ .Values.helmDeleteImage.imageTag }}"
+          imagePullPolicy: "{{ .Values.helmDeleteImage.imagePullPolicy }}"
+          resources:
+{{ toYaml .Values.server.migrate.resources | indent 12 }}
+          command: ["sh", "-c"]
+          args: ["sleep {{ .Values.server.migrate.moveDuration }} && kubectl delete pods -n ncms {{ template "prometheus.migrate.fullname" . }}-pre --grace-period=0 --force && kubectl delete serviceaccount {{ template "prometheus.serviceAccount.fullname" . }}-post && kubectl delete clusterrolebinding {{ template "prometheus.migrate.fullname" . }}-pre {{ template "prometheus.migrate.fullname" . }}-post"]
+{{- end }}

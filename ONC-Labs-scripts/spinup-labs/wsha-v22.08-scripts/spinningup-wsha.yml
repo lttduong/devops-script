@@ -1,0 +1,4 @@
+---
+ - import_playbook: spinningup-wsha/restore-backupvm-wsha.yml
+ - import_playbook: spinningup-wsha/reinstall-for-new-wsha.yml
+ - import_playbook: spinningup-wsha/get-info-wsha.yml

@@ -1,0 +1,32 @@
+{{ if gt (int .Values.global.postheal ) 0 }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: "{{ .Release.Name }}-ckey-postheal"
+spec:
+  template:
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "false"
+    spec:
+      {{- if .Values.global.rbacEnable }}
+      serviceAccountName: {{ template "ckeyServiceAccount" . }}
+      {{- end }}
+      # securityContext:
+        # runAsUser: {{ .Values.securityContext.runAsUser | default 1000 }}
+        # fsGroup: {{ .Values.securityContext.fsGroup | default 1000 }}
+        # runAsNonRoot: {{ .Values.securityContext.runAsNonRoot | default true }}
+      restartPolicy: Never
+      containers:
+      - name: {{ .Release.Name }}-ckey-postheal
+        image: "{{ .Values.global.registry }}/{{ .Values.kubectlImage }}:{{ .Values.kubectlTag }}"
+        imagePullPolicy: "{{ .Values.imagePullPolicy }}"
+        command:
+        - sh
+        - -c
+        - |
+         echo 'post heal for release: {{ .Release.Name }}'
+         echo 'Check whether all the pods are up and running after healing'
+         kubectl get pods -l app={{ template "keycloak.name" . }},release={{ .Release.Name }} --namespace={{ .Release.Namespace }}
+{{ end }}
+

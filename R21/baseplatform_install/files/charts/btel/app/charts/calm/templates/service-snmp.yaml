@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "alarm.fullname" . }}-snmp
+  labels:
+    app: {{ template "alarm.name" . }}
+    chart: {{ .Chart.Name }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+    version: {{ .Chart.Version }}
+spec:
+  type: {{ .Values.snmpServiceType }}
+  ports:
+  - name: udp-snmp
+    port: {{ .Values.listeningPort }}
+    targetPort: udp-snmp
+    protocol: UDP
+{{- if (and (eq .Values.snmpServiceType "NodePort") (not (empty .Values.snmpNodePort))) }}
+    nodePort: {{ .Values.snmpNodePort }}
+{{- end }}
+  - name: udp-snmp-trap
+    port: {{ .Values.snmpTrapPort }}
+    targetPort: udp-snmp-trap
+    protocol: UDP
+{{- if (and (eq .Values.snmpServiceType "NodePort") (not (empty .Values.snmpTrapNodePort))) }}
+    nodePort: {{ .Values.snmpTrapNodePort }}
+{{- end }}
+  selector:
+    app: {{ template "alarm.name" . }}
+    release: {{ .Release.Name }}

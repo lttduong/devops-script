@@ -1,0 +1,9 @@
+---
+- name: "Label worker nodes for CMDB"
+  shell: kubectl label node "{{ item }}" "{{ cmdbLabel.key }}"="{{ cmdbLabel.value }}" --overwrite
+  with_items: "{{ cmdbNodes }}"
+
+- name: "Label worker nodes for CRMQ"
+  shell: kubectl label node "{{ item }}" "{{ crmqLabel.key }}"="{{ crmqLabel.value }}" --overwrite
+  with_items: "{{ crmqNodes }}"
+

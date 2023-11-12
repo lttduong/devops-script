@@ -1,0 +1,23 @@
+{{- if .Values.istio.enabled -}}
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: {{ template "keycloak.fullname" . }}-mlts-dr-ckey
+spec:
+  host: {{ template "keycloak.fullname" . }}
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+---
+{{- if and .Values.cmdb.enabled .Values.cmdb.istio.enabled -}}
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: {{ template "keycloak.fullname" . }}-mlts-dr-to-cmdb
+spec:
+  host: {{ template "keycloak.cmdb.fullname" . }}
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+{{- end -}}
+{{- end -}}

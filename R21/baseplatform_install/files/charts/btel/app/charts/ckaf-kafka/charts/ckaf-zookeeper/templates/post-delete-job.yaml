@@ -1,0 +1,113 @@
+{{- if (and ( .Values.global.rbacEnable) (not .Values.global.serviceAccountName) ) }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ template "zookeeper.name" . }}-zk-postdel-admin
+  namespace: "{{.Release.Namespace}}"
+  labels:
+    app: {{ .Chart.Name }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+  annotations:
+    # This is what defines this resource as a hook. Without this line, the
+    # job is considered part of the release.
+    # If there're multiple hooks, may define differnent hook-weight value.
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: {{ .Values.global.seccompAllowedProfileNames }}
+    seccomp.security.alpha.kubernetes.io/defaultProfileName: {{ .Values.global.seccompDefaultProfileName }}
+    "helm.sh/hook": post-delete
+    "helm.sh/hook-weight": "-8"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded,hook-failed
+{{- end }}
+---
+{{- if (and ( .Values.global.rbacEnable) (not .Values.global.serviceAccountName) ) }}
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ template "zookeeper.name" . }}-zk-postdel-rolebind
+  namespace: "{{.Release.Namespace}}"
+  labels:
+    app: {{ .Chart.Name }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+  annotations:
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: {{ .Values.global.seccompAllowedProfileNames }}
+    seccomp.security.alpha.kubernetes.io/defaultProfileName: {{ .Values.global.seccompDefaultProfileName }}
+    "helm.sh/hook": post-delete
+    "helm.sh/hook-weight": "-6"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded,hook-failed
+subjects:
+- kind: ServiceAccount
+  name: {{ template "zookeeper.name" . }}-zk-postdel-admin
+  namespace: "{{.Release.Namespace}}"
+roleRef:
+  kind: ClusterRole
+  name: admin
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "zookeeper.name" . }}-zk-postdel-job
+  labels:
+    app: {{ .Chart.Name }}
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: {{ .Release.Name | quote }}
+    heritage: {{ .Release.Service | quote }}
+  annotations:
+    # This is what defines this resource as a hook. Without this line, the
+    # job is considered part of the release.
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: {{ .Values.global.seccompAllowedProfileNames }}
+    seccomp.security.alpha.kubernetes.io/defaultProfileName: {{ .Values.global.seccompDefaultProfileName }}
+    "helm.sh/hook": post-delete
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    "helm.sh/hook-weight": "-5"
+spec:
+  template:
+    metadata:
+      labels:
+        app: {{ .Chart.Name }}
+      annotations:
+        sidecar.istio.io/inject: "false"
+    spec:
+      {{- if .Values.global.rbacEnable }}
+      {{- if not .Values.global.serviceAccountName }}
+      serviceAccountName: {{ template "zookeeper.name" . }}-zk-postdel-admin
+      {{ else }}
+      serviceAccountName: {{ template "zkserviceAccount.name" . }}
+      {{ end }}
+      {{ end }}
+      {{- if eq .Values.security.enabled true }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: {{ .Values.security.runAsUser }}
+        fsGroup: {{ .Values.security.fsGroup }}
+      {{- end }}
+      restartPolicy: Never
+      containers:
+      - name: ckaf-zookeeper-zk-postdel
+        image: "{{ .Values.global.registry3}}/{{ .Values.kubectlImage }}:{{ .Values.kubectlTag }}"
+        {{- if eq .Values.security.enabled true }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          privileged: false
+          capabilities:
+            drop:
+              - all
+        {{- end }}
+        resources:
+{{ toYaml .Values.jobResources | indent 10 }}
+        command:
+        - sh
+        - -c
+        - |
+          kubectl delete configmap {{ template "zookeeper.name" . }}-dynamic-config --namespace {{ .Release.Namespace }}
+          {{- if .Values.deleteZookeeperJob.auto_remove_zk_pvc }}
+          kubectl delete pvc --namespace {{ .Release.Namespace }} -l app={{ .Chart.Name }},release={{ .Release.Name }}
+          {{- end }}
+          # clean up the config map if scale via upgrade feature is turned ON.
+          {{- if .Values.global.enable_scale_via_upgrade }}
+          echo "Deleting the zookeeper replicas configmap."
+          kubectl delete configmap {{ template "zookeeper.name" . }}-replicas -n {{ .Release.Namespace }}
+          {{- end }}
+

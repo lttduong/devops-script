@@ -1,0 +1,22 @@
+mariadb:
+  persistence:
+    createPv: false
+    enabled: true
+    storageClass: cinder-az-nova
+    resourcePolicy: keep
+    resourcePolicyPv: Retain
+    backup:
+      enabled: false
+
+admin:
+  persistence:
+    createPv: false
+    enabled: true
+    storageClass: cinder-az-nova
+    resourcePolicy: keep
+    resourcePolicyPv: Retain
+
+volumes:
+  path:
+    mariadbData: /var/mariadb/data
+    admin: /var/mariadb/admin

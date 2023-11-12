@@ -1,0 +1,30 @@
+{
+  "policy": "SKIP",
+  "roles":
+  {
+    "client": {
+      "netguard-workflow-automation": [
+        {
+          "name": "workflow-automation-view-settings",
+          "composite": false,
+          "clientRole": true
+        },
+        {
+          "name": "workflow-automation-manage-settings",
+          "composite": false,
+          "clientRole": true
+        },
+        {
+          "name": "workflow-automation-view-all-processes-tasks",
+          "composite": false,
+          "clientRole": true
+        },
+        {
+          "name": "workflow-automation-manage-all-processes-tasks",
+          "composite": false,
+          "clientRole": true
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,16 @@
+---
+- name: "Upgrading CKEY configurator config chart"
+  shell: >
+    {{ helm }}  upgrade {{ ckeyConfiguratorConfigHelmName }} {{ chartsPath }}/ckey/configurator-config
+    --namespace {{ BP_CONFIG_NAMESPACE }}
+    --reuse-values
+    --values {{ chartsPath }}/values/upgrade-global-values.yaml
+    --values {{ chartsPath }}/ckey/configurator-config/upgrade-override.yaml
+    --set cbur.maxiCopy={{ CBUR.CONFIG_SECRETS.COPIES | default(1) }}
+    --set dns.domain={{ svcDnsDomain }}
+    --set config.ckey.netguard.clientSecret={{ netguardAdminSecret }}
+    --set config.ckey.master.clientSecret={{ masterAdminSecret }}
+    --install
+    --wait
+    --timeout {{ wait_timeout }}s
+  no_log: "{{ no_log }}"

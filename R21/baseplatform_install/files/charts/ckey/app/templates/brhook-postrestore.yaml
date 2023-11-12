@@ -1,0 +1,57 @@
+{{- if (and (.Values.cbur.enabled) (.Values.cbur.brHookPostRestore.enable)) }}
+apiVersion: "cbur.csf.nokia.com/v1"
+kind: BrHook
+metadata:
+  name: {{ template "keycloak.fullname" . }}-hr-postrestore
+  namespace: {{ .Release.Namespace }}
+spec:
+  properties:
+    targetType: "brpolicy"
+    targetName: {{ template "keycloak.fullname" . }}
+    hookPoint: "postrestore"
+    weight: {{ .Values.cbur.brHookPostRestore.weight }}
+    enable: {{ .Values.cbur.brHookPostRestore.enable }}
+    timeout: {{ .Values.cbur.brHookPostRestore.timeout }}
+    deletePolicy: 'before-hook-creation,hook-succeeded'
+  template:
+    spec:
+      template:
+        metadata:
+          annotations:
+          {{- if .Values.istio.enabled }}
+            sidecar.istio.io/inject: "true"
+            traffic.sidecar.istio.io/excludeInboundPorts: "443"
+            traffic.sidecar.istio.io/excludeOutboundPorts: "443"
+          {{- else }}
+            sidecar.istio.io/inject: "false"
+          {{- end }}
+        spec:
+          {{- if .Values.global.rbacEnable }}
+          serviceAccountName: {{ template "ckeyServiceAccount" . }}
+          {{- end }}
+          securityContext:
+            runAsUser: {{ default 1000 .Values.cbur.securityContext.runAsUser }}
+            runAsGroup:  {{ default 1000 .Values.cbur.securityContext.runAsGroup }}
+            fsGroup: {{ default 1000 .Values.cbur.securityContext.fsGroup }}
+          containers:
+            - name: ckey-post-restore
+              image: "{{ .Values.global.registry }}/{{ .Values.kubectlImage }}:{{ .Values.kubectlTag }}"
+              imagePullPolicy: "{{ .Values.imagePullPolicy }}"
+              command:
+                - sh
+                - -c
+                - |
+                  echo 'Postrestore job for release: {{ .Release.Name }}'
+                  kubectl delete pods -l app={{ template "keycloak.name" . }},release={{ .Release.Name }} --namespace={{ .Release.Namespace }}
+                  {{ if .Values.istio.enabled }}
+                  echo "Quiting istio proxy container in the job"
+                  until curl http://127.0.0.1:15020/quitquitquit -X POST; do
+                  echo "Waiting for istio proxy to be up ..."
+                  sleep 2;
+                  done;
+                  {{ end }}
+                  echo 'Waiting 5 seconds before job cleanup'
+                  sleep 5
+          restartPolicy: Never
+          terminationGracePeriodSeconds: 30
+{{- end }}

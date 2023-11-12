@@ -1,0 +1,27 @@
+{{- if and .Values.rbac.enabled .Values.nodeExporter.enabled }}
+{{- if not .Values.deployOnComPaaS }}
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app: {{ template "prometheus.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    component: "{{ .Values.nodeExporter.name }}"
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+{{- include "prometheus-labels" (tuple .Values.global.labels) | indent 4}}
+  name: {{ template "prometheus.nodeExporter.fullname" . }}
+{{- if .Values.global.annotations }}
+  annotations:
+{{- include "prometheus-annotations" (tuple .Values.global.annotations) | indent 4}}
+{{- end }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ template "prometheus.exporters.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+{{- end }}
+{{- end }}

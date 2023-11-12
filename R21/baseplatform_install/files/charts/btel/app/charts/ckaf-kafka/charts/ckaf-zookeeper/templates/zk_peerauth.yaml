@@ -1,0 +1,14 @@
+{{- if and (eq .Values.global.istio.overrideMtls.enabled true) (eq .Values.global.istio.enabled true) }}
+apiVersion: "security.istio.io/v1beta1"
+kind: "PeerAuthentication"
+metadata:
+  name: {{ template "zookeeper.name" . }}-zkpeerauthentication
+  namespace: {{.Release.Namespace}}
+spec:
+  selector:
+    matchLabels:
+      app: {{ .Chart.Name }}
+      release: {{ .Release.Name | quote }}
+  mtls:
+    mode: {{ .Values.global.istio.overrideMtls.mode }}
+{{- end }}

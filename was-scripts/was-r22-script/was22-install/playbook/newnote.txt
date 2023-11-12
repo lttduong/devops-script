@@ -1,0 +1,6 @@
+
+# get authen private registry use at /var/lib/kubelet/config.json
+https://stackoverflow.com/questions/65356293/pulling-images-from-private-repository-in-kubernetes-without-using-imagepullsecr
+
+cat token to authen private registry 
+cat $HOME/.docker/config.json

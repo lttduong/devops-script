@@ -1,0 +1,74 @@
+---
+#- name: Get ckey-config image name and tag from BasePlatform
+#  shell: >
+#    {{ kubectlPath }} get jobs -n {{ BP_CONFIG_NAMESPACE }} ckey-master-config -o jsonpath={.spec.template.spec.containers[0].image}
+#  register: ckeyConfigImageNameAndTag
+
+- name: "Retrieve ckey client sercrets"
+  include: retrieve_ckey_clients_secret.yml
+  when: geoRedundancyActiveModeOrDisabled
+
+- name: "Set frameworkClientSecret fact"
+  set_fact:
+    helm_params: "{{ helm_params }} --set global.config.ckey.client.secret.netguardFrameworkSecret='{{ frameworkClientSecret }}'"
+  when: frameworkClientSecret is defined
+
+- name: "Set networkAccessClientSecret fact"
+  set_fact:
+    helm_params: "{{ helm_params }} --set global.config.ckey.client.secret.netguardNetworkAccessSecret='{{ networkAccessClientSecret }}'"
+  when: networkAccessClientSecret is defined
+
+- name: "Set agentClientSecret fact"
+  set_fact:
+    helm_params: "{{ helm_params }} --set global.config.ckey.client.secret.netguardNetworkAccessAgentSecret='{{ agentClientSecret }}'"
+  when: agentClientSecret is defined
+
+- name: "Set iamClientSecret fact"
+  set_fact:
+    helm_params: "{{ helm_params }} --set global.config.ckey.client.secret.netguardIamSecret='{{ iamClientSecret }}'"
+  when: iamClientSecret is defined
+
+- name: "Set proxyClientSecret fact"
+  set_fact:
+    helm_params: "{{ helm_params }} --set global.config.ckey.client.secret.netguardIamProxySecret='{{ proxyClientSecret }}'"
+  when: proxyClientSecret is defined
+
+- name: "Set acmClientSecret fact"
+  set_fact:
+    helm_params: "{{ helm_params }} --set global.config.ckey.client.secret.netguardAcmSecret='{{ acmClientSecret }}'"
+  when: acmClientSecret is defined
+
+- name: Set override
+  set_fact:
+    override: ""
+  no_log: true
+
+- name: Check if override file exists
+  stat:
+      path: "{{ chartsPath }}/ckey-config/override.yaml"
+  register: override_exists
+
+- name: Override if file override.yaml exists
+  set_fact:
+    override: "--values {{ chartsPath }}/ckey-config/override.yaml"
+  when: override_exists.stat.exists == True
+
+- name: Upgrading ckey-config
+  shell: >
+    {{ helmPath }} upgrade {{ ckeyConfigHelmName }} {{ chartsPath }}/ckey-config
+    --wait
+    --namespace {{ BP_CONFIG_NAMESPACE }}
+    --values {{ chartsPath }}/values/global-values.yaml
+    --values {{ chartsPath }}/ckey-config/values.yaml
+    {{ override }}
+    {{ ckeyConfigGeoPassiveSettings | default('') }}
+    --set dbschematool.operation={{ NOS_DBSCHEMATOOL_OPERATION }}
+    --set global.APP_NAMESPACE={{ NAMESPACE }}
+    --set nameOverride={{ productPrefix }}-ckey-config
+    --set registry={{ bcmtRegistry }}
+    --set global.registry={{ bcmtRegistry }}
+    --set namespace={{ BP_CONFIG_NAMESPACE }}
+    --set image.nameAndTag="{{ bcmtRegistry }}/ckey-config:19.0.35"
+    --set realm="{{ CKEY_REALM_NAME }}"
+    --set enableNA="{{ IMPORT_CKEY_NA_CONFIG }}"
+    {{ helm_params }}

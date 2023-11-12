@@ -1,0 +1,78 @@
+---
+- name: "Upgrading namespace chart"
+  include: namespace_upgrade.yml
+
+- name: "Upgrading ca-cert"
+  include: ca_cert_upgrade.yml
+
+- name: "Upgrading geo-redundancy connection validation"
+  include: validate_geo_redundancy_cmdb_connection_upgrade.yml
+
+- name: "Upgrading start page"
+  include: start_page_upgrade.yml
+
+- name: "Upgrading CRMQ configurator config"
+  include: crmq_configurator_config_upgrade.yml
+
+- name: "Upgrading CRMQ"
+  include: rabbitmq_upgrade.yml
+
+- name: "Upgrading CMDB configurator config"
+  include: cmdb_configurator_config_upgrade.yml
+
+- name: "Upgrading CMDB"
+  include: database_upgrade.yml
+
+- name: "Upgrading CMDB db config chart"
+  include: cmdb_db_config_upgrade.yml
+
+- name: "Upgrading CKEY db config chart"
+  include: ckey_db_config_upgrade.yml
+
+- name: "Upgrading CKEY"
+  include: keycloak_upgrade.yml
+
+- name: "Upgrading CKEY configurator config chart"
+  include: ckey_configurator_config_upgrade.yml
+
+- name: "Upgrading CKEY CRMQ config chart"
+  include: ckey_crmq_config_upgrade.yml
+
+- name: "Upgrading CKEY master config chart"
+  include: ckey_master_config_upgrade.yml
+
+- name: "Upgrading CKEY netguard config chart"
+  include: ckey_netguard_config_upgrade.yml
+
+- name: "Upgrading realm-urls config chart"
+  include: realm_urls_config_upgrade.yml
+
+- name: "Upgrading CITM"
+  include: ingress_upgrade.yml
+
+- name: "Upgrading virtual ips"
+  include: virtual_ips_upgrade.yml
+
+- name: "Upgrading BTEL CRMQ config chart"
+  include: btel_crmq_config_upgrade.yml
+
+- name: "Upgrading BTEL db config chart"
+  include: btel_db_config_upgrade.yml
+
+- name: "Upgrading BTEL"
+  include: btel_upgrade.yml
+
+- name: "Upgrading BTEL grafana config chart"
+  include: btel_grafana_config_upgrade.yml
+
+- name: "Upgrading BTEL crpro config chart"
+  include: btel_cpro_config_upgrade.yml
+
+- name: "Upgrading Egress"
+  include: egress_upgrade.yml
+
+- name: "Upgrading geo redundancy settings"
+  include: upgrade_geo_redundancy_settings.yml
+
+- name: "Upgrading geo redundancy BTEL"
+  include: upgrade_geo_redundancy_btel.yml

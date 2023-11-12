@@ -1,0 +1,53 @@
+{{ if gt (int .Values.global.postheal ) 0 }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "cmdb.fullname" . }}-postheal
+  labels:
+    {{- include "cmdb-admin.labels" . | indent 4 }}
+spec:
+  template:
+    metadata:
+      labels:
+        {{- include "cmdb-admin.labels" . | indent 8 }}
+        type: admin
+      {{- if .Values.istio.enabled }}
+      annotations:
+        sidecar.istio.io/inject: "true"
+      {{- end }}
+    spec:
+      {{- include "cmdb-admin.secctx" . | nindent 6 }}
+      {{- include "cmdb.istio-only-sa" . | nindent 6 }}
+      restartPolicy: Never
+
+      containers:
+      - name: postheal-admin
+        {{- include "cmdb-admin.image" . | indent 8 }}
+        args: [ "heal" ]
+        env:
+        - name: CLUSTER_TYPE
+          value: "{{ .Values.cluster_type }}"
+        - name: CLUSTER_NAME
+          value: "{{ .Values.cluster_name | default .Release.Name | trunc 32 }}"
+        - name: HOOK_TYPE
+          value: "post"
+        {{- if gt (int .Values.admin.postUpgradeTimeout) 0 }}
+        - name: HOOK_TIMEOUT
+          value: "{{ .Values.admin.postUpgradeTimeout }}"
+        {{- end }}
+        {{- if and .Values.admin.debug (gt (int (default '0' .Values.admin.jobDelay)) 0) }}
+        - name: HOOK_DELAY
+          value: "{{ .Values.admin.jobDelay }}"
+        {{- end }}
+        {{- include "cmdb-k8s.env" . | nindent 8 }}
+        {{- include "cmdb-admin.service" . | indent 8 }}
+        resources:
+{{ toYaml .Values.admin.resources | indent 10 }}
+        volumeMounts:
+        - name: cluster-cm
+          mountPath: /chart
+      volumes:
+      - name: cluster-cm
+        configMap:
+          name: {{ template "cmdb.fullname" . }}-mariadb-cluster
+{{ end }}

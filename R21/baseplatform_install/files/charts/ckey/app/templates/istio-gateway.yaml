@@ -1,0 +1,99 @@
+{{- if and .Values.istio.gateway.enabled (eq .Values.ingress.enabled false) -}}
+apiVersion: networking.istio.io/v1alpha3
+kind: Gateway
+metadata:
+  name: {{ template "keycloak.fullname" . }}-gw
+  labels:
+    app: {{ template "keycloak.fullname" . }}
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+spec:
+  selector:
+    {{- if .Values.istio.gateway.customized_selectors }}
+{{ toYaml .Values.istio.gateway.customized_selectors | indent 4 }}
+    {{- end }}
+  servers:
+  - port:
+      name: http
+      number: 80
+      protocol: HTTP
+    tls:
+      httpsRedirect: true # sends 301 redirect for http requests
+    hosts:
+    {{- range .Values.istio.gateway.hosts }}
+      - "{{ . }}"
+    {{- end }}
+  - port:
+      name: https
+      number: 443
+      protocol: HTTPS
+    hosts:
+    {{- range .Values.istio.gateway.hosts }}
+      - "{{ . }}"
+    {{- end }}
+    tls:
+      {{- if .Values.istio.gateway.customized_server_tls_settings }}
+{{ toYaml .Values.istio.gateway.customized_server_tls_settings | indent 6 }}
+      {{- else }}
+      mode: PASSTHROUGH
+      {{- end }}
+{{- end }}
+---
+{{- if or .Values.istio.virtualService.enabled .Values.istio.gateway.enabled -}}
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  labels:
+    app: {{ template "keycloak.fullname" . }}
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+  name: {{ template "keycloak.fullname" . }}-vs
+spec:
+  hosts:
+  {{- if .Values.istio.gateway.enabled }}
+  {{- range .Values.istio.gateway.hosts }}
+    - "{{ . }}"
+  {{- end }}
+  {{- end }}
+  {{- if .Values.istio.virtualService.enabled }}
+  {{- range .Values.istio.virtualService.hosts }}
+    - "{{ . }}"
+  {{- end }}
+  {{- end }}
+  gateways:
+  {{- if .Values.istio.gateway.enabled }}
+  - {{ template "keycloak.fullname" . }}-gw
+  {{- end }}
+  {{- if .Values.istio.virtualService.enabled }}
+  {{- range .Values.istio.virtualService.gateways }}
+  - "{{ . }}"
+  {{- end }}
+  {{- end }}
+  http:
+  - route:
+    - destination:
+        host: {{ template "keycloak.fullname" . }}.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}
+        port:
+          number: 8080
+  tls:
+  - match:
+    - port: 443
+      sni_hosts:
+        {{- if .Values.istio.gateway.enabled }}
+        {{- range .Values.istio.gateway.hosts }}
+        - "{{ . }}"
+        {{- end }}
+        {{- end }}
+        {{- if .Values.istio.virtualService.enabled }}
+        {{- range .Values.istio.virtualService.hosts }}
+        - "{{ . }}"
+        {{- end }}
+        {{- end }}
+    route:
+    - destination:
+        host: {{ template "keycloak.fullname" . }}.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}
+        port:
+          number: {{ .Values.httpsPort }}
+{{- end -}}

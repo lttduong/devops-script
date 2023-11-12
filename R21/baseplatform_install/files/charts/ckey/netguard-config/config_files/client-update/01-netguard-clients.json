@@ -1,0 +1,33 @@
+{
+  "clients": [
+    {
+      "clientId": "base_platform_sso",
+      "name": {{ .Values.config.ckey.loginSecurityBanner | quote }},
+      "secret": {{ .Values.config.ckey.basePlatformSso.secret | quote }}
+    },
+    {
+      "clientId": "broker",
+      "secret": {{ uuidv4 | quote }}
+    },
+    {
+      "clientId": "realm-management",
+      "secret": {{ uuidv4 | quote }}
+    },
+    {
+      "clientId": "account",
+      "secret": {{ uuidv4 | quote }}
+    },
+    {
+      "clientId": "security-admin-console",
+      "name": {{ .Values.config.ckey.loginSecurityBanner | quote }},
+      "secret": {{ uuidv4 | quote }}
+    },
+    {
+      "clientId": "netguard-public"
+    },
+    {
+      "clientId": "admin-cli",
+      "secret": {{ uuidv4 | quote }}
+    }
+  ]
+}

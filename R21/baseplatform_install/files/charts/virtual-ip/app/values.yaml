@@ -1,0 +1,27 @@
+ipClass:
+  name: "netguard-virtual-ip-class"
+  vrrpVersion: "3"
+
+instanceGroup:
+  ipv4Address:
+  ipv6Address:
+  interface: "eth0"
+  name: "netguard-virtual-instance-group"
+  nodeSelector:
+    is_edge: "true"
+  preempt: true
+  sharinggroup:
+  sourceNetworkAddressTranslation: false
+  unicast: false
+  ipv4VirtualRouterID: 46
+  ipv6VirtualRouterID: 32
+
+targets:
+  - name: "netguard-tracking-citm"
+    podSelector:
+      app: citm-ingress
+      component: controller
+      release: citm
+
+virtualIp:
+  enabled: false

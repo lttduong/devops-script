@@ -1,0 +1,80 @@
+{{- if .Values.global.rbac.enabled }}
+{{- if .Values.rbac.useMinimalRole }}
+# This uses a custom Role (created here) to use the
+# minimal configuration required for the KUBE_PING protocol.
+# This is taken from from CSF-CHARTS for cjee-wildfly, at
+# https://gerrit.ext.net.nokia.com/gerrit/gitweb?p=CSF-CHARTS.git;a=blob;f=cjee-wildfly/templates/rbac.yaml;hb=HEAD
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app: {{ template "name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+  name: {{ template "fullname" . }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  labels:
+    app: {{ template "name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+  name: {{ template "fullname" . }}
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+    verbs:
+      - get
+      - list
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  labels:
+    app: {{ template "name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+  name: {{ template "fullname" . }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ template "fullname" . }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ template "fullname" . }}
+    namespace: {{ .Release.Namespace }}
+{{- else -}}
+# This uses the cluster-admin ClusterRole, this is the same snippet as
+# in bcmt_common/common/charts/psp-bypass/templates/rbac.yaml:
+# --------------------------------------------------
+#  Pre-Install RBAC PSP bypass for the release
+# --------------------------------------------------
+kind: ServiceAccount
+apiVersion: v1
+metadata:
+  name: {{ template "fullname" . }}
+  namespace: {{ .Release.Namespace }}
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ template "fullname" . }}
+  namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: ClusterRole
+  name: cluster-admin
+  apiGroup: rbac.authorization.k8s.io
+subjects:
+- kind: ServiceAccount
+  name: {{ template "fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  apiGroup: ""
+---
+{{- end -}}
+{{- end }}

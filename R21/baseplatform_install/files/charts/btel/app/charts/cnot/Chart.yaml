@@ -1,0 +1,9 @@
+apiVersion: v1
+appVersion: 1.5.15
+description: CNOT - Unified Notification
+engine: gotpl
+maintainers:
+- email: balazs.szita@nokia.com
+  name: Szita Balázs
+name: cnot
+version: 1.5.15

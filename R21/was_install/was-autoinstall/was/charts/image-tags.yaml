@@ -1,0 +1,11 @@
+global:
+  imageTags:
+    common/certs-converter: "19.0.10"
+    common/cmdb-config: "19.4.1"
+    common/crmq-config: "19.4.1"
+    epsec/products/framework/propertyencrypter/epsec-propertyencrypter: "21.0.2"
+    epsec/products/framework/nos-dist/epsec-nos-dbschematool: "21.0.18"
+    epsec/products/businessprocessautomationservice/bpas-dist/epsec-bpas: "21.0.30"
+    epsec/products/businessprocessautomationservice/bpas-dist/epsec-bpas-dbschematool: "21.0.30"
+    epsec/products/businessprocessautomationservice/bpas-dist/epsec-bpas-deployer: "21.0.30"
+    epsec/products/businessprocessautomationservice/bpas-thinclient/epsec-bpasui: "21.0.7"

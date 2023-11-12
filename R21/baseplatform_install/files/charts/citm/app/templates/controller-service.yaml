@@ -1,0 +1,92 @@
+{{- if .Values.controller.service.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+{{- if .Values.controller.service.annotations }}
+  annotations:
+{{ toYaml .Values.controller.service.annotations | indent 4 }}
+{{- end }}
+  labels:
+    app: {{ template "name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    component: "{{ .Values.controller.name }}"
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+  name: {{ template "controller.fullname" . }}
+spec:
+{{- if (eq .Values.controller.service.type "ClusterIP") }}
+  clusterIP: "{{ .Values.controller.service.clusterIP }}"
+{{- end }}  
+{{- if .Values.controller.service.externalIPs }}
+  externalIPs:
+{{ toYaml .Values.controller.service.externalIPs | indent 4 }}
+{{- end }}
+{{- if .Values.controller.service.loadBalancerIP }}
+  loadBalancerIP: "{{ .Values.controller.service.loadBalancerIP }}"
+{{- end }}
+{{- if .Values.controller.service.loadBalancerSourceRanges }}
+  loadBalancerSourceRanges:
+{{ toYaml .Values.controller.service.loadBalancerSourceRanges | indent 4 }}
+{{- end }}
+{{- if and (ge .Capabilities.KubeVersion.Minor "7") (.Values.controller.service.externalTrafficPolicy) }}
+  externalTrafficPolicy: "{{ .Values.controller.service.externalTrafficPolicy }}"
+{{- end }}
+{{- if and (ge .Capabilities.KubeVersion.Minor "7") (.Values.controller.service.healthCheckNodePort) }}
+  healthCheckNodePort: {{ .Values.controller.service.healthCheckNodePort }}
+{{- end }}
+  ports:
+    - name: tcp-http-citm-ingress
+      {{- if (and (eq .Values.controller.service.type "NodePort") (not (empty .Values.controller.service.nodePorts.http))) }}
+      nodePort: {{ .Values.controller.service.nodePorts.http }}
+      {{- end }}
+      {{- if (and (not  (.Values.controller.forcePort)) (not (empty .Values.controller.httpPort))) }}
+      port: {{ .Values.controller.httpPort }}
+      {{- else }}
+      port: 80
+      {{- end }}
+      protocol: TCP
+      targetPort: {{ .Values.controller.service.targetPorts.http }}
+    - name: tcp-https-citm-ingress
+      {{- if (and (eq .Values.controller.service.type "NodePort") (not (empty .Values.controller.service.nodePorts.https))) }}
+      nodePort: {{ .Values.controller.service.nodePorts.https }}
+      {{- end }}
+      {{- if (and (not (.Values.controller.forcePort)) (not (empty .Values.controller.httpsPort))) }}
+      port: {{ .Values.controller.httpsPort }}
+      {{- else }}
+      port: 443
+      {{- end }}
+      protocol: TCP
+      targetPort: {{ .Values.controller.service.targetPorts.https }}
+      {{- if .Values.controller.sslPasstroughSplitPortListening  }}          
+    - name: tcp-{{ .Values.controller.service.targetPorts.sslproxy }}-ssl-proxy-citm-ingress
+      {{- if (and (eq .Values.controller.service.type "NodePort") (not (empty .Values.controller.service.nodePorts.sslproxy))) }}
+      nodePort: {{ .Values.controller.service.nodePorts.sslproxy }}
+      {{- end }}
+      {{- if (and (not (.Values.controller.forcePort)) (not (empty .Values.controller.sslPasstroughProxyPort))) }}
+      port: {{ .Values.controller.sslPasstroughProxyPort }}
+      {{- else }}
+      port: 442
+      {{- end }}
+      protocol: TCP
+      targetPort: {{ .Values.controller.service.targetPorts.sslproxy }}
+      {{- end }}          
+{{- if (eq .Values.controller.dynamicUpdateServiceStream false)  }}
+  {{- range $key, $value := .Values.tcp }}
+    - name: "tcp-{{ $key }}-citm-stream"
+      port: {{ $key }}
+      protocol: TCP
+      targetPort: {{ $key }}
+  {{- end }}
+  {{- range $key, $value := .Values.udp }}
+    - name: "udp-{{ $key }}-citm-stream"
+      port: {{ $key }}
+      protocol: UDP
+      targetPort: {{ $key }}
+  {{- end }}
+{{- end }}  
+  selector:
+    app: {{ template "name" . }}
+    component: "{{ .Values.controller.name }}"
+    release: {{ .Release.Name }}
+  type: "{{ .Values.controller.service.type }}"
+{{- end }}

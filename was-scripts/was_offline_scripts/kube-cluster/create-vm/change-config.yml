@@ -1,0 +1,106 @@
+- name: Change IP for host ansible
+  hosts: localhost
+  connection: local
+  collections:
+   - azure.azcollection
+
+  vars_files:
+   - variables_file.yml
+    
+  tasks:
+   - name: Copy host file to hosts
+     copy:
+      src: hosts
+      dest: ../../hosts
+      owner: root
+      group: root
+      remote_src: yes
+     become: yes
+
+   - name: copy was_config_vars to was_install/playbook/was-package
+     copy:
+      src: was_config_vars.yml
+      dest: ../was-install-off/playbook/was-packages/
+      remote_src: yes
+
+   - name: copy env_variables to was_install
+     copy:
+      src: env_variables
+      dest: ../was-install-offline/was-install/playbook/
+      remote_src: yes
+
+   - name: copy bp_config_vars.yml to was-install
+     copy:
+      src: bp_config_vars.yml
+      dest: ../was-install-offline/playbook/bp-packages/
+      remote_src: yes
+
+   - name: copy workbench_config_vars.yml to workbench-install
+     copy:
+      src: workbench_config_vars.yml
+      dest: ../was-install-offline/playbook/workbench-packages/
+      remote_src: yes
+
+   - name: Query IP Private vm master node
+     command: sudo az vm show -g "{{ resource_group }}" -n "{{ nmaster }}"  --query privateIps -d --out tsv
+     register: ipmaster
+    
+   - name: Query IP Public vm master node
+     command: sudo az vm show -g "{{ resource_group }}" -n "{{ nmaster }}"  --query publicIps -d --out tsv
+     register: publicmasterip
+   
+   - name: Query IP Public vm master node
+     command: sudo az vm show -g "{{ resource_group }}" -n "{{ nworker }}"  --query publicIps -d --out tsv
+     register: publicworkerip 
+
+   - name: Replace IP master to host
+     shell: |
+      sudo sed -i "s/172.17.0.4/"{{ publicmasterip.stdout }}"/g" ../../hosts
+      sudo sed -i "s/172.17.0.4/"{{ ipmaster.stdout }}"/g" ../was-install-offline/playbook/bp-packages/bp_config_vars.yml
+      sudo sed -i "s/172.17.0.4/"{{ ipmaster.stdout }}"/g" ../was-install-offline/playbook/was-packages/was_config_vars.yml
+      sudo sed -i "s/51.132.124.36/"{{ publicmasterip.stdout }}"/g" ../was-install-offline/playbook/bp-packages/bp_config_vars.yml
+      sudo sed -i "s/51.132.124.36/"{{ publicmasterip.stdout }}"/g" ../was-install-offline/playbook/was-packages/was_config_vars.yml
+      sudo sed -i "s/51.132.124.36/"{{ publicmasterip.stdout }}"/g" ../was-install-offline/playbook/workbench-packages/workbench_config_vars.yml
+   
+   - name: Replace password for WAS config
+     shell: |
+      sed -i "83s/Admin123456!!!/"a$(sudo cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 12 | head -n 1)1@"/g" ../was-install-offline/playbook/bp-packages/bp_config_vars.yml    
+      sed -i "125s/12345678x@X123/"f$(sudo cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 12 | head -n 1)1%"/g" ../was-install-offline/playbook/bp-packages/bp_config_vars.yml    
+      sed -i "126s/12345678x@X123/"h$(sudo cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 12 | head -n 1)1^"/g" ../was-install-offline/playbook/bp-packages/bp_config_vars.yml    
+      sed -i "127s/12345678x@X123/"2$(sudo cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 12 | head -n 1)1@"/g" ../was-install-offline/playbook/bp-packages/bp_config_vars.yml    
+      sed -i "128s/12345678x@X123/"4$(sudo cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 12 | head -n 1)1%"/g" ../was-install-offline/playbook/bp-packages/bp_config_vars.yml    
+      sed -i "129s/12345678x@X123/"r$(sudo cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 12 | head -n 1)1^"/g" ../was-install-offline/playbook/bp-packages/bp_config_vars.yml    
+      sed -i "130s/12345678x@X123/"x$(sudo cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 12 | head -n 1)1%"/g" ../was-install-offline/playbook/bp-packages/bp_config_vars.yml    
+      sed -i "132s/12345678x@X123/"s$(sudo cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 12 | head -n 1)1%"/g" ../was-install-offline/playbook/bp-packages/bp_config_vars.yml    
+      sed -i "133s/12345678x@X123/"k$(sudo cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 12 | head -n 1)1^"/g" ../was-install-offline/playbook/bp-packages/bp_config_vars.yml    
+      sed -i "134s/12345678x@X123/"l$(sudo cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 12 | head -n 1)1@"/g" ../was-install-offline/playbook/bp-packages/bp_config_vars.yml    
+ 
+   - name: Query IP Private vm worker node
+     command: sudo az vm show -g "{{ resource_group }}" -n "{{ nworker }}" --query privateIps -d --out tsv
+     register: ipworker
+  
+   - name: Replace IP worker to host ansible
+     shell: |
+      sudo sed -i "s/172.17.0.5/"{{ publicworkerip.stdout }}"/g" ../../hosts
+      sudo sed -i "s/172.17.0.5/"{{ ipworker.stdout }}"/g" ../was-install-offline/playbook/bp-packages/bp_config_vars.yml
+      sudo sed -i "s/172.17.0.5/"{{ ipworker.stdout }}"/g" ../was-install-offline/playbook/was-packages/was_config_vars.yml
+
+   - name: Change env name for cluster
+     shell: |
+      sudo sed -i "s/tonyk8smastervm/"{{ nmaster }}"/g" ../was-install-offline/playbook/env_variables
+      sudo sed -i "s/tonyk8sworker1vm/"{{ nworker }}"/g" ../was-install-offline/playbook/env_variables
+   
+   - name: Refresh inventory to ensure new instances exist in inventory
+     meta: refresh_inventory
+
+   - name: Pause 2 minutes for sync hosts file
+     pause:
+      minutes: 2
+
+  #  - name: Enable backup for masternode
+  #    shell: sudo az backup protection enable-for-vm --resource-group "{{ rg }}" --vault-name "{{ vault_name }}" --vm $(az vm show -g "{{ resource_group }}" -n "{{ nmaster }}" --query id | tr -d '"') --policy-name "{{ policy }}" 
+  #    ignore_errors: yes
+     
+  #  - name: Enable backup for workernode
+  #    shell: sudo az backup protection enable-for-vm --resource-group "{{ rg }}" --vault-name "{{ vault_name }}" --vm $(az vm show -g "{{ resource_group }}" -n "{{ nworker }}" --query id | tr -d '"') --policy-name "{{ policy }}"
+  #    ignore_errors: yes

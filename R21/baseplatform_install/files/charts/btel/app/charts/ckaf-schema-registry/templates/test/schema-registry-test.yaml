@@ -1,0 +1,47 @@
+# A Kubernetes configuration for SR pods deployment.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ template "schema-registry.name" . }}-sr-test
+  annotations:
+     "helm.sh/hook": test-success
+     seccomp.security.alpha.kubernetes.io/allowedProfileNames: {{ .Values.global.seccompAllowedProfileNames }}
+     seccomp.security.alpha.kubernetes.io/defaultProfileName: {{ .Values.global.seccompDefaultProfileName }}
+  labels:
+    app: sr-testing
+spec:
+      {{- if .Values.global.rbacEnable }}
+      serviceAccountName: {{ template "schema-registry.name" . }}-sradmin
+      {{- end }}
+      {{- if eq .Values.Security.enabled true }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: {{ .Values.Security.runAsUser }}
+        fsGroup: {{ .Values.Security.fsGroup }}
+      {{- end }}
+      volumes:
+        - name: sr-test-config
+          configMap:
+            name: {{ template "schema-registry.name" . }}-sr-test
+      restartPolicy: Never
+      containers:
+      - name: ckaf-schema-registry-test
+        image: {{ .Values.global.registry3 }}/{{ .Values.SchemaRegistryTest.image.name }}:{{.Values.SchemaRegistryTest.image.tag}}
+        resources:
+{{ toYaml .Values.jmxresources | indent 10 }}
+        {{- if eq .Values.Security.enabled true }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          privileged: false
+          capabilities:
+            drop:
+              - all
+          runAsUser: {{ .Values.Security.runAsUser }}
+        {{- end }}
+        ports:
+        - containerPort: {{ .Values.servicePort }}
+        volumeMounts:
+        # Mounting the storage with the SR configuration.
+        - mountPath: "/radish_test/schema_registry/functional_tests/steps/config.cfg"
+          name: sr-test-config
+          subPath: "config.cfg"

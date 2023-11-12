@@ -1,0 +1,606 @@
+# Model of efkc configuration.
+type: object
+properties:
+    imagesregistry:
+        description: |
+            registry is used for images
+        type: object
+        properties:
+            registry:
+                description: |
+                    This registry is used for belk images
+                type: string
+                default: csf-docker-delivered.repo.lab.pl.alcatel-lucent.com
+            registry1:
+                description: |
+                    This registry is used for cbur and kubectl image
+                type: string
+                default: csf-docker-delivered.repo.lab.pl.alcatel-lucent.com
+
+    efkc:
+        description: |
+            efkc tags
+        type: object
+        properties:
+            belkFluentd:
+                description: |
+                    enable this tag to launch fluentd
+                type: boolean
+                default: false
+            belkElasticsearch:
+                description: |
+                    enable this tag to launch elasticsearch
+                type: boolean
+                default: true
+            belkKibana:
+                description: |
+                    enable this to launch kibana
+                type: boolean
+                default: true
+            belkCurator:
+                description: |
+                    enable this tag to launch curator
+                type: boolean
+                default: true
+
+
+    fluentd:
+        description: |
+            Fluentd configuration.
+        type: object
+        properties:
+            fluentdCpuLimit:
+                description: |
+                    CPU limit usage for fluentd per node
+                type: string
+                default: 1
+                pattern: '^[1-9][0-9]*m*$'
+            fluentdCpuRequest:
+                description: |
+                    CPU request usage for fluentd per node
+                type: string
+                default: 500m
+                pattern: '^[1-9][0-9]*m*$'
+            fluentdMemoryLimit:
+                description: |
+                    Memory limit usage for fluentd per node
+                type: string
+                default: 2024Mi
+                pattern: '^[1-9][0-9]*(Gi|Mi)$'
+            fluentdMemoryRequest:
+                description: |
+                    Memory request usage fluentd in MB per node
+                type: string
+                default: 1023Mi
+                pattern: '^[1-9][0-9]*(Gi|Mi)$'
+            kind:
+                description: |
+                    kind of fluentd
+                type: string
+                default: Deployment
+            #This part will be added when CSFP provides a way to configure a text box & maintain the indentation.  
+            #enabledCertificates:
+            #    description: |
+            #        enable it to add fluentd certificates
+            #    type: boolean
+            #    default: false
+            #This part will be added when CSFP provides a way to configure a text box & maintain the indentation.
+            #dataCertificates:
+            #    description: |
+            #        fluentd deployed as service
+            #    type: string
+            #    format: text-area
+            enabledService:
+                description: |
+                    fluentd deployed as service
+                type: boolean
+                default: false
+            custom_name:
+                description: |
+                    custom_name for service of fluentd
+                type: string
+            type:
+                description: |
+                    type of service for fluentd
+                type: string
+                default: ClusterIP
+            port:
+                description: |
+                    source port for forwarder
+                type: integer
+                default: 24224
+            metricsPort:
+                description: |
+                    metricsPort for fluentd service
+                type: integer
+                default: 24231
+            configFile:
+                description: |
+                    Refer to Fluentd docs for configurations:- https://docs.fluentd.org/
+                    "<source>\n
+                      @type tail\n
+                      path /var/log/test/*.log\n
+                      tag test\n
+                      pos_file /var/log/td-agent.pos\n
+                      format none\n
+                    </source>\n
+                    <match test>\n
+                      @type stdout\n
+                    </match>\n
+                    "
+                type: string
+                format: text-area
+            storageClassNameFluentd:
+                description: |
+                    provide storageClassName for fluentd
+                type: string
+            sizeFluentd:
+                description: |
+                    if fluetnd kind is statefulset then provide pvc size
+                type: string
+                default: 10Gi
+                pattern: '^[1-9][0-9]*(Gi|Mi)$'
+            pvc_auto_delete:
+                description: |
+                    auto delete deletes the pvc
+                type: boolean
+                default: false
+            enableCburFluentd:
+                description: |
+                    Enable support for backup and restore of Fluentd configmap through CBUR
+                type: boolean
+                default: false
+            cronJobCburFluentd:
+                description: |
+                    Format of cron job setting for backup of Fluentd configmap. It is used for scheduled backup task.
+                type: string
+                default: "0 23 * * *"
+            maxCopyCburFluentd:
+                description: |
+                    The number of maximum backup copies to be retained
+                type: integer
+                default: 5
+                pattern: '^[1-9][0-9]*$'
+            backendModeCburFluentd:
+                description: |
+                    Modes supported now "local","NETBKUP","AVAMAR", case insensitive
+                type: string
+                default: "local"
+            autoEnableCronCburFluentd:
+                description: |
+                    Enable autoCron to take backup periodically
+                type: boolean
+                default: false
+
+
+    elasticsearch:
+        description: |
+            Elasticsearch cluster configuration.
+        type: object
+        properties:
+            replicasMaster:
+                description: |
+                    Number of master node replicas
+                type: integer
+                default: 3
+            masterCpuLimit:
+                description: |
+                    CPU limit usage for elasticsearch master per node
+                type: string
+                default: 1
+                pattern: '^[1-9][0-9]*m*$'
+            masterCpuRequest:
+                description: |
+                    CPU request usage for elasticsearch master per node
+                type: string
+                default: 500m
+                pattern: '^[1-9][0-9]*m*$'
+            masterMemoryLimit:
+                description: |
+                    Memory limit usage for elasticsearch master per node
+                type: string
+                default: 2024Mi
+                pattern: '^[1-9][0-9]*(Gi|Mi)$'
+            masterMemoryRequest:
+                description: |
+                    Memory request usage elasticsearch master in MB per node
+                type: string
+                default: 1023Mi
+                pattern: '^[1-9][0-9]*(Gi|Mi)$'
+            jvmOptsMaster:
+                description: |
+                     java Heap for elasticsearch master
+                type: string
+                default: "-Xmx1G -Xms1G"
+            replicasClient:
+                description: |
+                    Number of client node replicas
+                type: integer
+                default: 3
+            clientCpuLimit:
+                description: |
+                    CPU limit usage for elasticsearch client per node
+                type: string
+                default: 1
+                pattern: '^[1-9][0-9]*m*$'
+            clientCpuRequest:
+                description: |
+                    CPU request usage for elasticsearch client per node
+                type: string
+                default: 500m
+                pattern: '^[1-9][0-9]*m*$'
+            clientMemoryLimit:
+                description: |
+                    Memory limit usage for elasticsearch client per node
+                type: string
+                default: 4000Mi
+                pattern: '^[1-9][0-9]*(Gi|Mi)$'
+            clientMemoryRequest:
+                description: |
+                    Memory request usage elasticsearch client in MB per node
+                type: string
+                default: 2024Mi
+                pattern: '^[1-9][0-9]*(Gi|Mi)$'
+            jvmOptsClient:
+                description: |
+                     java Heap for elasticsearch client
+                type: string
+                default: "-Xmx2G -Xms2G"
+
+            replicasData:
+                description: |
+                    Number of data node replicas
+                type: integer
+                default: 2
+            dataCpuLimit:
+                description: |
+                    CPU limit usage for elasticsearch data per node
+                type: string
+                default: 1
+                pattern: '^[1-9][0-9]*m*$'
+            dataCpuRequest:
+                description: |
+                    CPU request usage for elasticsearch data per node
+                type: string
+                default: 500m
+                pattern: '^[1-9][0-9]*m*$'
+            dataMemoryLimit:
+                description: |
+                    Memory limit usage for elasticsearch data per node
+                type: string
+                default: 4000Mi
+                pattern: '^[1-9][0-9]*(Gi|Mi)$'
+            dataMemoryRequest:
+                description: |
+                    Memory request usage elasticsearch data in MB per node
+                type: string
+                default: 2024Mi
+                pattern: '^[1-9][0-9]*(Gi|Mi)$'
+            jvmOptsData:
+                description: |
+                     java Heap for elasticsearch data
+                type: string
+                default: "-Xmx2G -Xms2G"
+            storageClassNameElasticsearch:
+                description: |
+                    provide storage class for Elasticsearch.The value "" picks up the default storageClass configured in BCMT cluster.
+                type: string
+                default: ""
+            storageData:
+                description: |
+                    Persistent storage size per elasticsearch data node in GB
+                type: string
+                default: 50Gi
+                pattern: '^[1-9][0-9]*(Gi|Mi)$'
+            storageMaster:
+                description: |
+                    Persistent storage size per elasticsearch master node in GB
+                type: string
+                default: 1Gi
+                pattern: '^[1-9][0-9]*(Gi|Mi)$'
+            autoDeletePvc:
+                description: |
+                    Deletes the persistent volume
+                type: boolean
+                default: false
+            storageBackup:
+                description: |
+                    Persistent storage size of backup in GB
+                type: string
+                default: 25Gi
+                pattern: '^[1-9][0-9]*(Gi|Mi)$'
+            enableCburElasticsearch:
+                description: |
+                    Enable support for backup and restore of Elasticsearch configmap through CBUR
+                type: boolean
+                default: false
+            cronJobCburElasticsearch:
+                description: |
+                    Format of cron job setting for backup of Elasticsearch configmap. It is used for scheduled backup task.
+                type: string
+                default: "0 23 * * *"
+            maxCopyCburElasticsearch:
+                description: |
+                    The number of maximum backup copies to be retained
+                type: integer
+                default: 5
+                pattern: '^[1-9][0-9]*$'
+            backendModeCburElasticsearch:
+                description: |
+                    Modes supported now "local","NETBKUP","AVAMAR", case insensitive
+                type: string
+                default: "local"
+            autoEnableCronCburElasticsearch:
+                description: |
+                    Enable autoCron to take backup periodically
+                type: boolean
+            storageTmp:
+                description: |
+                    Persistent storage size of /tmp  in GB
+                type: string
+                default: 50Gi
+                pattern: '^[1-9][0-9]*(Gi|Mi)$'
+            serviceNameElasticsearch:
+                description: |
+                    service name of elasticsearch
+                type: string
+                default: elasticsearch
+            enableSearchGuard:
+                description: |
+                    enable searchguard for elasticsearch
+                type: boolean
+                default: false
+            user_name:
+                description: |
+                    user_name for elasticsearch
+                type: string
+                default: admin
+            keystore_type:
+                description: |
+                    keystore_type of elasticsearch
+                type: string
+                default: JKS
+            truststore_type:
+                description: |
+                    truststore_type name of elasticsearch
+                type: string
+                default: JKS
+            base64Keystore:
+                description: |
+                    base64Keystore name of elasticsearch
+                type: string
+                format: text-area
+            base64KeystorePasswd:
+                description: |
+                    base64KeystorePasswd name of elasticsearch
+                type: string
+            base64Truststore:
+                description: |
+                    base64Truststore name of elasticsearch
+                type: string
+                format: text-area
+            base64TruststorePasswd:
+                description: |
+                    base64TruststorePasswd name of elasticsearch
+                type: string
+            base64ClientKeystore:
+                description: |
+                    base64ClientKeystore name of elasticsearch
+                type: string
+                format: text-area
+            base64RootCA:
+                description: |
+                    base64RootCA name of elasticsearch
+                type: string
+                format: text-area
+            base64_client_cert:
+                description: |
+                    base64_client_cert name of elasticsearch
+                type: string
+                format: text-area
+            base64_client_key:
+                description: |
+                    base64_client_key name of elasticsearch
+                type: string
+                format: text-area
+            auth_admin_identity:
+                description: |
+                    auth_admin_identity name of elasticsearch
+                type: string
+            sg_internal_users_yml:
+                description: |
+                    internal users of elasticsearch searchguard
+                type: string
+                format: text-area
+            sg_action_groups_yml:
+                description: |
+                    sg_action_groups_yml of elasticsearch searchguard
+                type: string
+                format: text-area
+            sg_config_yml:
+                description: |
+                    sg_config_yml of elasticsearch searchguard
+                type: string
+                format: text-area
+            sg_roles_yml:
+                description: |
+                   sg_roles_yml of elasticsearch searchguard
+                type: string
+                format: text-area
+            sg_roles_mapping_yml:
+                description: |
+                    sg_roles_mapping_yml of elasticsearch searchguard
+                type: string
+                format: text-area
+    curator:
+        description: |
+            curator configuration.
+        type: object
+        properties:
+            curatorCpuLimit:
+                description: |
+                    CPU limit usage for curator
+                type: string
+                default: 120m
+                pattern: '^[1-9][0-9]*m*$'
+            curatorCpuRequest:
+                description: |
+                    CPU request usage for curator
+                type: string
+                default: 100m
+                pattern: '^[1-9][0-9]*m*$'
+            curatorMemoryLimit:
+                description: |
+                    Memory limit usage for curator
+                type: string
+                default: 120Mi
+                pattern: '^[1-9][0-9]*(Gi|Mi)$'
+            curatorMemoryRequest:
+                description: |
+                    Memory request usage for curator
+                type: string
+                default: 100Mi
+                pattern: '^[1-9][0-9]*(Gi|Mi)$'
+            scheduleCurator:
+                description: |
+                    Schedule curator time for deleting the old indices
+                type: string
+                default: "0 11 * * *"
+            enableSearchGuardCurator:
+                description: |
+                    enable searchguard for curator
+                type: boolean
+                default: false
+            base64_ca_certificate:
+                description: |
+                    base64 of elasticsearch root ca
+                type: string
+            action_file_ymlCurator:
+                description: |
+                    action_file for curator
+                type: string
+                format: text-area
+            config_ymlCurator:
+                description: |
+                    curator  configuration
+                type: string
+                format: text-area
+
+
+    kibana:
+        description: |
+            Kibana configuration.
+        type: object
+        properties:
+            enableSearchGuardKibana:
+                description: |
+                    enable searchguard of kibana
+                type: boolean
+            base64_kib_es_username:
+                description: |
+                    base64_kib_es_username name of kibana
+                type: string
+            base64_kib_es_password:
+                description: |
+                    base64_kib_es_password of kibana
+                type: string
+            base64_ES_RootCA:
+                description: |
+                    base64 of elasticsearch root ca
+                type: string
+                format: text-area
+            base64ServerCrt:
+                description: |
+                    base64ServerCrt of kibana
+                type: string
+                format: text-area
+            base64ServerKey:
+                description: |
+                    base64ServerKey name of kibana
+                type: string
+                format: text-area
+            kibanaCpuLimit:
+                description: |
+                    CPU limit usage for kibana per node
+                type: string
+                default: 1
+                pattern: '^[1-9][0-9]*m*$'
+            kibanaCpuRequest:
+                description: |
+                    CPU request usage for kibana per node
+                type: string
+                default: 500m
+                pattern: '^[1-9][0-9]*m*$'
+            kibanaMemoryLimit:
+                description: |
+                    Memory limit usage for kibana per node
+                type: string
+                default: 2024Mi
+                pattern: '^[1-9][0-9]*(Gi|Mi)$'
+            kibanaMemoryRequest:
+                description: |
+                    Memory request usage for kibana in MB per node
+                type: string
+                default: 1023Mi
+                pattern: '^[1-9][0-9]*(Gi|Mi)$'
+            initialDelaySeconds:
+                description: |
+                    delay seconds for kibana to come up
+                type: string
+                default: 150
+            kibana_configmap_yml:
+                description: |
+                    configmap of kibana
+                type: string
+                format: text-area
+            #This part will be added when CSFP provides a way to configure a text box & maintain the indentation.
+            #envKibana:
+            #    description: |
+            #           A representation of an env variable.
+            #    type: string
+            #    format: text-area
+            serviceNameKibana:
+                description: |
+                    service name of kibana
+                type: string
+                default: kibana
+            type:
+                description: |
+                    to access kibana service via NodePort set service.type NodePort
+                type: string
+                default: ClusterIP
+            urlKibana:
+                description: |
+                    kibana url to access kibana via ClusterIP
+                type: string
+            cg:
+                description: |
+                    Do not change cg(capture group) parameter below unless you want to change/modify nginx
+                type: string
+            enableCburKibana:
+                description: |
+                    Enable support for backup and restore of Kibana configmap through CBUR
+                type: boolean
+                default: false
+            cronJobCburKibana:
+                description: |
+                    Format of cron job setting for backup of Kibana configmap. It is used for scheduled backup task.
+                type: string
+                default: "0 23 * * *"
+            maxCopyCburKibana:
+                description: |
+                    The number of maximum backup copies to be retained
+                type: integer
+                default: 5
+                pattern: '^[1-9][0-9]*$'
+            backendModeCburKibana:
+                description: |
+                    Modes supported now "local","NETBKUP","AVAMAR", case insensitive
+                type: string
+                default: "local"
+            autoEnableCronCburKibana:
+                description: |
+                    Enable autoCron to take backup periodically
+                type: boolean
+                default: false
+

@@ -1,0 +1,119 @@
+{{- if .Values.SetDatasource.enabled -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  labels:
+    app: {{ template "grafana.fullname" . }}
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    component: "{{ .Values.name }}"
+    heritage: "{{ .Release.Service }}"
+    release: "{{ .Release.Name }}"
+    {{- if .Values.global.labels }}
+{{ toYaml .Values.global.labels | indent 4}}
+    {{- end }}
+  name: {{ template "grafana.setDatasource" . }}
+  annotations:
+{{- if .Values.global.annotations }}
+{{ toYaml .Values.global.annotations | indent 4}}
+{{- end }}
+    "helm.sh/hook": post-install
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": hook-succeeded,before-hook-creation
+spec:
+  #activeDeadlineSeconds: {{ default 300 .Values.SetDatasource.activeDeadlineSeconds }}
+  backoffLimit: 10
+  template:
+    metadata:
+      labels:
+        app: {{ template "grafana.fullname" . }}-setdatasource
+        component: "{{ .Values.name }}"
+        release: "{{ .Release.Name }}"
+{{- include "custom-labels" (tuple .Values.custom.pod.labels) | indent 8}}
+      annotations:
+        sidecar.istio.io/inject: "{{ .Values.istio.enable }}"
+{{- include "custom-annotations" (tuple .Values.custom.pod.annotations) | indent 8}}
+{{- if .Values.rbac.pspUseAppArmor }}
+{{- include "custom-annotations" (tuple .Values.custom.pod.apparmorAnnotations) | indent 8}}
+{{- end }}
+    spec:
+      serviceAccountName: {{ template "grafana.serviceAccountName" . }}
+      securityContext:
+      {{- if .Values.deployOnCompass }}
+        fsGroup: {{ template "grafana.fsgroup" . }}
+      {{- end }}
+      {{- if .Values.supplementalGroups }}
+        supplementalGroups: {{ .Values.supplementalGroups }}
+      {{- end }}
+      {{- if .Values.seLinuxOptions.enabled }}
+        seLinuxOptions:
+          level: {{ .Values.seLinuxOptions.level }}
+          role: {{ .Values.seLinuxOptions.role }}
+          type: {{ .Values.seLinuxOptions.type }}
+          user: {{ .Values.seLinuxOptions.user }}
+      {{- end }}
+      containers:
+      - name: {{ template "grafana.setDatasourceContainer" . }}
+        image: "{{ .Values.global.registry3 }}/{{ .Values.SetDashboard.tinytools.imageRepo }}:{{ .Values.SetDashboard.tinytools.imageTag }}"
+        imagePullPolicy: {{ .Values.SetDatasource.imagePullPolicy }}
+        securityContext:
+          runAsUser: {{ template "grafana.user" . }}
+        resources:
+{{ toYaml .Values.SetDatasource.resources | indent 10 }}
+        env:
+        - name: ADMIN_USER
+          valueFrom:
+            secretKeyRef:
+              name: {{ template "grafana.fullname" . }}
+              key: admin-user
+        - name: ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ template "grafana.fullname" . }}
+              key: admin-password
+        command: ["/bin/sh", "-c"]
+        args:
+          - -c
+          - |
+            {{- if eq .Values.scheme "https" }}
+            until $(curl --output /dev/null --silent --head --fail --insecure https://{{ template "grafana.fullname" . }}:{{ .Values.service.port }}/api/health); do
+                printf '.'
+                sleep 1
+            done
+            {{ else if eq .Values.scheme "http" }}
+            until $(curl --output /dev/null --silent --head --fail http://{{ template "grafana.fullname" . }}:{{ .Values.service.port }}/api/health); do
+                printf '.'
+                sleep 1
+            done
+            {{- end }}
+
+            {{- if .Values.istio.enable }}
+            until curl --head localhost:15000
+            do
+              echo "Waiting for istio-proxy ..."
+              sleep 1
+            done
+            echo "istio-proxy available"
+            {{- end }}
+
+            auth=$(echo -ne "${ADMIN_USER}:${ADMIN_PASSWORD}" | base64 --wrap 0)
+            curl_opts=( --header 'Authorization: Basic '${auth} --insecure --connect-timeout 5 --max-time 30 --retry 3 --fail --silent --show-error --globoff)
+            grafana_hostname={{ template "grafana.fullname" . }}
+            grafana_port={{ .Values.service.port }}
+            protocol={{ .Values.scheme }}
+            prom_method="POST"
+            prom_api="/api/datasources"
+
+            curl -v -H "Content-Type:application/json;charset=UTF-8" \
+            -H "Accept: application/json" "${curl_opts[@]}" \
+            -X ${prom_method} ${protocol}://${grafana_hostname}:${grafana_port}${prom_api} \
+            --data-binary \
+            {{- with .Values.SetDatasource.datasource }}
+            '{"name":"{{ .name }}","type":"{{ .type }}","url":"{{ .url }}","database":"{{ .database }}","jsonData":{ {{ .jsonData }} },"access":"{{ .access }}","isDefault":{{ .isDefault }}}'
+            {{- end }}
+
+            {{- if .Values.istio.enable }}
+            curl -X POST http://localhost:15000/quitquitquit
+            {{- end }}
+
+      restartPolicy: {{ .Values.SetDatasource.restartPolicy }}
+{{- end -}}

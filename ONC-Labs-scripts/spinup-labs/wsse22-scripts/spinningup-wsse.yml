@@ -1,0 +1,4 @@
+---
+ - import_playbook: spinningup-wsse/restore-backupvm-wsse.yml
+ - import_playbook: spinningup-wsse/reinstall-for-new-wsse.yml
+ - import_playbook: spinningup-wsse/get-info-wsse.yml

@@ -1,0 +1,47 @@
+---
+- name: Setup to install wsse vm
+  hosts: localhost
+  connection: local
+  collections:
+    - azure.azcollection
+
+  vars:
+    newRG: "{{ lookup('env', 'rg') }}"
+    wsseName: "{{ lookup('env', 'wsseName') }}"
+    ssh_key: "{{ lookup('env', 'ssh_key') }}"
+    location: "{{ lookup('env', 'region') }}"
+    nfmtIp: "{{ lookup('env', 'nfmtIp') }}"
+    nfmtUserName: "{{ lookup('env', 'nfmtUserName') }}"
+    nfmtUsername: "{{ lookup('env', 'nfmtUsername') }}"
+
+  tasks:
+    - name: Get public IP new restore vm
+      shell: sudo az vm show -g "{{ newRG }}" -n "{{ wsseName }}"  --query publicIps -d --out tsv
+      register: public_ip
+
+    - name: Get private IP new store vm
+      shell: sudo az vm show -g "{{ newRG }}" -n "{{ wsseName }}"  --query privateIps -d --out tsv
+      register: private_ip
+
+    - name: Replace public ip of wsse hosts
+      shell: sudo sed -i "s/172.17.0.7/"{{ public_ip.stdout }}"/g" ../hosts
+
+    - name: Replace public ip for wavesuite.yml
+      shell: |
+        sudo sed -i " 265 s/20.20.20.20/"{{ private_ip.stdout }}"/g" playbook/wavesuite.yaml
+        sudo sed -i " 25 s/30.30.30.30/"{{ nfmtIp }}"/g" playbook/wavesuite.yaml
+        sudo sed -i "s/40.40.40/"{{ nfmtUserName }}"/g" playbook/wavesuite.yaml
+
+    - name: Replace public ip for host
+      shell: sudo sed -i "3 s/172.16.0.11/"{{ private_ip.stdout }}"/g" playbook/hosts
+
+    - name: Set SSH for new vm
+      shell: |
+        sudo az vm extension set --name VMAccessForLinux --publisher Microsoft.OSTCExtensions --version 1.4 --vm-name "{{ wsseName }}" --resource-group "{{ newRG }}" --protected-settings '{"username":"WSSE_Admin", "ssh_key":"{{ ssh_key }}", "reset_ssh": true}'
+
+    - name: Refresh inventory to ensure new instances exist in inventory
+      meta: refresh_inventory
+
+    - name: Pause 2 minutes for sync hosts file
+      pause:
+      minutes: 2

@@ -1,0 +1,11 @@
+---
+- name: "Upgrading CMDB db config chart"
+  shell: >
+    {{ helm }}  upgrade {{ cmdbPasswordPolicyConfigHelmName }} {{ chartsPath }}/cmdb/db-config
+    --namespace {{ BP_CONFIG_NAMESPACE }}
+    --reuse-values
+    --values {{ chartsPath }}/values/upgrade-global-values.yaml
+    --install
+    --wait
+    --timeout {{ wait_timeout }}s
+  no_log: "{{ no_log }}"

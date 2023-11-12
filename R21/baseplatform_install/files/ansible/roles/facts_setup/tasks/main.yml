@@ -1,0 +1,443 @@
+- name: "Add unit to CMDB storage size"
+  set_fact:
+    cmdbStorageSize: "{{ CMDB_STORAGE_SIZE_GB }}G"
+
+- name: "Set EMAIL_SERVER variables"
+  set_fact:
+    emailid: "{{ EMAIL_SERVER.ID }}"
+    emailenabled: false
+
+- name: "Set CNOT EMAIL_SERVER ACTIVATION"
+  set_fact:
+    emailenabled: true
+  when: (emailid is defined) and (emailid)
+
+- name: "Set CALM SNMP version with value from BP_config_var"
+  set_fact:
+    notifyparams: "v3Params1"
+  when: (SNMP_VERSION is defined) and (SNMP_VERSION == "SNMPv3")
+
+- name: "Set CALM SNMP version with default value"
+  set_fact:
+    notifyparams: "v2cParams"
+  when: (SNMP_VERSION is not defined) or (SNMP_VERSION != "SNMPv3")
+
+- name: "Set CALM Notify IP1 whith value from BP_config_var"
+  set_fact:
+    notifyip1: "{{ SNMP_TRAP_RECEIVER[0] }}"
+  when: (SNMP_TRAP_RECEIVER[0] is defined) and (SNMP_TRAP_RECEIVER[0]|length > 0)
+
+- name: "Set CALM Notify IP1 whith default value"
+  set_fact:
+    notifyip1: "127.0.0.1"
+  when: (SNMP_TRAP_RECEIVER[0] is not defined) or (SNMP_TRAP_RECEIVER[0]|length == 0) or (SNMP_TRAP_RECEIVER[0]|ipaddr == False)
+
+- name: "Set CALM Notify Port1 whith value from BP_config_var"
+  set_fact:
+    notifyport1: "{{ SNMP_TRAP_PORT[0] }}"
+  when: (SNMP_TRAP_PORT[0] is defined) and (SNMP_TRAP_PORT[0] is number) and (SNMP_TRAP_PORT[0] is lt 65535)
+
+- name: "Set CALM Notify Port1 whith default value"
+  set_fact:
+    notifyport1: "162"
+  when: (SNMP_TRAP_PORT[0] is not defined) or (SNMP_TRAP_PORT[0] is not number) or (SNMP_TRAP_PORT[0] is gt 65535)
+
+- name: "Set CALM Notify IP2 whith value from BP_config_var"
+  set_fact:
+    notifyip2: "{{ SNMP_TRAP_RECEIVER[1] }}"
+  when: (SNMP_TRAP_RECEIVER[1] is defined) and (SNMP_TRAP_RECEIVER[1]|length > 0)
+
+- name: "Set CALM Notify IP2 whith default value"
+  set_fact:
+    notifyip2: "127.0.0.1"
+  when: (SNMP_TRAP_RECEIVER[1] is not defined) or (SNMP_TRAP_RECEIVER[1]|length == 0) or (SNMP_TRAP_RECEIVER[1]|ipaddr == False)
+
+- name: "Set CALM Notify Port2 whith value from BP_config_var"
+  set_fact:
+    notifyport2: "{{ SNMP_TRAP_PORT[1] }}"
+  when: (SNMP_TRAP_PORT[1] is defined) and (SNMP_TRAP_PORT[1] is number) and (SNMP_TRAP_PORT[1] is lt 65535)
+
+- name: "Set CALM Notify Port2 whith default value"
+  set_fact:
+    notifyport2: "162"
+  when: (SNMP_TRAP_PORT[1] is not defined) or (SNMP_TRAP_PORT[1] is not number) or (SNMP_TRAP_PORT[1] is gt 65535)
+
+- name: "Set CALM Notify IP3 whith value from BP_config_var"
+  set_fact:
+    notifyip3: "{{ SNMP_TRAP_RECEIVER[2] }}"
+  when: (SNMP_TRAP_RECEIVER[2] is defined) and (SNMP_TRAP_RECEIVER[2]|length > 0)
+
+- name: "Set CALM Notify IP3 whith default value"
+  set_fact:
+    notifyip3: "127.0.0.1"
+  when: (SNMP_TRAP_RECEIVER[2] is not defined) or (SNMP_TRAP_RECEIVER[2]|length == 0) or (SNMP_TRAP_RECEIVER[2]|ipaddr == False)
+
+- name: "Set CALM Notify Port3 whith value from BP_config_var"
+  set_fact:
+    notifyport3: "{{ SNMP_TRAP_PORT[2] }}"
+  when: (SNMP_TRAP_PORT[2] is defined) and (SNMP_TRAP_PORT[2] is number) and (SNMP_TRAP_PORT[2] is lt 65535)
+
+- name: "Set CALM Notify Port3 whith default value"
+  set_fact:
+    notifyport3: "162"
+  when: (SNMP_TRAP_PORT[2] is not defined) or (SNMP_TRAP_PORT[2] is not number) or (SNMP_TRAP_PORT[2] is gt 65535)
+
+- name: "Set CALM Notify IP4 whith value from BP_config_var"
+  set_fact:
+    notifyip4: "{{ SNMP_TRAP_RECEIVER[3] }}"
+  when: (SNMP_TRAP_RECEIVER[3] is defined) and (SNMP_TRAP_RECEIVER[3]|length > 0)
+
+- name: "Set CALM Notify IP4 whith default value"
+  set_fact:
+    notifyip4: "127.0.0.1"
+  when: (SNMP_TRAP_RECEIVER[3] is not defined) or (SNMP_TRAP_RECEIVER[3]|length == 0) or (SNMP_TRAP_RECEIVER[3]|ipaddr == False)
+
+- name: "Set CALM Notify Port4 whith value from BP_config_var"
+  set_fact:
+    notifyport4: "{{ SNMP_TRAP_PORT[3] }}"
+  when: (SNMP_TRAP_PORT[3] is defined) and (SNMP_TRAP_PORT[3] is number) and (SNMP_TRAP_PORT[3] is lt 65535)
+
+- name: "Set CALM Notify Port4 whith default value"
+  set_fact:
+    notifyport4: "162"
+  when: (SNMP_TRAP_PORT[3] is not defined) or (SNMP_TRAP_PORT[3] is not number) or (SNMP_TRAP_PORT[3] is gt 65535)
+
+- name: "Set CALM Notify IP5 whith value from BP_config_var"
+  set_fact:
+    notifyip5: "{{ SNMP_TRAP_RECEIVER[4] }}"
+  when: (SNMP_TRAP_RECEIVER[4] is defined) and (SNMP_TRAP_RECEIVER[4]|length > 0)
+
+- name: "Set CALM Notify IP5 whith default value"
+  set_fact:
+    notifyip5: "127.0.0.1"
+  when: (SNMP_TRAP_RECEIVER[4] is not defined) or (SNMP_TRAP_RECEIVER[4]|length == 0) or (SNMP_TRAP_RECEIVER[4]|ipaddr == False)
+
+- name: "Set CALM Notify Port5 whith value from BP_config_var"
+  set_fact:
+    notifyport5: "{{ SNMP_TRAP_PORT[4] }}"
+  when: (SNMP_TRAP_PORT[4] is defined) and (SNMP_TRAP_PORT[4] is number) and (SNMP_TRAP_PORT[4] is lt 65535)
+
+- name: "Set CALM Notify Port5 whith default value"
+  set_fact:
+    notifyport5: "162"
+  when: (SNMP_TRAP_PORT[4] is not defined) or (SNMP_TRAP_PORT[4] is not number) or (SNMP_TRAP_PORT[4] is gt 65535)
+
+- name: "Set CALM Notify IP6 whith value from BP_config_var"
+  set_fact:
+    notifyip6: "{{ SNMP_TRAP_RECEIVER[5] }}"
+  when: (SNMP_TRAP_RECEIVER[5] is defined) and (SNMP_TRAP_RECEIVER[5]|length > 0)
+
+- name: "Set CALM Notify IP6 whith default value"
+  set_fact:
+    notifyip6: "127.0.0.1"
+  when: (SNMP_TRAP_RECEIVER[5] is not defined) or (SNMP_TRAP_RECEIVER[5]|length == 0) or (SNMP_TRAP_RECEIVER[5]|ipaddr == False)
+
+- name: "Set CALM Notify Port6 whith value from BP_config_var"
+  set_fact:
+    notifyport6: "{{ SNMP_TRAP_PORT[5] }}"
+  when: (SNMP_TRAP_PORT[5] is defined) and (SNMP_TRAP_PORT[5] is number) and (SNMP_TRAP_PORT[5] is lt 65535)
+
+- name: "Set CALM Notify Port6 whith default value"
+  set_fact:
+    notifyport6: "162"
+  when: (SNMP_TRAP_PORT[5] is not defined) or (SNMP_TRAP_PORT[5] is not number) or (SNMP_TRAP_PORT[5] is gt 65535)
+
+- name: "Set temporary installation directory on target node"
+  set_fact:
+    temporaryAppFilesDirectory: "{{ playbook_dir }}/netguard/base_platform/{{ executionTimestamp.stdout }}"
+
+- name: "Set path to charts on target node"
+  set_fact:
+    chartsPath: "{{ temporaryAppFilesDirectory }}/charts"
+
+- name: "Set deployment profile file path"
+  set_fact:
+    configurationProfiles: "{{ chartsPath }}/values/profiles/configuration/{{ BP_DEPLOYMENT_PROFILE.CONFIGURATION }}"
+    resourcesProfiles: "{{ chartsPath }}/values/profiles/resources/{{ BP_DEPLOYMENT_PROFILE.RESOURCES }}"
+    storageProfiles: "{{ chartsPath }}/values/profiles/storage/{{ BP_DEPLOYMENT_PROFILE.STORAGE }}"
+
+- name: "Set helm install names"
+  set_fact:
+    namespaceHelmName: "namespace"
+    caCertHelmName: "ca-cert"
+    cmdbHelmName: "cmdb"
+    cmdbConfiguratorConfigHelmName: "cmdb-configurator-config"
+    cmdbPasswordPolicyConfigHelmName: "cmdb-db-config"
+    ckeyHelmName: "ckey"
+    ckeyConfiguratorConfigHelmName: "ckey-configurator-config"
+    ckeyMasterConfigHelmName: "ckey-master-config"
+    ckeyNetguardConfigHelmName: "ckey-netguard-config"
+    ckeyDatabaseConfigHelmName: "ckey-db-config"
+    btelDatabaseConfigHelmName: "btel-db-config"
+    citmHelmName: "citm"
+    egressHelmName: "egress"
+    crmqHelmName: "crmq"
+    btelHelmName: "btel"
+    crmqConfiguratorConfigHelmName: "crmq-configurator-config"
+    startPageHelmName: "start-page"
+    ckeyCrmqConfiguratorHelmName: "ckey-crmq-config"
+    btelCrmqConfiguratorHelmName: "btel-crmq-config"
+    btelGrafanaConfiguratorHelmName: "btel-grafana-config"
+    cproGrafanaConfiguratorHelmName: "cpro-grafana-config"
+    realmUrlsConfigurationHelmName: "ckey-realm-urls"
+    geoRedundancySettingsHelmName: "geo-redundancy-settings"
+    geoRedundancyValidationHelmName: "geo-redundancy-validation"
+    geoRedundancyBtelHelmName: "geo-redundancy-btel"
+    virtualIpName: "netguard-virtual-ip"
+
+- name: "Set kubernetes resource names"
+  set_fact:
+    crmqCkeyCredentialsSecretName: "ckey-ckey-crmq-credentials"
+    mariadbReplUserCredentialsSecretName: "cmdb-repl-user-credentials"
+
+- name: "Set local docker images registry address"
+  set_fact:
+    bcmtRegistry: "{{ bcmt_registry }}" #value provided by bcmt
+
+# Still hardcoded in keycloak initial ream.json
+- name: "Set Keycloak variables"
+  set_fact:
+    keycloakClientName: "base_platform_sso"
+    keycloakRealmName: "netguard"
+    keycloakRealmUser: "admin"
+    keycloakMasterRealm: "master"
+    keycloakMasterRealmClient: "security-admin-console"
+    keycloakLdapsCert: "{{ LDAPS_CERT }}"
+    keycloakLdapsEnabled: false
+    keycloakFineGrainedPermissionsEnabled: "{{ FINE_GRAINED_PERMISSIONS_ENABLED }}"
+
+- name: "Set Keycloak variables"
+  set_fact:
+    keycloakLdapsEnabled: true
+  when: (keycloakLdapsCert is defined) and (keycloakLdapsCert)
+
+- name: "Set keycloak redirect uris"
+  set_fact:
+    logoutUri: "{{ '\\\"https://' + item + '/logout/*\\\"' }}"
+    keycloakUri: "{{ '\\\"https://' + item + '/auth/*\\\"' }}"
+    ssoRedirectUri: "{{ '\\\"https://' + item + '/sso-redirect/*\\\"' }}"
+    rootUri: "{{ '\\\"https://' + item + '/logout-redirect/*\\\"' }}"
+  with_items: "{{ ACCESS_IPS + ACCESS_FQDNS }}"
+  register: redirectUris
+
+- name: "Set Mariadb service FQDN fact"
+  set_fact:
+    mariaDbService: "cmdb-mysql.{{ BP_NAMESPACE }}.svc.{{ DNS_DOMAIN }}"
+
+- set_fact:
+    bp_version: "{{ lookup('file', '{{ files_path }}/VERSION') }}"
+
+- name: "CRMQ user facts"
+  set_fact:
+    crmqAdminUsername: "admin"
+    crmqCkeyUsername: "ckey-user"
+
+- name: "CMDB user facts"
+  set_fact:
+    cmdbUsername: "mariadbuser"
+
+- name: "Set CRMQ host long name"
+  set_fact:
+    rmqHost: "crmq-crmq.{{ BP_NAMESPACE }}.svc.{{ DNS_DOMAIN }}"
+
+- name: "Set CRMQ CKEY event publisher facts"
+  set_fact:
+    crmqCkeyExchangeName: "ckey.topic"
+    crmqCkeyRoutingKey: "user.security.events"
+    crmqCkeyPort: 5671
+
+- name: "Set state of CSFPushEventListener in CKEY"
+  set_fact:
+    csfPushEventListenerEnabled: "{{ CKEY_EVENT_LISTENER_ENABLED is defined and CKEY_EVENT_LISTENER_ENABLED }}"
+
+- name: "Set default value for logging"
+  set_fact:
+    no_log: false
+
+- name: "Set value for logging on devel profile"
+  set_fact:
+    no_log: false
+  when: BP_DEPLOYMENT_PROFILE.CONFIGURATION == "devel"
+
+- name: "Setting cert-manager facts"
+  set_fact:
+    certManagerNamespace: "ncms"
+    caCertificateSecret: "ca-key-pair"
+
+- name: "Setting maxInstallStepRetries"
+  set_fact:
+    maxInstallStepRetries: 10
+
+- set_fact:
+    ipv6Only: "{{ NETWORK_STACK=='IPV6_ONLY' }}"
+
+- name: "Set BTEL settings based on chosen IP version installation type"
+  set_fact:
+    btelIpv6Override: "{{ '--values {{ chartsPath }}/btel/app/override-IPv6.yaml' if ipv6Only else '' }}"
+
+- name: "Setting node port offsets"
+  set_fact:
+    crmqAmqpNodePortOffset: 0
+    crmqTlsNodePortOffset: 1
+    crmqManagementNodePortOffset: 2
+    crmqPrometheusNodePortOffset: 3
+    crmqMqttTcpNodePortOffset: 4
+    crmqMqttSslNodePortOffset: 5
+    cmdbNodePortOffset: 6
+    cmdbReadOnlyNodePortOffset: 7
+    cmdbMasterOnlyNodePortOffset: 8
+    cmdbMasterNodePortOffset: 9
+    cmdbMaxscaleNodePortOffset: 10
+    btelBelkEsClientNodePortOffset: 11
+    btelBelkEsMasterNodePortOffset: 12
+    btelBelkKibanaNodePortOffset: 13
+    btelCalmSnmpNodePortOffset: 14
+    btelCalmRestNodePortOffset: 15
+    btelCalmSnmpTrapNodePortOffset: 16
+    btelCnotServiceNodePortOffset: 18
+    btelCnotServiceHttpsNodePortOffset: 19
+    btelCproServerNodePortOffset: 20
+    btelCproRestserverNodePortOffset: 21
+    btelCproPushgatewayNodePortOffset: 22
+    btelCproAlertmanagerNodePortOffset: 23
+    btelCproNodeExporterHostPortOffset: 24
+    btelCproGen3gppXmlSftpNodePortOffset: 25
+    btelCproGen3gppXmlHttpNodePortOffset: 26
+    btelCproGen3gppXmlHttpsNodePortOffset: 27
+
+- name: "Set nodePort for mariadb master"
+  set_fact:
+    mariadbMasterNodePort: "{{ MARIADB_MASTER_NODE_PORT | default (((BP_INITIAL_NODE_PORT + cmdbMasterNodePortOffset) | int), true) }}"
+
+- name: "Set nodePort for maxscale"
+  set_fact:
+    maxscaleNodePort: "{{ MAXSCALE_NODE_PORT | default (((BP_INITIAL_NODE_PORT + cmdbMaxscaleNodePortOffset) | int), true) }}"
+
+- name: "Set flag indicating geo redundancy mode"
+  set_fact:
+    geoRedundancyPassiveModeEnabled: "{{ GEO_REDUNDANCY.ENABLED and GEO_REDUNDANCY.MODE == passiveMode }}"
+    geoRedundancyActiveModeEnabled: "{{ GEO_REDUNDANCY.ENABLED and GEO_REDUNDANCY.MODE == activeMode }}"
+
+- name: "Set geo redundancy related values"
+  set_fact:
+    cmdbGeoSettings: "--set services.mariadb_master.nodePort={{ mariadbMasterNodePort }} --set services.maxscale.nodePort={{ maxscaleNodePort }} --set cbur.autoEnableCron={{ geoRedundancyActiveModeEnabled }} --set cbur.autoUpdateCron={{ geoRedundancyActiveModeEnabled }}"
+    siteIndexSettings: "--set geo_redundancy.site_index={{ GEO_REDUNDANCY.SITE_INDEX }}"
+    siteModeSettings: "--set geo_redundancy.mode={{ GEO_REDUNDANCY.MODE }}"
+    btelGeoSettings: "--set belk.belk-elasticsearch.cbur.autoEnableCron={{ geoRedundancyActiveModeEnabled }} --set belk.belk-elasticsearch.cbur.autoUpdateCron={{ geoRedundancyActiveModeEnabled }}"
+    btelRestoreCronjobGeoSettings: "--set cronjob.suspended={{ geoRedundancyActiveModeEnabled }}"
+    ckeyGeoSettings: "--set cbur.autoEnableCron={{ geoRedundancyActiveModeEnabled }} --set cbur.autoUpdateCron={{ geoRedundancyActiveModeEnabled }}"
+    configuratorsConfigGeoSettings: "--set cbur.autoEnableCron={{ geoRedundancyActiveModeEnabled }} --set cbur.autoUpdateCron={{ geoRedundancyActiveModeEnabled }}"
+  when: GEO_REDUNDANCY.ENABLED
+
+- name: "Set geo redundancy remote address on active mode"
+  set_fact:
+    cmdbGeoRemoteAddressActiveSettings: "--set geo_redundancy.remote.maxscale={{ GEO_REDUNDANCY.CMDB.REMOTE_DC_ADDRESS }}:{{ maxscaleNodePort }} --set geo_redundancy.remote.master={{ GEO_REDUNDANCY.CMDB.REMOTE_DC_ADDRESS }}:{{ mariadbMasterNodePort }}"
+  when: geoRedundancyActiveModeEnabled and GEO_REDUNDANCY.CMDB.REMOTE_DC_ADDRESS is defined and GEO_REDUNDANCY.CMDB.REMOTE_DC_ADDRESS is not none
+
+- name: "Set geo redundancy related values for passive mode"
+  set_fact:
+    cmdbGeoPassiveSettings: "--set geo_redundancy.remote.maxscale={{ GEO_REDUNDANCY.CMDB.REMOTE_DC_ADDRESS }}:{{ maxscaleNodePort }} --set geo_redundancy.remote.master={{ GEO_REDUNDANCY.CMDB.REMOTE_DC_ADDRESS }}:{{ mariadbMasterNodePort }}"
+    ckeyGeoPassiveSettings: "--set replicaCount=0"
+    btelGeoPassiveSettings: "--set grafana.SetDashboard.enabled=false --set grafana.SetDatasource.enabled=false --set grafana.replicas=0 --set calm.servers=0"
+    grafanaConfigGeoPassiveSettings: "--set SetDashboard.enabled=false --set hooks.postDeleteJob=disable"
+  when: geoRedundancyPassiveModeEnabled
+
+- name: "Set Virtual IPv4 address values for IPV4_ONLY or IPV4_DUALSTACK network stacks"
+  set_fact:
+    vipAddressIPv4: "--set instanceGroup.ipv4Address={{ VIRTUAL_IP.ADDRESS_IPV4 | quote }}"
+  when: VIRTUAL_IP.ENABLED and (NETWORK_STACK == 'IPV4_ONLY' or NETWORK_STACK == 'IPV4_DUALSTACK')
+
+- name: "Set Virtual IPv6 address values for IPV6_ONLY or IPV4_DUALSTACK network stacks"
+  set_fact:
+    vipAddressIPv6: "--set instanceGroup.ipv6Address={{ VIRTUAL_IP.ADDRESS_IPV6 | quote }}"
+  when: VIRTUAL_IP.ENABLED and (NETWORK_STACK == 'IPV6_ONLY' or NETWORK_STACK == 'IPV4_DUALSTACK')
+
+- name: "Set keycloak db password fact"
+  set_fact:
+    dbPassword: "{{ KEYCLOAK_DB_PASSWORD }}"
+  when: KEYCLOAK_DB_PASSWORD is defined and KEYCLOAK_DB_PASSWORD is not none
+
+- name: "Set keycloak admin password fact"
+  set_fact:
+    keycloakPassword: "{{ KEYCLOAK_ADMIN_PASSWORD }}"
+  when: KEYCLOAK_ADMIN_PASSWORD is defined and KEYCLOAK_ADMIN_PASSWORD is not none
+
+- name: "Set cmdb user password fact"
+  set_fact:
+    cmdbUserPassword: "{{ MARIADB_USER_PASSWORD }}"
+  when: MARIADB_USER_PASSWORD is defined and MARIADB_USER_PASSWORD is not none
+
+- name: "Set maxscale user password fact"
+  set_fact:
+    maxscaleUserPassword: "{{ MAXSCALE_USER_PASSWORD }}"
+  when: MAXSCALE_USER_PASSWORD is defined and MAXSCALE_USER_PASSWORD is not none
+
+- name: "Set keycloak db password fact"
+  set_fact:
+    mariadbReplUserPassword: "{{ REPL_USER_PASSWORD }}"
+  when: REPL_USER_PASSWORD is defined and REPL_USER_PASSWORD is not none
+
+- name: "Set metrics user password fact"
+  set_fact:
+    metricsUserPassword: "{{ METRICS_USER_PASSWORD }}"
+  when: METRICS_USER_PASSWORD is defined and METRICS_USER_PASSWORD is not none
+
+- name: "Set grafana db password fact"
+  set_fact:
+    dbGrafanaPassword: "{{ GRAFANA_DB_PASSWORD }}"
+  when: GRAFANA_DB_PASSWORD is defined and GRAFANA_DB_PASSWORD is not none
+
+- name: "Set calm db password fact"
+  set_fact:
+    dbCalmPassword: "{{ CALM_DB_PASSWORD }}"
+  when: CALM_DB_PASSWORD is defined and CALM_DB_PASSWORD is not none
+
+- name: "Set cmdb root password fact"
+  set_fact:
+    cmdbRootPassword: "{{ CMDB_ROOT_PASSWORD }}"
+  when: CMDB_ROOT_PASSWORD is defined and CMDB_ROOT_PASSWORD is not none
+
+- name: "Set Base Platform sso secret fact"
+  set_fact:
+    basePlatformSsoSecret: "{{ BASE_PLATFORM_SSO_SECRET }}"
+  when: BASE_PLATFORM_SSO_SECRET is defined and BASE_PLATFORM_SSO_SECRET is not none
+
+- name: "Set flag indicating if database should be populated by configurators"
+  set_fact:
+    dbPopulatingEnabled: "{{ not GEO_REDUNDANCY.ENABLED or GEO_REDUNDANCY.MODE != passiveMode }}"
+
+- name: "Set flag indicating if egress should be enabled for IPv4"
+  set_fact:
+    egressIPv4Enabled: "{{ NETWORK_STACK != 'IPV6_ONLY' and EGRESS.ENABLED }}"
+
+- name: "Set flag indicating if egress should be enabled for IPv6"
+  set_fact:
+    egressIPv6Enabled: "{{ NETWORK_STACK != 'IPV4_ONLY' and EGRESS.ENABLED }}"
+
+- name: "Set dns domain from provided domain name"
+  set_fact:
+    svcDnsDomain: "svc.{{ DNS_DOMAIN }}"
+
+- name: "Setting up common facts."
+  set_fact:
+    wait_timeout: "700"
+
+- name: "Generate netguard-admin secret"
+  shell: uuidgen
+  register: generatedNetguardAdminSecret
+#  no_log: true
+
+- name: "Set netguard-admin secret"
+  set_fact:
+    netguardAdminSecret: "{{ generatedNetguardAdminSecret.stdout  }}"
+  no_log: true
+
+- name: "Generate master-admin secret"
+  shell: uuidgen
+  register: generatedMasterAdminSecret
+  no_log: true
+
+- name: "Set master-admin secret"
+  set_fact:
+    masterAdminSecret: "{{ generatedMasterAdminSecret.stdout  }}"
+  no_log: true

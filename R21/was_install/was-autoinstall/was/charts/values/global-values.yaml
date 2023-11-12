@@ -1,0 +1,172 @@
+global:
+  certManager:
+    api: "cert-manager.io/v1alpha2"
+    ca:
+      name: netguard-ca
+  svcDnsDomain: svc.{{ .Values.global.DNS_DOMAIN }}
+  registry: "epsec-docker-candidates.repo.lab.pl.alcatel-lucent.com"
+  mariadbExternalName: "cmdb-mysql.{{ .Values.global.BP_NAMESPACE }}.svc.{{ .Values.global.DNS_DOMAIN }}"
+  mariadbPort: 3306
+  keycloakExternalName: "ckey-ckey.{{ .Values.global.BP_NAMESPACE }}.svc.{{ .Values.global.DNS_DOMAIN }}"
+  netguardConfiguration:
+    caCert:
+      secret: "netguard-ca"
+      file: "ca.crt"
+  crmq:
+    serviceName: crmq-crmq.{{ .Values.global.BP_NAMESPACE }}.svc.{{ .Values.global.DNS_DOMAIN }}
+    port: "5671"    # 5672 for unencrypted, 5671 for ssl/tls
+    useSsl: "true"
+  elasticsearch:
+    serviceName: elasticsearch.{{ .Values.global.BP_NAMESPACE }}.svc.{{ .Values.global.DNS_DOMAIN }}
+    port: "9200"
+  ckey:
+    eventsTopicName: "ckey.topic"
+    virtualHostName: "/"
+  nosdbSecret: "nosdb-secret"
+  serverClusterServiceName: "na-server"
+  serverClusterServiceHttpsPort: 8443
+  sshConfigMapName: "ssh-config"
+  extendedPropertiesConfigMapName: "extended-properties"
+  applicationPropertiesOverridesConfigMapName: "application-properties"
+  adapterConfigOverridesConfigMapName: "adapter-config-overrides"
+  agentConfigOverrideConfigMapName: "agent-config-override"
+  serverConfigOverrideConfigMapName: "server-config-override"
+  cbur:
+    enabled: false
+    dataEncryption: true
+    # the maximum copy you want to saved.
+    maxiCopy: 3
+    # Modes supported now: "local","NETBKUP","AVAMAR","CEPHS3","AWSS3", case insensitive
+    backendMode: "local"
+    # It is used for scheduled backup task
+    cronJob: "0 23 * * *"
+    # Set below parameters to true for auto enabling cron job
+    autoEnableCron: false
+  helmHooks:
+    secret:
+      hook: "pre-install"
+      weight: "-100"
+    configmap:
+      hook: "pre-install"
+      weight: "-90"
+    nosdbconfig:
+      hook: "pre-install"
+      weight: "-80"
+    appdbconfig:
+      hook: "pre-install"
+      weight: "-70"
+    nosdbschema:
+      hook: "pre-install"
+      weight: "-60"
+    nrsdbschema:
+      hook: "pre-install"
+      weight: "-50"
+    appdbschema:
+      hook: "pre-install"
+      weight: "-40"
+    crmqconfig:
+      hook: "pre-install"
+      weight: "-30"
+  certsConverter:
+    # From the CSF site: If the Truststore password is "changeit", a random password is then generated
+    # by the CJEE installation script, and used. No clear password can be found in the log files.
+    jkspass: "changeit"
+    inputdir: "/opt/nokia/config/certs-input"
+    outputdir: "/opt/nokia/config/certs-generated"
+    truststoreExtraCerts: "/opt/nokia/config/certs-extra"
+    keystorefile: "/opt/nokia/config/certs-generated/keystore.jks"
+    truststorefile: "/opt/nokia/config/certs-generated/truststore.jks"
+    initContainersTemplate: |
+      - name: certs-converter-init
+        image: {{ .Values.global.registry }}/common/certs-converter:{{ index .Values.global.imageTags "common/certs-converter" }}
+        imagePullPolicy: "{{ .Values.imagePullPolicy }}"
+        securityContext:
+          runAsUser: 1000
+        command: ["certs_converter"]
+        args: ["--certs-dir={{ .Values.global.certsConverter.inputdir }}",
+               "--output={{ .Values.global.certsConverter.outputdir }}",
+               {{ if .Values.useTruststoreExtraCerts }}
+               "--truststore-certs-dir={{ .Values.global.certsConverter.truststoreExtraCerts }}",
+               {{ end }}
+               "--format=JKS",
+               "--ks-pass={{ .Values.global.certsConverter.jkspass }}",
+               "--ts-pass={{ .Values.global.certsConverter.jkspass }}"]
+        volumeMounts:
+          # Mount the certificates generated via templates/certificate.yaml as input to certs_converter:
+          - name: "tls-secret"
+            mountPath: "{{ .Values.global.certsConverter.inputdir }}"
+            readOnly: true
+          # Mount the outputdir where the converted certs will be placed.
+          # We will then mount the converted certs (JKS files) in the main container
+          - name: "server-generated-certs"
+            mountPath: "{{ .Values.global.certsConverter.outputdir }}"
+          {{ if .Values.useTruststoreExtraCerts }}
+          # Mount the directory containing extra certs, to be included in the final truststore file
+          - name: "server-truststore-extra"
+            mountPath: "{{ .Values.global.certsConverter.truststoreExtraCerts }}"
+          {{ end }}
+    volumesTemplate: |
+      - name: "tls-secret"
+        secret:
+          secretName: "{{ .Values.certificatesSecretName | default "server-tls-secret" }}"
+      - name: "server-generated-certs"
+        emptyDir: {}
+      {{ if .Values.useTruststoreExtraCerts }}
+      - name: "server-truststore-extra"
+        configMap:
+          name: server-truststore-extra
+      {{ end }}
+    volumeMountsTemplate: |
+      - name: "server-generated-certs"
+        mountPath: "{{ .Values.global.certsConverter.outputdir }}"
+  propertyEncrypter:
+    image: "epsec/products/framework/propertyencrypter/epsec-propertyencrypter"
+    imagePullPolicy: "IfNotPresent"
+    encrypterConfigFile: "encrypter-config.properties"
+    encryptedPropsFile: "encrypted.properties"
+    initContainersTemplate: |-
+      {{- if .Values.encryptedProperties }}
+      - name: property-encrypter
+        image: {{ .Values.global.registry }}/{{ .Values.global.propertyEncrypter.image }}:{{ index .Values.global.imageTags "epsec/products/framework/propertyencrypter/epsec-propertyencrypter" }}
+        imagePullPolicy: "{{ .Values.global.propertyEncrypter.imagePullPolicy }}"
+        env:
+          - name: SOURCE_SECRETS_DIR
+            value: "/opt/nokia/config/plaintext"
+          - name: ENCRYPTED_PROPS_FILE
+            value: "/opt/nokia/config/encrypted/{{ .Values.global.propertyEncrypter.encryptedPropsFile }}"
+          - name: ENCRYPTION_CONFIG_FILE
+            value: "/opt/nokia/config/encrypted/{{ .Values.global.propertyEncrypter.encrypterConfigFile }}"
+        volumeMounts:
+          - name: encrypted-properties
+            mountPath: "/opt/nokia/config/encrypted"
+      {{- range $v := .Values.encryptedProperties.secrets }}
+      {{- $enabled := tpl ($v.enabled | toString) $ }}
+      {{- if or (not (hasKey $v "enabled")) (eq $enabled "true") }}
+          - name: "{{ $v.secretName }}-volume"
+            mountPath: "/opt/nokia/config/plaintext/{{ $v.secretName }}/{{ $v.path }}"
+      {{- end }}
+      {{- end }}
+      {{- end }}
+    volumesTemplate: |-
+      {{- if .Values.encryptedProperties }}
+      - name: encrypted-properties
+        emptyDir: {}
+      {{- range $v := .Values.encryptedProperties.secrets }}
+      {{- $enabled := tpl ($v.enabled | toString) $ }}
+      {{- if or (not (hasKey $v "enabled")) (eq $enabled "true") }}
+      - name: "{{ $v.secretName }}-volume"
+        secret:
+          secretName: "{{ $v.secretName }}"
+      {{- end }}
+      {{- end }}
+      {{- end }}
+    volumeMountsTemplate: |-
+      {{- if .Values.encryptedProperties }}
+      - name: encrypted-properties
+        mountPath: {{ .Values.encryptedProperties.mountPath | default "/opt/nokia/config/encryptedProperties" | quote }}
+      {{- end }}
+  kubectl:
+    image:
+      repo: tools/kubectl
+      tag: v1.14.10-nano
+  apiVersion: v1

@@ -1,0 +1,4 @@
+persistence:
+  data:
+    storageClass: cinder
+    enabled: true

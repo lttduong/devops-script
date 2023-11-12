@@ -1,0 +1,54 @@
+---
+- name: Pre setup to install wsha
+  hosts: localhost
+  connection: local
+  collections:
+    - azure.collection
+
+  vars:
+    resourceGroup: open-wavehub-dev
+    newRG: "{{ lookup('env', 'rg') }}"
+    wshaName: "{{ lookup('env', 'wshaName') }}"
+    ssh_key: "{{ lookup('env', 'ssh_key') }}"
+    vpnProfile: "{{ lookup('env', 'vpnProfile') }}"
+    rootProfile: "{{ lookup('env', 'rootProfile') }}"
+
+  tasks:
+    - name: Get publicIP new restore vm
+      shell: sudo az vm show -g "{{ newRG }}" -n "{{ wshaName }}"  --query publicIps -d --out tsv
+      register: publicip
+
+    - name: Get publicIP new restore vm
+      shell: sudo az vm show -g "{{ newRG }}" -n "{{ wshaName }}"  --query privateIps -d --out tsv
+      register: privateip
+
+    - name: Replace public ip of wsha hosts
+      shell: sudo sed -i "s/172.17.0.6/"{{ publicip.stdout }}"/g" ../hosts
+
+    - name: Replace public ip for wavesuite.yaml
+      shell: sudo sed -i "s/172.16.0.9/"{{ privateip.stdout }}"/g" playbook/wavesuite.yaml
+
+    - name: Reset SSH configuration for WSHA
+      shell: az vm user reset-ssh   --resource-group  "{{ newRG }}" --name "{{ wshaName }}"
+
+    - name: Set SSH for new vm
+      shell: |
+        sudo az vm extension set --name VMAccessForLinux --publisher Microsoft.OSTCExtensions --version 1.4 --vm-name "{{ wshaName }}" --resource-group "{{ newRG }}" --protected-settings '{"username":"WSHA_Admin", "ssh_key":"{{ ssh_key }}", "reset_ssh": true}'
+
+    - name: Refresh inventory to ensure new instances exist in inventory
+      meta: refresh_inventory
+
+    - name: Get the ovpn path where store the ovpn files of component
+      shell: echo "{{ vpnProfile }}" | rev |cut -c6- | rev
+      register: ovpnPath
+
+    - name: Set fact the ovpnPath
+      set_fact: 
+        ovpnPath : "{{ ovpnPath.stdout }}" 
+
+    - name: Create a directory if it does not exist
+      file:
+        path: "{{rootProfile}}{{ovpnPath}}/credentials"
+        state: directory
+        mode: '0755'
+

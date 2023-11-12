@@ -1,0 +1,39 @@
+{{- if (and (.Values.rbac.enabled) (not .Values.serviceAccountName ) ) }}
+apiVersion: policy/v1beta1
+kind: PodSecurityPolicy
+metadata:
+  name:  {{ template "cnot.podSecurityPolicyName" . }}
+  annotations:
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: '*'
+spec:
+  privileged: {{ .Values.istio.legacyCapabilities }}
+  allowPrivilegeEscalation: {{ .Values.istio.legacyCapabilities }}
+  hostNetwork: false
+  hostIPC: false
+  hostPID: false
+  allowedCapabilities:
+  {{- if .Values.istio.legacyCapabilities }}
+  - 'NET_ADMIN'
+  - 'NET_RAW'
+  {{- end }}
+  runAsUser:
+    rule: 'MustRunAsNonRoot'
+  seLinux:
+    rule: 'RunAsAny'
+  supplementalGroups:
+    rule: 'MustRunAs'
+    ranges:
+      # Forbid adding the root group.
+      - min: 1
+        max: 65535
+  fsGroup:
+    rule: 'MustRunAs'
+    ranges:
+      # Forbid adding the root group.
+      - min: 1
+        max: 65535
+  volumes:
+    - 'configMap'
+    - 'emptyDir'
+    - 'secret'
+{{- end }}

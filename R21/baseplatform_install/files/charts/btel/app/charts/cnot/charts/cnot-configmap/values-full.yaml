@@ -1,0 +1,658 @@
+global: {} 
+  #configMapOverrideName: 
+  #templateOverrideName:
+  #cnotOutboundTrustCertsName:
+
+cnot_configmap:
+  name: cnot-configmap
+
+cnotFiles:
+  app_conf.yaml:
+    GLOBAL:
+      namespace: CNOTNamespace
+      supportChannels:
+        - ALARM
+        - EMAIL
+        - SMS
+        - SLACK
+      supportEncodings:
+        - UTF_8
+        - ASCII
+      supportLanguages:
+        - ENGLISH
+      defaultEncoding: UTF_8
+      defaultLanguage: ENGLISH
+      defaultRetryConfig:
+        timeout: 5s
+        retryCount: 3
+        retryInterval: 5s
+      logLevel: INFO
+    CHANNELS:
+      ALARM:
+        servers:
+          - id: AlarmServer
+            description: the only channel toward CALM servers via CLOG interface
+        default: AlarmServer
+      EMAIL:
+        servers:
+          - id: SMTPServer1
+            host: localhost
+            port: 25
+            auth: false
+            userName: user1
+            password: '{2-5590228828990040}oIZvbnI='
+            from: from@nokia.com
+            to: to@nokia.com
+            sendAsHtml: false
+            tls: false
+            starttls: false
+            trustCert: EMAIL_SMTPServer1.crt
+            description: one SMTP relay server
+          - id: SMTPServer2
+            host: localhost
+            port: 25
+            auth: false
+            userName: user2
+            password: '{2-5590228828990040}oIZvbnI='
+            from: from@nokia.com
+            to: to@nokia.com
+            sendAsHtml: false
+            tls: false
+            starttls: false
+            trustCert: EMAIL_SMTPServer2.crt
+            description: another SMTP relay server
+        default: SMTPServer1
+      SMS:
+        servers:
+          - id: SMPPServer1
+            primaryHost: localhost
+            secondaryHost: localhost
+            port: 4444
+            userName: user1
+            password: '{2-8331048493658059}uvYjpDw='
+            encoding: ASCII
+            smsClientBindingType: TRANSCEIVER
+            smsMessageSegmentationType: SHORT_MESSAGE_SEGMENTATION
+            sourceTypeOfNumber: TON_UNKNOWN
+            sourceNumericPlanIndicator: NPI_UNKNOWN
+            destinationTypeOfNumber: TON_UNKNOWN
+            destinationNumericPlanIndicator: NPI_E164
+            smsServerBindingName: NOKIANS
+            receiveTimeout: 10000
+            querySmFrequency: 2000
+            enquireLinkWaitTime: 60000
+            messageCacheSize: 1000
+            sourceMobileNumber: '13910001111'
+            managedMode: NON-MANAGED
+            truncate: false
+            tls: false
+            trustCert: SMS_SMPPServer1.crt
+            description: one target SMSC server via SMPP protocol
+        default: SMPPServer1
+      SLACK:
+        default: SlackServer
+        servers:
+          - id: SlackServer
+            slackChannel: general
+            iconEmoji: ''
+            userName: guest
+            proxyIp: '127.0.0.1'
+            proxyPort: 8000
+            trustCert: SLACK_SlackServer.crt
+            ## Need to set this token before posting message to SLACK
+            ## Get token from https://api.slack.com/custom-integrations/legacy-tokens
+            ## Token should be encrypted.
+            slackToken: '{2-4897795121199168}S8AwM7I='
+            description: the only public Slack Server
+    TRIGGERS:
+      - id: TriggerForCPRO
+        condition:
+          body: $.alerts[?(@.labels.source == 'CPRO')]
+        action:
+          type: accept
+          profile: ProfileForCPRO
+      - id: TriggerForCALM
+        condition:
+          body: $.alerts[?(@.labels.source == 'CALM')]
+        action:
+          type: accept
+          profile: ProfileForCALM
+      - id: TriggerForEmail
+        condition:
+          body: $[?(@.channel == 'EMAIL')]
+        action:
+          type: accept
+          profile: ProfileForEmail
+      - id: TriggerForSMS
+        condition:
+          body: $[?(@.channel == 'SMS')]
+        action:
+          type: accept
+          profile: ProfileForSMS
+      - id: TriggerForSlack
+        condition:
+          body: $[?(@.channel == 'SLACK')]
+        action:
+          type: accept
+          profile: ProfileForSlack
+    PROFILES:
+      - id: ProfileForCPRO
+        channels:
+          - type: ALARM
+            servers:
+              - AlarmServer
+            encoding: UTF_8
+            content:
+              - language: ENGLISH
+                filter:
+                  location: $.alerts[*]
+                transform:
+                  alarmId:
+                    selected: $.labels.id
+                    required: true
+                  alarmName:
+                    selected: $.labels.name
+                    required: true
+                  alarmSeverity:
+                    selected: $[?(@.status == 'firing')].labels.severity
+                    default: CLEARED
+                  alarmKey:
+                    selected: $.labels.key
+                    default: ''
+                  alarmTask:
+                    default: NOTIFY
+                  alarmText:
+                    selected: $.labels.text
+                    required: true
+                  alarmEventType:
+                    selected: $.labels.eventType
+                    required: true
+                  alarmProbableCause:
+                    selected: $.labels.probableCause
+                    required: true
+                  alarmData:
+                    selected: $.annotations.description
+                  time:
+                    selected: $.startsAt
+                  host:
+                    selected: $.labels.host
+                  system:
+                    selected: $.labels.system
+                  systemId:
+                    selected: $.labels.systemid
+                  extension.source:
+                    selected: $.labels.source
+                  extension.Enterprise:
+                    selected: $.labels.namespace
+          - type: EMAIL
+            servers:
+              - SMTPServer1
+              - SMTPServer2
+            encoding: UTF_8
+            fillErrorIfTemplateFail: true
+            content:
+              - language: ENGLISH
+                filter:
+                  location: $.alerts[*]
+                transform:
+                  subject:
+                    default: AlarmNotice
+                  text:
+                    template: EmailTemplate1
+                    variables:
+                      alarmId:
+                        selected: $.labels.id
+                        required: true
+                      alarmName:
+                        selected: $.labels.name
+                        required: true
+                      alarmTask:
+                        default: NOTIFY
+                      alarmSeverity:
+                        selected: $[?(@.status == 'firing')].labels.severity
+                        default: CLEARED
+                      alarmKey:
+                        selected: $.labels.key
+                      alarmText:
+                        selected: $.labels.text
+                        required: true
+                      alarmEventType:
+                        selected: $.labels.eventType
+                        required: true
+                      alarmProbableCause:
+                        selected: $.labels.probableCause
+                        required: true
+                      alarmData:
+                        selected: $.annotations.description
+                      time:
+                        selected: $.startsAt
+                      host:
+                        selected: $.labels.host
+                      system:
+                        selected: $.labels.system
+                      systemId:
+                        selected: $.labels.systemid
+                      source:
+                        selected: $.labels.source
+                      namespace:
+                        selected: $.labels.namespace
+                  from:
+                    default: someone@nokia.com
+                  to:
+                    default: to@nokia.com
+                  sendAsHtml:
+                    default: false
+          - type: SMS
+            servers:
+              - SMPPServer1
+            encoding: ASCII
+            content:
+              - language: ENGLISH
+                filter:
+                  location: $.alerts[*]
+                transform:
+                  text:
+                    template: SMSTemplate1
+                    variables:
+                      alarmName:
+                        selected: $.labels.name
+                        default: ''
+                      alarmSeverity:
+                        selected: $[?(@.status == 'firing')].labels.severity
+                        default: CLEARED
+                      alarmText:
+                        selected: $.labels.text
+                        default: ''
+                      host:
+                        selected: $.labels.host
+                      system:
+                        selected: $.labels.system
+                      time:
+                        selected: $.startsAt
+                  from:
+                    default: '13910000000'
+                  to:
+                    default: '13910001001'
+          - type: SLACK
+            servers:
+              - SlackServer
+            encoding: UTF_8
+            content:
+              - language: ENGLISH
+                filter:
+                  location: $.alerts[*]
+                transform:
+                  userName:
+                    default: user1
+                  slackToken:
+                    default: '{2-4897795121199168}S8AwM7I='
+                  text:
+                    template: SlackTemplate1
+                    variables:
+                      alarmId:
+                        selected: $.labels.id
+                        required: true
+                      alarmName:
+                        selected: $.labels.name
+                        required: true
+                      alarmTask:
+                        default: NOTIFY
+                      alarmSeverity:
+                        selected: $[?(@.status == 'firing')].labels.severity
+                        default: CLEARED
+                      alarmKey:
+                        selected: $.labels.key
+                      alarmText:
+                        selected: $.labels.text
+                        required: true
+                      alarmEventType:
+                        selected: $.labels.eventType
+                        required: true
+                      alarmProbableCause:
+                        selected: $.labels.probableCause
+                        required: true
+                      alarmData:
+                        selected: $.annotations.description
+                      time:
+                        selected: $.startsAt
+                      host:
+                        selected: $.labels.host
+                      system:
+                        selected: $.labels.system
+                      systemId:
+                        selected: $.labels.systemid
+                      source:
+                        selected: $.labels.source
+                      namespace:
+                        selected: $.labels.namespace
+                  slackChannel:
+                    default: slackeChannel1
+      - id: ProfileForCALM
+        channels:
+          - type: EMAIL
+            servers:
+              - SMTPServer1
+            encoding: UTF_8
+            fillErrorIfTemplateFail: true
+            content:
+              - language: ENGLISH
+                filter:
+                  location: $.alerts[?(@.labels.namespace == 'namespace1')]
+                transform:
+                  _common_:
+                    - Common_ProfileForCALM_ChannelEmail
+                  to:
+                    default: to1@nokia.com
+          - type: EMAIL
+            servers:
+              - SMTPServer2
+            encoding: UTF_8
+            content:
+              - language: ENGLISH
+                fillErrorIfTemplateFail: true
+                filter:
+                  location: $.alerts[?(@.labels.namespace == 'namespace2')]
+                transform:
+                  _common_:
+                    - Common_ProfileForCALM_ChannelEmail
+                  to:
+                    default: to2@nokia.com
+          - type: SMS
+            servers:
+              - SMPPServer1
+            encoding: ASCII
+            content:
+              - language: ENGLISH
+                filter:
+                  location: $.alerts[*]
+                transform:
+                  text:
+                    template: SMSTemplate1
+                    variables:
+                      alarmName:
+                        selected: $.labels.name
+                        default: ''
+                      alarmSeverity:
+                        selected: $.labels.severity
+                        default: CLEARED
+                      alarmText:
+                        selected: $.labels.text
+                        default: ''
+                      service:
+                        selected: $.service
+                      host:
+                        selected: $.host
+                      system:
+                        selected: $.system
+                      time:
+                        selected: $.time
+                  from:
+                    default: '13910000000'
+                  to:
+                    default: '13910001001'
+          - type: SLACK
+            servers:
+              - SlackServer
+            encoding: UTF_8
+            content:
+              - language: ENGLISH
+                filter:
+                  location: $.alerts[?(@.labels.namespace == 'namespace1')]
+                transform:
+                  _common_:
+                    - Common_ProfileForCALM_ChannelSlack
+                  slackChannel:
+                    default: slackeChannel1
+              - language: ENGLISH
+                filter:
+                  location: $.alerts[?(@.labels.namespace == 'namespace2')]
+                transform:
+                  _common_:
+                    - Common_ProfileForCALM_ChannelSlack
+                  slackChannel:
+                    default: slackChannel2
+      - id: ProfileForEmail
+        channels:
+          - type: EMAIL
+            servers:
+              - SMTPServer1
+            encoding: UTF_8
+            content:
+              - language: ENGLISH
+                transform:
+                  subject:
+                    selected: $.subject
+                    default: test
+                  text:
+                    selected: $.text
+                    required: true
+                  from:
+                    selected: $.from
+                    default: someone@nokia.com
+                  to:
+                    selected: $.to
+                    default: to@nokia.com
+                  sendAsHtml:
+                    selected: $.sendAsHtml
+                    default: false
+      - id: ProfileForSMS
+        channels:
+          - type: EMAIL
+            servers:
+              - SMTPServer1
+            encoding: UTF_8
+            content:
+              - language: ENGLISH
+                transform:
+                  text:
+                    selected: $.text
+                    required: true
+                  from:
+                    selected: $.from
+                    default: '13910000000'
+                  to:
+                    selected: $.to
+                    default: '13910001001'
+      - id: ProfileForSlack
+        channels:
+          - type: SLACK
+            servers:
+              - SlackServer
+            encoding: UTF_8
+            content:
+              - language: ENGLISH
+                transform:
+                  slackChannel:
+                    selected: $.slackChannel
+                  iconEmoji:
+                    selected: $.iconEmoji
+                  userName:
+                    selected: $.userName
+                  text:
+                    selected: $.text
+                  proxyIp:
+                    selected: $.proxyIp
+                  proxyPort:
+                    selected: $.proxyPort
+                  slackToken:
+                    selected: $.slackToken
+    COMMON_PROFILE_TRANSFORMS:
+      Common_ProfileForCALM_ChannelEmail:
+        subject:
+          default: AlarmNotice
+        text:
+          template: EmailTemplate1
+          variables:
+            alarmId:
+              selected: $.labels.id
+              required: true
+            alarmName:
+              selected: $.labels.name
+              required: true
+            alarmTask:
+              selected: $.labels.task
+              required: true
+            alarmSeverity:
+              selected: $.labels.severity
+              required: true
+            alarmKey:
+              selected: $.labels.key
+            alarmText:
+              selected: $.labels.text
+              required: true
+            alarmEventType:
+              selected: $.labels.eventType
+              required: true
+            alarmProbableCause:
+              selected: $.labels.probableCause
+              required: true
+            alarmData:
+              selected: $.annotations.description
+            time:
+              selected: $.time
+            timeZone:
+              selected: $.timezone
+            process:
+              selected: $.process
+            service:
+              selected: $.service
+            container:
+              selected: $.container
+            host:
+              selected: $.host
+            system:
+              selected: $.system
+            systemId:
+              selected: $.systemid
+            source:
+              selected: $.labels.source
+            namespace:
+              selected: $.labels.namespace
+        from:
+          default: someone@nokia.com
+        sendAsHtml:
+          default: false
+      Common_ProfileForCALM_ChannelSlack:
+        userName:
+          default: user1
+        slackToken:
+          default: '{2-4897795121199168}S8AwM7I='
+        text:
+          template: SlackTemplate1
+          variables:
+            alarmId:
+              selected: $.labels.id
+              required: true
+            alarmName:
+              selected: $.labels.name
+              required: true
+            alarmTask:
+              selected: $.labels.task
+              required: true
+            alarmSeverity:
+              selected: $.labels.severity
+              required: true
+            alarmKey:
+              selected: $.labels.key
+            alarmText:
+              selected: $.labels.text
+              required: true
+            alarmEventType:
+              selected: $.labels.eventType
+              required: true
+            alarmProbableCause:
+              selected: $.labels.probableCause
+              required: true
+            alarmData:
+              selected: $.annotations.description
+            time:
+              selected: $.time
+            timeZone:
+              selected: $.timezone
+            process:
+              selected: $.process
+            service:
+              selected: $.service
+            container:
+              selected: $.container
+            host:
+              selected: $.host
+            system:
+              selected: $.system
+            systemId:
+              selected: $.systemid
+            source:
+              selected: $.labels.source
+            namespace:
+              selected: $.labels.namespace
+    TEMPLATES:
+      - id: EmailTemplate1
+        file: EmailTemplate1.ftl
+      - id: SMSTemplate1
+        file: SMSTemplate1.ftl
+      - file: SlackTemplate1.ftl
+        id: SlackTemplate1
+
+  app_conf_internal.properties: |
+    DEFAULT_TRIGGER_HANDLER_TYPE = SIMPLE
+    DEFAULT_PROFILE_HANDLER_TYPE = SIMPLE
+    DEFAULT_SCHEDULE_EXECUTOR_POOL_SIZE = 200
+    TEMPLATE_BASE_PATH = /usr/local/cnot/etc/templates/
+
+cnotTemplates:
+  EmailTemplate1.ftl: |
+    <#compress>
+    Alarm Info:
+    AlarmId = ${alarmId}
+    AlarmName = ${alarmName}
+    AlarmTask = ${alarmTask}
+    AlarmSeverity = ${alarmSeverity}
+    <#if alarmKey ??>AlarmKey = ${alarmKey}</#if>
+    AlarmText = ${alarmText}
+    AlarmEventType = ${alarmEventType}
+    AlarmProbableCause = ${alarmProbableCause}
+    <#if alarmData ??>AlarmData = ${alarmData}</#if>
+    <#if service ??>Service = ${service}</#if>
+    <#if host ??>Host = ${host}</#if>
+    <#if system ??>System = ${system}</#if>
+    <#if systemId ??>SystemId = ${systemId}</#if>
+    <#if source ??>Source = ${source}</#if>
+    <#if namespace ??>NameSpace = ${namespace}</#if>
+    <#if time ??>Time = ${time}<#if timeZone ??>${timeZone}</#if></#if>
+    </#compress>
+  SMSTemplate1.ftl: |
+    <#compress>
+    ${alarmName},
+    ${alarmSeverity},
+    <#if service ??>${service},</#if>
+    <#if host ??>${host},</#if>
+    <#if system ??>${system},</#if>
+    <#if time ??>${time},</#if>
+    ${alarmText}
+    </#compress>
+  SlackTemplate1.ftl: |
+    <#compress>
+    Alarm Info:
+    AlarmId = ${alarmId}
+    AlarmName = ${alarmName}
+    AlarmTask = ${alarmTask}
+    AlarmSeverity = ${alarmSeverity}
+    <#if alarmKey ??>AlarmKey = ${alarmKey}</#if>
+    AlarmText = ${alarmText}
+    AlarmEventType = ${alarmEventType}
+    AlarmProbableCause = ${alarmProbableCause}
+    <#if alarmData ??>AlarmData = ${alarmData}</#if>
+    <#if service ??>Service = ${service}</#if>
+    <#if host ??>Host = ${host}</#if>
+    <#if system ??>System = ${system}</#if>
+    <#if systemId ??>SystemId = ${systemId}</#if>
+    <#if source ??>Source = ${source}</#if>
+    <#if namespace ??>NameSpace = ${namespace}</#if>
+    <#if time ??>Time = ${time}<#if timeZone ??>${timeZone}</#if></#if>
+    </#compress>
+
+cnotOutboundTrustCerts:
+  EMAIL_SMTPServer1.crt: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUM3ekNDQWRlZ0F3SUJBZ0lKQUxLV2dyWnRqc2xpTUEwR0NTcUdTSWIzRFFFQkN3VUFNQTR4RERBS0JnTlYKQkFNTUEwTlRSakFlRncweE9UQXhNalV3TXpVeU5UWmFGdzAwTmpBMk1USXdNelV5TlRaYU1BNHhEREFLQmdOVgpCQU1NQTBOVFJqQ0NBU0l3RFFZSktvWklodmNOQVFFQkJRQURnZ0VQQURDQ0FRb0NnZ0VCQU1GeEVBMEQyZXpBCm5SK3gwWU1jRFNmVUlKU0l3aS9SbWYxcWtjUVVDZm9rWFNuVWVnL0o0TXErRElyZEpQcXRLSVdFT0hMVmdUZUEKTFRxdjRkaHJ5V0lvRVNhY0U1YVN6VzhRRFRubUlrNEMyamZHeVZubTlzK1pleEMvUXZ4eGNHUldhSVl5Nm1kWAo0dVArbWNVWXJxUm1yUnhZUzQwek53Z3ZqcnRUZ3ovM1VVMk9XSENpU3M2RVJueTM4UVhLeWFVSEUrT2RXeWIwCkI5azViVzl2OERCZENwS1RCaGhjeFMwWndDN1o0TVFZQ0RqNUJiRGZzWldxbzdvTU5NUEJsd1FvUzg3WUpqZ0QKOXh2RmFiWkE1K0prZW4xdnNpNkNRV3VPSXplSTZNNkVVUUp2T21mcFFzUWlHRHg4eS9FSFM1cEYvS1JtMVZ6agp5L1Y2emp2YWk4RUNBd0VBQWFOUU1FNHdIUVlEVlIwT0JCWUVGREc1UmZyNk1iUXFYUFl6VkN1RzdrU0pLMUp4Ck1COEdBMVVkSXdRWU1CYUFGREc1UmZyNk1iUXFYUFl6VkN1RzdrU0pLMUp4TUF3R0ExVWRFd1FGTUFNQkFmOHcKRFFZSktvWklodmNOQVFFTEJRQURnZ0VCQUJ2VHhYUGFBRmV1UzNvdzI1ZTJ4UzlpM21pcnl3WmtGY1dxcW1nYQpKV2pvejNydnQ3VWhZNFNJb2NFN1ZnandLYWNhY1pPQTc2eTRsTXJsUDV1RVZDTUNTNTdiZ3Jrdks5OXl0WmQrCmZJMDVzTVo0TEhkWlRBQVBybjJ2QzJSUjk1Z0tKbURUTXdnaCszWTFQRUtyTExyWi81VHlZK0R0c2dMM3gwaHYKVW9SaW1jT1QyTWMrQUlLd1YxSEsyM21WMzlwZFhwQWxPUnhhNVNnWGtBZWh5TUVqaUNSYk9mZXc4VEFwL0s1TQpQWmplSzF0eko3QXNCQzJjTDBKWXJ0cjdEMFZtVGh2Rmp2bGNJS1U4Z0xHeE5IUkU3ZXNSRk9kSUVFdUF1OUlKClU3d3MrbXJpK3RwQUhHdjBTSktwaEpVNkU5bjJ4V3p2Y1pUcnpoeWxFTVUyTFFBPQotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0t
+  EMAIL_SMTPServer2.crt: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUM3ekNDQWRlZ0F3SUJBZ0lKQUxLV2dyWnRqc2xpTUEwR0NTcUdTSWIzRFFFQkN3VUFNQTR4RERBS0JnTlYKQkFNTUEwTlRSakFlRncweE9UQXhNalV3TXpVeU5UWmFGdzAwTmpBMk1USXdNelV5TlRaYU1BNHhEREFLQmdOVgpCQU1NQTBOVFJqQ0NBU0l3RFFZSktvWklodmNOQVFFQkJRQURnZ0VQQURDQ0FRb0NnZ0VCQU1GeEVBMEQyZXpBCm5SK3gwWU1jRFNmVUlKU0l3aS9SbWYxcWtjUVVDZm9rWFNuVWVnL0o0TXErRElyZEpQcXRLSVdFT0hMVmdUZUEKTFRxdjRkaHJ5V0lvRVNhY0U1YVN6VzhRRFRubUlrNEMyamZHeVZubTlzK1pleEMvUXZ4eGNHUldhSVl5Nm1kWAo0dVArbWNVWXJxUm1yUnhZUzQwek53Z3ZqcnRUZ3ovM1VVMk9XSENpU3M2RVJueTM4UVhLeWFVSEUrT2RXeWIwCkI5azViVzl2OERCZENwS1RCaGhjeFMwWndDN1o0TVFZQ0RqNUJiRGZzWldxbzdvTU5NUEJsd1FvUzg3WUpqZ0QKOXh2RmFiWkE1K0prZW4xdnNpNkNRV3VPSXplSTZNNkVVUUp2T21mcFFzUWlHRHg4eS9FSFM1cEYvS1JtMVZ6agp5L1Y2emp2YWk4RUNBd0VBQWFOUU1FNHdIUVlEVlIwT0JCWUVGREc1UmZyNk1iUXFYUFl6VkN1RzdrU0pLMUp4Ck1COEdBMVVkSXdRWU1CYUFGREc1UmZyNk1iUXFYUFl6VkN1RzdrU0pLMUp4TUF3R0ExVWRFd1FGTUFNQkFmOHcKRFFZSktvWklodmNOQVFFTEJRQURnZ0VCQUJ2VHhYUGFBRmV1UzNvdzI1ZTJ4UzlpM21pcnl3WmtGY1dxcW1nYQpKV2pvejNydnQ3VWhZNFNJb2NFN1ZnandLYWNhY1pPQTc2eTRsTXJsUDV1RVZDTUNTNTdiZ3Jrdks5OXl0WmQrCmZJMDVzTVo0TEhkWlRBQVBybjJ2QzJSUjk1Z0tKbURUTXdnaCszWTFQRUtyTExyWi81VHlZK0R0c2dMM3gwaHYKVW9SaW1jT1QyTWMrQUlLd1YxSEsyM21WMzlwZFhwQWxPUnhhNVNnWGtBZWh5TUVqaUNSYk9mZXc4VEFwL0s1TQpQWmplSzF0eko3QXNCQzJjTDBKWXJ0cjdEMFZtVGh2Rmp2bGNJS1U4Z0xHeE5IUkU3ZXNSRk9kSUVFdUF1OUlKClU3d3MrbXJpK3RwQUhHdjBTSktwaEpVNkU5bjJ4V3p2Y1pUcnpoeWxFTVUyTFFBPQotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0t
+  SMS_SMPPServer1.crt: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUNUekNDQWJpZ0F3SUJBZ0lFVVZ5emJqQU5CZ2txaGtpRzl3MEJBUVVGQURCc01SQXdEZ1lEVlFRR0V3ZFYKYm10dWIzZHVNUkF3RGdZRFZRUUlFd2RWYm10dWIzZHVNUkF3RGdZRFZRUUhFd2RWYm10dWIzZHVNUkF3RGdZRApWUVFLRXdkVmJtdHViM2R1TVJBd0RnWURWUVFMRXdkVmJtdHViM2R1TVJBd0RnWURWUVFERXdkVmJtdHViM2R1Ck1CNFhEVEV6TURRd016SXlOVFUwTWxvWERURXpNRGN3TWpJeU5UVTBNbG93YkRFUU1BNEdBMVVFQmhNSFZXNXIKYm05M2JqRVFNQTRHQTFVRUNCTUhWVzVyYm05M2JqRVFNQTRHQTFVRUJ4TUhWVzVyYm05M2JqRVFNQTRHQTFVRQpDaE1IVlc1cmJtOTNiakVRTUE0R0ExVUVDeE1IVlc1cmJtOTNiakVRTUE0R0ExVUVBeE1IVlc1cmJtOTNiakNCCm56QU5CZ2txaGtpRzl3MEJBUUVGQUFPQmpRQXdnWWtDZ1lFQXAyQ0dDRUhFT3FGWEdGRjhwMDVOWStXOXlRY3gKTi9VQ1ZKTUZNNFVvb3liR2Y3Y1QzeDhDOW1Cb3Y3azVDWnhMN3QrN1B4ZVZ1Z0thdjhhb0RTcGNWYTNQdU5FTAprdlVnaTFiUW0waEpMQ09HQ3ZXRjJ1MFBtV1JMRWE4NlI5ZjhrYWZOZXZjRndOUVJhcVh4ZGhNa1hKa2dQamxkCm1QdXE5MllGUEVEUTFJa0NBd0VBQVRBTkJna3Foa2lHOXcwQkFRVUZBQU9CZ1FBdXdwQzZYTW5WMXd2TUF6aisKTHEyUDVCc1Fob1lKZkNqaVk3Mm9ENTVaM0xlM1ZFZld3VUIwNDl5L2ljWDFNYWIweUlHVkVQQVhmajFjWTFhawpVRzU1RnBSVE5sMWFBOGJ0WTZPNmJLSDRoaXhHbjJUaVE5UkRoMDl6MTRSbEUxeU5jVEZRTU9rZXhZcForMUhkCmpqMHdkWkNOTnJkU1M2V2ZPWTZhRWIvMGlBPT0KLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo=
+  SLACK_SlackServer.crt: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURyekNDQXBlZ0F3SUJBZ0lRQ0R2Z1ZwQkNSckdoZFdySldaSEhTakFOQmdrcWhraUc5dzBCQVFVRkFEQmgKTVFzd0NRWURWUVFHRXdKVlV6RVZNQk1HQTFVRUNoTU1SR2xuYVVObGNuUWdTVzVqTVJrd0Z3WURWUVFMRXhCMwpkM2N1WkdsbmFXTmxjblF1WTI5dE1TQXdIZ1lEVlFRREV4ZEVhV2RwUTJWeWRDQkhiRzlpWVd3Z1VtOXZkQ0JEClFUQWVGdzB3TmpFeE1UQXdNREF3TURCYUZ3MHpNVEV4TVRBd01EQXdNREJhTUdFeEN6QUpCZ05WQkFZVEFsVlQKTVJVd0V3WURWUVFLRXd4RWFXZHBRMlZ5ZENCSmJtTXhHVEFYQmdOVkJBc1RFSGQzZHk1a2FXZHBZMlZ5ZEM1agpiMjB4SURBZUJnTlZCQU1URjBScFoybERaWEowSUVkc2IySmhiQ0JTYjI5MElFTkJNSUlCSWpBTkJna3Foa2lHCjl3MEJBUUVGQUFPQ0FROEFNSUlCQ2dLQ0FRRUE0anZoRVhMZXFLVFRvMWVxVUtLUEMzZVF5YUtsN2hMT2xsc0IKQ1NETUFaT25UakMzVS9kRHhHa0FWNTNpalNMZGh3WkFBSUVKenM0Ymc3L2Z6VHR4UnVMV1pzY0ZzM1luRm85NwpuaDZWZmU2M1NLTUkydGF2ZWd3NUJtVi9TbDBmdkJmNHE3N3VLTmQwZjNwNG1WbUZhRzVjSXpKTHYwN0E2RnB0CjQzQy9keEMvL0FIMmhkbW9SQkJZTXFsMUdOWFJvcjVINGlkcTlKb3orRWtJWUl2VVg3UTZoTCtocWtwTWZUN1AKVDE5c2RsNmdTemVSbnR3aTVtM09GQnFPYXN2K3piTVVaQmZIV3ltZU1yL3k3dnJUQzBMVXE3ZEJNdG9NMU8vNApnZFc3alZnL3RSdm9TU2lpY05veEJOMzNzaGJ5VEFwT0I2anRTajFldFgramtNT3ZKd0lEQVFBQm8yTXdZVEFPCkJnTlZIUThCQWY4RUJBTUNBWVl3RHdZRFZSMFRBUUgvQkFVd0F3RUIvekFkQmdOVkhRNEVGZ1FVQTk1UU5WYlIKVEx0bThLUGlHeHZEbDdJOTBWVXdId1lEVlIwakJCZ3dGb0FVQTk1UU5WYlJUTHRtOEtQaUd4dkRsN0k5MFZVdwpEUVlKS29aSWh2Y05BUUVGQlFBRGdnRUJBTXVjTjZwSUV4SUsrdDFFbkU5U3NQVGZyZ1QxZVhrSW95UVkvRXNyCmhNQXR1ZFhIL3ZUQkgxakx1RzJjZW5Ubm1DbXJFYlhqY0tDaHpVeUltWk9Na1hEaXF3OGN2cE9wLzJQVjVBZGcKMDZPL25Wc0o4ZFdPNDFQMGptUDZQNmZidEdiZlltYlcwVzVCamZJdHRlcDNTcCtkV09JcldjQkFJKzB0S0lKRgpQbmxVa2lhWTRJQklxRGZ2OE5aNVlCYmVyT2dPelc2c1JCYzRMMG5hNFVVK0tyazJVODg2VUFiM0x1akVWMGxzCllTRVkxUVN0ZUR3c09vQnJwK3V2RlJUcDJJbkJ1VGhzNHBGc2l2OWt1WGNsVnpEQUd5U2o0ZHpwMzBkOHRiUWsKQ0FVdzdDMjlDNzlGdjFDNXFmUHJtQUVTcmNpSXhwZzBYNDBLUE1icDFaV1ZiZDQ9Ci0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0=

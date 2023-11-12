@@ -1,0 +1,20 @@
+# citm resources
+controller:
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 100m
+    limits:
+      memory: 512Mi
+      cpu: 500m
+
+default404:
+  replicaCount: 1
+  affinity: {}
+  resources:
+    requests:
+      memory: 32Mi
+      cpu: 10m
+    limits:
+      memory: 32Mi
+      cpu: 10m

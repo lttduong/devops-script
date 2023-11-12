@@ -1,0 +1,10 @@
+---
+- name: "Copy 'files' folder from package to {{ appThisVersionConfigDirectory }} on installation node"
+#  synchronize:
+#   src: "{{ files_path }}/"
+#   dest: "{{ appThisVersionConfigDirectory }}"
+#   recursive: yes
+  shell: |
+    rm -rf {{ appThisVersionConfigDirectory }}
+    mkdir -p {{ appThisVersionConfigDirectory }}
+    cp -r {{ files_path }}/* {{ appThisVersionConfigDirectory }}

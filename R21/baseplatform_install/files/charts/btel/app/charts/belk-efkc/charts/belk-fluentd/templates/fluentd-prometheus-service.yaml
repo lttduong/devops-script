@@ -1,0 +1,65 @@
+{{- include "fluentd.istio.initIstio" . }}
+{{- if .Values.fluentd.service.enabled }}
+#Added a condition check (if preheal and postheal is set to 0) on service template to limit rendering during heal because of helm3 restriction.
+{{ if and ( eq (int .Values.global.preheal ) 0 ) ( eq (int .Values.global.postheal ) 0 ) }}
+apiVersion: v1
+kind: Service
+metadata:
+{{- with .Values.fluentd.service.annotations }}
+  annotations:
+{{ toYaml . | indent 4 }}
+{{- end }}
+  labels:
+    k8s-app: {{ template "fluentd.fullname" .  }}-es
+    version: v1.22
+    kubernetes.io/cluster-service: "true"
+    addonmanager.kubernetes.io/mode: Reconcile
+{{- if .Values.fluentd.service.custom_name }}
+  name: {{ .Values.fluentd.service.custom_name }}
+{{- else }}
+  name: {{ template "fluentd.fullname" .  }}
+{{- end }}
+spec:
+  type: {{ .Values.fluentd.service.type }}
+  ports:
+    - name: tcp-metrics
+      port: {{ .Values.fluentd.service.metricsPort }}
+      protocol: TCP
+      targetPort: tcp-metrics
+  selector:
+    k8s-app: {{ template "fluentd.fullname" .  }}-es
+    version: v1.22
+---
+{{ if .Values.istio.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "fluentd.fullname" . }}-pro
+  labels:
+    release: {{ .Release.Name | quote }}
+    k8s-app: {{ template "fluentd.fullname" .  }}-es
+spec:
+  clusterIP : None
+  selector:
+    k8s-app: {{ template "fluentd.fullname" .  }}-es
+    version: v1.22
+  ports:
+    - name: tcp-metrics
+      port: {{ .Values.fluentd.service.metricsPort }}
+      protocol: TCP
+      targetPort: tcp-metrics
+---
+{{ if eq $.istioVersion 1.4 }}
+apiVersion: "networking.istio.io/v1alpha3"
+kind: "DestinationRule"
+metadata:
+  name: {{ template "fluentd.fullname" . }}-pro
+spec:
+  host: {{ template "fluentd.fullname" . }}-pro.{{ .Release.Namespace }}.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+{{- end }}
+{{- end }}
+{{ end }}
+{{- end }}

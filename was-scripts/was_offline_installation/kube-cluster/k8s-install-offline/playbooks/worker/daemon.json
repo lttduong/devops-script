@@ -1,0 +1,2 @@
+{"data-root": "/opt/eppmed/docker-data",
+"storage-driver": "overlay2"}

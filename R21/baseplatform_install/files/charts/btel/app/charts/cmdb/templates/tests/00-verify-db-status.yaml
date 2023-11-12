@@ -1,0 +1,209 @@
+#
+#  Verify database is not disabled
+#
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ template "cmdb.pod-prefix" . }}-verify-enabled
+  labels:
+    {{- include "cmdb-test.labels" . | indent 4 }}
+  annotations:
+    "helm.sh/hook": test-success
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": hook-succeeded,before-hook-creation
+    {{- if .Values.istio.enabled }}
+    sidecar.istio.io/inject: "true"
+    {{- end }}
+spec:
+  restartPolicy: Never
+  {{- include "cmdb.sa" . | nindent 2 }}
+  containers:
+  - name: {{ template "cmdb.container-prefix" .}}test
+    {{- include "cmdb-admin.image" . | indent 4 }}
+    resources:
+      requests:
+        memory: 64Mi
+        cpu: 100m
+      limits:
+        memory: 64Mi
+        cpu: 100m
+    command:
+    - bash
+    - "-c"
+    - |
+      . /chart/cluster.env
+      . /usr/lib/admin/functions
+      wait_istio_proxy
+      for id in $(seq 0 $((CLUSTER_SIZE-1))); do
+          kubectl exec -n ${K8S_NAMESPACE} ${K8S_POD_PREFIX}-mariadb-${id} -- test -f /tmp/.mariadb_disable && {
+              kill_istio_proxy
+              exit 1
+          }
+      done
+      kill_istio_proxy
+      exit 0
+    env:
+    {{- include "cmdb-k8s.env" . | nindent 4 }}
+    volumeMounts:
+    - name: cluster-cm
+      mountPath: /chart
+  volumes:
+  - name: cluster-cm
+    configMap:
+      name: {{ template "cmdb.fullname" . }}-mariadb-cluster
+
+#
+# Verify the database can be accessed on each mariadb pod
+#
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ template "cmdb.pod-prefix" . }}-verify-db-access
+  labels:
+    {{- include "cmdb-test.labels" . | indent 4 }}
+  annotations:
+    "helm.sh/hook": test-success
+    "helm.sh/hook-weight": "1"
+    {{- if .Values.istio.enabled }}
+    sidecar.istio.io/inject: "true"
+    {{- end }}
+spec:
+  restartPolicy: Never
+  {{- include "cmdb.sa" . | nindent 2 }}
+  containers:
+  - name: {{ template "cmdb.container-prefix" .}}test
+    {{- include "cmdb-admin.image" . | indent 4 }}
+    resources:
+      requests:
+        memory: 64Mi
+        cpu: 100m
+      limits:
+        memory: 64Mi
+        cpu: 100m
+    command:
+    - bash
+    - "-c"
+    - |
+      . /chart/cluster.env
+      . /usr/lib/admin/functions
+      wait_istio_proxy
+      for id in $(seq 0 $((CLUSTER_SIZE-1))); do
+          kubectl exec -n ${K8S_NAMESPACE} ${K8S_POD_PREFIX}-mariadb-${id} -- mariadb_db --verify-access --verbose || {
+              kill_istio_proxy
+              exit 1
+      }
+      done
+      kill_istio_proxy
+      exit 0
+    env:
+    {{- include "cmdb-k8s.env" . | nindent 4 }}
+    volumeMounts:
+    - name: cluster-cm
+      mountPath: /chart
+  volumes:
+  - name: cluster-cm
+    configMap:
+      name: {{ template "cmdb.fullname" . }}-mariadb-cluster
+---
+
+{{- if contains "master" .Values.cluster_type }}
+#
+# Verify replication on mariadb pods for master-slave or master-master
+# (a) Verify mariadb_db --verify-replication Success on mon-masters
+# (b) Verify mariadb_db --verify-replication Success on master for geo_red
+# Need to exclude master as replication may not be setup there, unless multi-DC
+#
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ template "cmdb.pod-prefix" . }}-verify-replication
+  labels:
+    {{- include "cmdb-test.labels" . | indent 4 }}
+  annotations:
+    "helm.sh/hook": test-success
+    "helm.sh/hook-weight": "1"
+    {{- if .Values.istio.enabled }}
+    sidecar.istio.io/inject: "true"
+    {{- end }}
+spec:
+  restartPolicy: Never
+  {{- include "cmdb.sa" . | nindent 2 }}
+  containers:
+  - name: {{ template "cmdb.container-prefix" .}}test
+    {{- include "cmdb-admin.image" . | indent 4 }}
+    resources:
+      requests:
+        memory: 64Mi
+        cpu: 100m
+      limits:
+        memory: 64Mi
+        cpu: 100m
+    command:
+    - bash
+    - "-c"
+    - |
+      . /usr/lib/admin/functions
+      wait_istio_proxy
+      for pod in $(kubectl get pod -l${K8S_LABELS},type=mariadb,mariadb-master!=yes -o jsonpath={.items[*].metadata.name}); do
+          kubectl exec -n ${K8S_NAMESPACE} ${pod} -- mariadb_db --verify-replication --verbose || {
+              kill_istio_proxy
+              exit 1
+      }
+      done
+      kill_istio_proxy
+      exit 0
+    env:
+    {{- include "cmdb-k8s.env" . | nindent 4 }}
+{{- end }}
+
+{{- if .Values.geo_redundancy.enabled }}
+#
+#  Verify Geo-redundancy replication is working
+#  Only run on Master for multi-DC
+#
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ template "cmdb.pod-prefix" . }}-verify-geo-replication
+  labels:
+    {{- include "cmdb-test.labels" . | indent 4 }}
+  annotations:
+    "helm.sh/hook": test-success
+    "helm.sh/hook-weight": "2"
+    {{- if .Values.istio.enabled }}
+    sidecar.istio.io/inject: "true"
+    {{- end }}
+spec:
+  restartPolicy: Never
+  {{- include "cmdb.sa" . | nindent 2 }}
+  containers:
+  - name: {{ template "cmdb.container-prefix" .}}test
+    {{- include "cmdb-admin.image" . | indent 4 }}
+    resources:
+      requests:
+        memory: 64Mi
+        cpu: 100m
+      limits:
+        memory: 64Mi
+        cpu: 100m
+    command:
+    - bash
+    - "-c"
+    - |
+      . /usr/lib/admin/functions
+      wait_istio_proxy
+      for pod in $(kubectl get pod -l${K8S_LABELS},type=mariadb,mariadb-master==yes -o jsonpath={.items[*].metadata.name}); do
+          kubectl exec -n ${K8S_NAMESPACE} ${pod} -- mariadb_db --verify-replication --verbose ||
+              kill_istio_proxy
+              exit 1
+      }
+      done
+      kill_istio_proxy
+      exit 0
+    env:
+    {{- include "cmdb-k8s.env" . | nindent 4 }}
+{{- end }}

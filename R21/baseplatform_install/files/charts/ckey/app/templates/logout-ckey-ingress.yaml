@@ -1,0 +1,30 @@
+## Start of custom modification of original chart
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: base-platform-ckey-logout
+  annotations:
+    kubernetes.io/ingress.class: {{ .Values.ingress.ingressClass }}
+  {{- range $key, $value := .Values.ingress.annotations }}
+    {{ $key }}: {{ $value | quote }}
+  {{- end }}
+    nginx.ingress.kubernetes.io/limit-rps: "5"
+    nginx.ingress.kubernetes.io/limit-connections: "2"
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      if ($args ~ console) {
+        set $args "";
+        rewrite .* /logout redirect;
+      }
+      if ($args ~ account) {
+        set $args "";
+        rewrite .* /logout redirect;
+      }
+spec:
+  rules:
+  - http:
+      paths:
+      - path: /auth/realms/netguard/protocol/openid-connect/logout
+        backend:
+          serviceName: ckey-ckey
+          servicePort: 8443
+## End of custom modification of original chart

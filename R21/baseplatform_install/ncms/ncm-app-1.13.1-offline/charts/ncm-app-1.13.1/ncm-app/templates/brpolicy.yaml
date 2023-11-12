@@ -1,0 +1,30 @@
+{{- if .Values.cbur }}
+{{- if .Values.cbur.enabled }}
+apiVersion: "cbur.bcmt.local/v1"
+kind: BrPolicy
+metadata:
+  name: {{ template "ncm-app.fullname" . }}
+  labels:
+    {{- include "ncm-app.labels" . | nindent 4 }}
+spec:
+  k8sType: deployment
+  brOption: 0
+  selector:
+    matchLabels:
+      app: {{ template "ncm-app.fullname" . }}
+  volumes:
+  - "pv-helm-dir"
+  backend:
+    mode: "local"
+  cronSpec: "*/5 * * * *"
+  maxiCopy: 2
+  hooks:
+    - name: {{ template "ncm-app.fullname" . }}
+      commands:
+        preBackupCmd: []
+        postBackupCmd: []
+        preRestoreCmd: []
+        postRestoreCmd: []
+{{- end }}
+{{- end }}
+

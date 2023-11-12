@@ -1,0 +1,23 @@
+---
+- name: "Upgrade version of CMDB chart"
+  shell: >
+    {{ helm }}  upgrade {{ cmdbHelmName }} {{ chartsPath }}/cmdb/app
+    --namespace {{ BP_NAMESPACE }}
+    --reuse-values
+    --values {{ chartsPath }}/values/upgrade-global-values.yaml
+    --values {{ chartsPath }}/cmdb/app/upgrade-override.yaml
+    {{ cmdbResourcesOverride }}
+    --set mariadb.persistence.size="{{ CMDB_STORAGE_SIZE_GB }}G"
+    --set cbur.cbura.volume_size={{ (CMDB_STORAGE_SIZE_GB / 5 * 2) | int }}
+    --set cbur.autoUpdateCron={{ CBUR.CMDB.SCHEDULE.ENABLED }}
+    --set dns.domain={{ svcDnsDomain }}
+    --set clusterDomain={{ DNS_DOMAIN }}
+    --set services.mysql.nodePort={{ (BP_INITIAL_NODE_PORT + cmdbNodePortOffset) | int }}
+    --set services.mysql.nodePort_readonly={{ (BP_INITIAL_NODE_PORT + cmdbReadOnlyNodePortOffset) | int }}
+    --set services.mysql.nodePort_mstronly={{ (BP_INITIAL_NODE_PORT + cmdbMasterOnlyNodePortOffset) | int }}
+    --set services.mariadb_master.nodePort={{ MARIADB_MASTER_NODE_PORT | default (((BP_INITIAL_NODE_PORT + cmdbMasterNodePortOffset) | int), true) }}
+    --set services.maxscale.nodePort={{ MAXSCALE_NODE_PORT | default (((BP_INITIAL_NODE_PORT + cmdbMaxscaleNodePortOffset) | int), true) }}
+    {{ cmdbGeoPassiveSettings | default('') }}
+    --wait
+    --timeout 1000s
+  no_log: "{{ no_log }}"

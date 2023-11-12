@@ -1,0 +1,4 @@
+declare user name={{ tpl .Values.users.serverUser.username $ }} password={{ .Values.users.serverUser.password | quote }} tags=""
+declare permission vhost={{ .Values.virtualHostName }} user={{ tpl .Values.users.serverUser.username $ }} configure="^bpas\..*" write="^bpas\..*" read=""
+declare exchange name=bpas.execution.topic type=topic
+declare exchange name=bpas.task.topic type=topic

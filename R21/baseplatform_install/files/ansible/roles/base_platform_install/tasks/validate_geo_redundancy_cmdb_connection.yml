@@ -1,0 +1,24 @@
+---
+- name: "Validate GEO redundancy cmdb connection to Active site: {{ GEO_REDUNDANCY.CMDB.REMOTE_DC_ADDRESS }}:{{ mariadbMasterNodePort }}"
+  shell: >
+    {{ helm }} install {{ chartsPath }}/geo-redundancy-validation
+    --name-template {{ geoRedundancyValidationHelmName }}-{{ item.name }}
+    --namespace {{ BP_CONFIG_NAMESPACE }}
+    --values {{ chartsPath }}/values/global-values.yaml
+    {{ cmdbConfigurationOverride }}
+    {{ cmdbResourcesOverride }}
+    --set image.registry={{ bcmtRegistry }}
+    --set cmdbConfiguratorEnabled={{ geoRedundancyPassiveModeEnabled }}
+    --set mariadb.host={{ GEO_REDUNDANCY.CMDB.REMOTE_DC_ADDRESS }}
+    --set mariadb.port={{ mariadbMasterNodePort }}
+    --set mariadb.password="{{ item.password }}"
+    --set mariadb.username={{ item.username }}
+    --timeout {{ wait_timeout }}s
+    --wait
+  with_items:
+    "{{ mariadbUsersForGeoValidation }}"
+  loop_control:
+    label: "{{ item.name }}"
+  async: "{{ wait_timeout }}"
+  poll: 5
+  no_log: "{{ no_log }}"

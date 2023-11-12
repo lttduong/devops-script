@@ -1,0 +1,10 @@
+---
+- name: "Setting up mariadb users for geo validation."
+  set_fact:
+    mariadbUsersForGeoValidation:
+      - { name: "mariadb", username: "{{ cmdbUsername }}", password: "{{ cmdbUserPassword }}" }
+      - { name: "maxscale", username: "maxscale", password: "{{ maxscaleUserPassword }}" }
+      - { name: "repl", username: "repl@b.c", password: "{{ mariadbReplUserPassword }}" }
+      - { name: "keycloak", username: "keycloak", password: "{{ dbPassword }}" }
+      - { name: "grafana", username: "grafana", password: "{{ dbGrafanaPassword }}" }
+      - { name: "alma", username: "alma_dbuser", password: "{{ dbCalmPassword }}" }

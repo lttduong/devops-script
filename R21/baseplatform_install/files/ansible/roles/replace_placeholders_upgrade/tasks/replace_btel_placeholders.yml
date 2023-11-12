@@ -1,0 +1,56 @@
+---
+- name: "Set namespace in BTEL override file"
+  replace:
+    dest: "{{ btelOverrideFile.stat.path }}"
+    regexp: '<BP_NAMESPACE_PLACEHOLDER>'
+    replace: "{{ BP_NAMESPACE }}"
+  when: btelOverrideFile.stat.exists
+
+- name: "Set namespace in BTEL override IPv6 file"
+  replace:
+    dest: "{{ btelOverrideIPv6File.stat.path }}"
+    regexp: '<BP_NAMESPACE_PLACEHOLDER>'
+    replace: "{{ BP_NAMESPACE }}"
+  when: btelOverrideIPv6File.stat.exists
+
+- name: "Set namespace in BTEL override upgrade file"
+  replace:
+    dest: "{{ btelOverrideUpgradeFile.stat.path }}"
+    regexp: '<BP_NAMESPACE_PLACEHOLDER>'
+    replace: "{{ BP_NAMESPACE }}"
+  when: btelOverrideUpgradeFile.stat.exists
+
+- name: "Set namespace in BTEL resource profile"
+  replace:
+    dest: "{{ btelResourcesProfile.stat.path }}"
+    regexp: '<BP_NAMESPACE_PLACEHOLDER>'
+    replace: "{{ BP_NAMESPACE }}"
+  when: btelResourcesProfile.stat.exists
+
+- name: "Set DNS domain in BTEL resource profile"
+  replace:
+    dest: "{{ btelResourcesProfile.stat.path }}"
+    regexp: '<DNS_DOMAIN_PLACEHOLDER>'
+    replace: "{{ svcDnsDomain }}"
+  when: btelResourcesProfile.stat.exists
+
+- name: "Set DNS domain in chart override file"
+  replace:
+    dest: "{{ btelOverrideFile.stat.path }}"
+    regexp: '<DNS_DOMAIN_PLACEHOLDER>'
+    replace: "{{ svcDnsDomain }}"
+  when: btelOverrideFile.stat.exists
+
+- name: "Set DNS domain in chart upgrade override file"
+  replace:
+    dest: "{{ btelOverrideUpgradeFile.stat.path }}"
+    regexp: '<DNS_DOMAIN_PLACEHOLDER>'
+    replace: "{{ svcDnsDomain }}"
+  when: btelOverrideUpgradeFile.stat.exists
+
+- name: "Set DNS domain in chart IPv6 override file"
+  replace:
+    dest: "{{ btelOverrideIPv6File.stat.path }}"
+    regexp: '<DNS_DOMAIN_PLACEHOLDER>'
+    replace: "{{ svcDnsDomain }}"
+  when: btelOverrideIPv6File.stat.exists

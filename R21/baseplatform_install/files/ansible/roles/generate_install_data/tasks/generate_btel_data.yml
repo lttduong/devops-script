@@ -1,0 +1,115 @@
+---
+- name: "Set crmqCalmPassword"
+  set_fact:
+    crmqCalmPassword: "{{ lookup('password', '/dev/null length=1 chars=ascii_uppercase') +
+                         lookup('password', '/dev/null length=1 chars=ascii_lowercase') +
+                         lookup('password', '/dev/null length=1 chars=digits') +
+                         lookup('password', '/dev/null length=1 chars={{ passwordSigns }}') +
+                         lookup('password', '/dev/null length={{ passwordLength-4 }}
+                                 chars=ascii_letters,digits,{{ passwordSigns }}') | shuffle | join | trim }}"
+  no_log: "{{ no_log }}"
+
+- name: "Generate CRMQ password hash for CALM user"
+  block:
+    - name: "Generate salt"
+      shell: echo $(tr -dc "A-F0-9" < /dev/urandom | head -c 8)
+      register: crmq_salt
+    - name: "Generate CRMQ password hash"
+      shell:
+        "echo $({{ temporaryAppFilesDirectory }}/generate_rabbitmq_password_hash.sh
+        --salt {{ crmq_salt.stdout }} --passphrase {{ crmqCalmPassword }})"
+      register: crmq_calm_password_hash
+  no_log: "{{ no_log }}"
+
+- name: "Generate CRMQ password encoding for CALM"
+  shell:
+    "echo $({{ temporaryAppFilesDirectory }}/fpm-password en {{ crmqCalmPassword }} mypassphrase)"
+  register: crmqCalmPasswordEncrypted
+  no_log: "{{ no_log }}"
+
+- name: "Generate dbcalm password to database"
+  set_fact:
+    dbCalmPassword: "{{ lookup('password', '/dev/null length=1 chars=ascii_uppercase') +
+                       lookup('password', '/dev/null length=1 chars=ascii_lowercase') +
+                       lookup('password', '/dev/null length=1 chars=digits') +
+                       lookup('password', '/dev/null length=1 chars={{ passwordSigns }}') +
+                       lookup('password', '/dev/null length={{ passwordLength-4 }}
+                               chars=ascii_letters,digits,{{ passwordSigns }}') | shuffle | join | trim }}"
+  no_log: "{{ no_log }}"
+  when: dbCalmPassword is not defined
+
+- name: "Generate CMDB password encoding for CALM"
+  shell:
+    "echo $({{ temporaryAppFilesDirectory }}/fpm-password en {{ dbCalmPassword }} mypassphrase)"
+  register: dbCalmPasswordEncrypted
+  no_log: "{{ no_log }}"
+
+- name: "Generate CALM truststore password for CNOT"
+  set_fact:
+    calmCnotTruststore: "{{ lookup('password', '/dev/null length=1 chars=ascii_uppercase') +
+                           lookup('password', '/dev/null length=1 chars=ascii_lowercase') +
+                           lookup('password', '/dev/null length=1 chars=digits') +
+                           lookup('password', '/dev/null length=1 chars={{ passwordSigns }}') +
+                           lookup('password', '/dev/null length={{ passwordLength-4 }}
+                                   chars=ascii_letters,digits,{{ passwordSigns }}') | shuffle | join | trim }}"
+  no_log: "{{ no_log }}"
+
+- name: "Generate CnotTruststore password encoding for CALM"
+  shell:
+    "echo $({{ temporaryAppFilesDirectory }}/fpm-password en {{ calmCnotTruststore }} 123)"
+  register: calmCnotTruststoreEncrypted
+  no_log: "{{ no_log }}"
+
+- name: "Generate dbgrafana password to database"
+  set_fact:
+    dbGrafanaPassword: "{{ lookup('password', '/dev/null length=1 chars=ascii_uppercase') +
+                          lookup('password', '/dev/null length=1 chars=ascii_lowercase') +
+                          lookup('password', '/dev/null length=1 chars=digits') +
+                          lookup('password', '/dev/null length=1 chars={{ passwordSigns }}') +
+                          lookup('password', '/dev/null length={{ passwordLength-4 }}
+                                  chars=ascii_letters,digits,{{ passwordSigns }}') | shuffle | join | trim }}"
+  no_log: "{{ no_log }}"
+  when: dbGrafanaPassword is not defined
+
+- name: "Generate belk-elasticsearch-truststore password"
+  set_fact:
+    belkElasticsearchTruststore: "{{ lookup('password', '/dev/null length=1 chars=ascii_uppercase') +
+                                    lookup('password', '/dev/null length=1 chars=ascii_lowercase') +
+                                    lookup('password', '/dev/null length=1 chars=digits') +
+                                    lookup('password', '/dev/null length=1 chars={{ passwordSigns }}') +
+                                    lookup('password', '/dev/null length={{ passwordLength-4 }}
+                                            chars=ascii_letters,digits,{{ passwordSigns }}') | shuffle | join | trim }}"
+  no_log: "{{ no_log }}"
+
+- name: "Generate belk-elasticsearch-keystore password"
+  set_fact:
+    belkElasticsearchKeystore: "{{ lookup('password', '/dev/null length=1 chars=ascii_uppercase') +
+                                  lookup('password', '/dev/null length=1 chars=ascii_lowercase') +
+                                  lookup('password', '/dev/null length=1 chars=digits') +
+                                  lookup('password', '/dev/null length=1 chars={{ passwordSigns }}') +
+                                  lookup('password', '/dev/null length={{ passwordLength-4 }}
+                                          chars=ascii_letters,digits,{{ passwordSigns }}') | shuffle | join | trim }}"
+  no_log: "{{ no_log }}"
+
+- name: "Add unit to BELK data storage size"
+  set_fact:
+    belkDataStorageSize: "{{ BELK_DATA_STORAGE_SIZE_GB }}G"
+
+- name: "Read resource profile settings"
+  include_vars:
+    file: "{{ files_path }}/charts/values/profiles/resources/{{BP_DEPLOYMENT_PROFILE.RESOURCES }}/btel.yaml"
+    name: resourceProfileSettings
+
+- name: "Find elasticsearch settings"
+  set_fact:
+    belkElasticSearchSettings: "{{ item.value }}"
+  loop: "{{ lookup('dict', resourceProfileSettings.belk, wantlist=True) }}"
+  when: "item.key=='belk-elasticsearch'"
+
+- name: "Add unit to CPRO storage size"
+  set_fact:
+    cproStorageSize: "{{ CPRO_STORAGE_SIZE_GB }}G"
+
+- name: "Add unit to CPRO retention size"
+  set_fact:
+    cproRetentionSize: "{{ CPRO_RETENTION_SIZE_GB }}GB"

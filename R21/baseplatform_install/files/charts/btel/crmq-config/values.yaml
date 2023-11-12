@@ -1,0 +1,40 @@
+config:
+  crmq:
+    btelExchangeName: amq.topic
+    certificatesDir: /certificates/management
+    caCertFile: ca.crt
+    users:
+      calm:
+        username: alma_mquser
+        passwordHash: change_it
+    queue:
+      calm:
+        queuename: alma
+    configurator:
+      image:
+        name: crmq-config
+        tag: latest
+      secretName: crmq-configurator-config
+      configMapName: crmq-configurator-config-configmap
+
+crmq_configurator:
+  resources:
+    requests:
+      cpu: "10m"
+      memory: "50Mi"
+    limits:
+      cpu: "200m"
+      memory: "300Mi"
+
+dns:
+  domain: svc.cluster.local
+  policy: ClusterFirst
+
+global:
+  caCertName: netguard-ca
+
+image:
+  registry: epsec-docker-releases.repo.lab.pl.alcatel-lucent.com/common
+  pullPolicy: IfNotPresent
+
+rbacEnabled: true

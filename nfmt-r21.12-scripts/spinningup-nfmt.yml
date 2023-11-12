@@ -1,0 +1,4 @@
+---
+ - import_playbook: spinningup-nfmt/preinstall-nfmt.yml
+ - import_playbook: spinningup-nfmt/install-nfmt.yml
+

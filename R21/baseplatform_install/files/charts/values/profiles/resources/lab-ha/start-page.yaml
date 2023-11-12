@@ -1,0 +1,19 @@
+httpServer:
+  replicaCount: 2
+  resources:
+    requests:
+      memory: 550Mi
+      cpu: 50m
+    limits:
+      memory: 550Mi
+      cpu: 150m
+
+affinity:
+  podAntiAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      - topologyKey: "kubernetes.io/hostname"
+        labelSelector:
+          matchLabels:
+            app: citm-server
+            component: citm-server
+            release: start-page

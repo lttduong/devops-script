@@ -1,0 +1,1073 @@
+# Model of configuration.
+type: object
+properties:
+  registry:
+    description: Docker image registry.
+    type: string
+    default: csf-docker-candidates.repo.lab.pl.alcatel-lucent.com
+
+  image:
+    description: Docker image name and tag.
+    type: object
+    properties:
+      imageRepo:
+        description: calm docker registry.
+        type: string
+        default: calm/alma
+      imageTag:
+        description: "Please quote the tag if it's numerical,imageTag: '20180423053507'"
+        type: string
+        default: latest
+      imagePullPolicy:
+        description: Specify a imagePullPolicy.
+        type: string
+        default: IfNotPresent
+
+  podNamePrefix:
+    description: Use to prefix all pods/services
+    type: string
+    default:
+
+  containerNamePrefix:
+    description: Use to prefix all containers
+    type: string
+    default:
+
+  restServiceType:
+    description: Kubernetes service type.
+    type: string
+    default: NodePort
+
+  snmpServiceType:
+    description: Kubernetes service type of SNMP interfaces.
+    type: string
+    default: NodePort
+
+  listeningPort:
+    description: Snmp listeningPort,the range of valid ports is 0-65536.
+    type: integer
+    minimum: 0
+    maxinum: 65535
+    default: 1161
+
+  snmpTrapPort:
+    description: Snmptrap port,the range of valid ports is 0-65536.
+    type: integer
+    minimum: 0
+    maxinum: 65536
+    default: 1162
+
+  restPort:
+    description: Restful API port,the range of valid ports is 0-65536.
+    type: integer
+    minimum: 0
+    maxinum: 65536
+    default: 8182
+
+  snmpNodePort:
+    description: Snmp node port, the range of valid ports is 30000-32767.
+    type: integer
+    minimum: 30000
+    maxinum: 32767
+    default: 31161
+
+  snmpTrapNodePort:
+    description: Snmptrap node port, the range of valid ports is 30000-32767.
+    type: integer
+    minimum: 30000
+    maxinum: 32767
+    default: 31162
+
+  restNodePort:
+    description: Restful API node port,the range of valid ports is 30000-32767.
+    type: integer
+    minimum: 30000
+    maxinum: 32767
+    default: 30182
+
+  rbac:
+    description: Does your cluster have rbac enabled?
+    type: object
+    properties:
+      enabled:
+        description: Enable RBAC objects creation
+        type: boolean
+        default: true
+
+  logLevel:
+    description: Log level setting, this parameter accepts "TRACE","DEBUG","INFO","WARN" or "ERROR".
+    type: string
+    default: INFO
+
+  persistence:
+    description: Persistence storage.
+    type: object
+    properties:
+      enabled:
+        description: Enable persistence storage for data.
+        type: boolean
+        default: true
+      accessMode:
+        description: Persistent Volume Access Mode for log.
+        type: string
+        default: ReadWriteOnce
+      size:
+        description: Persistent Volume Size for data.
+        type: string
+        default: 3Gi
+        pattern: '^[1-9][0-9]*(Gi|Mi)$'
+      pvc_auto_delete:
+        description: auto delete deletes the pvc
+        type: boolean
+        default: false
+
+  resources:
+    description: Configure resource requests and limits.
+    type: object
+    properties:
+      memory:
+        description: Memory request size reserved for a service.
+        type: string
+        default: "256Mi"
+        pattern: '^[1-9][0-9]*(Gi|Mi)$'
+      cpu:
+        description: CPU request reserved for a service.
+        type: string
+        default: "250m"
+        pattern: '^[1-9][0-9]*m$'
+      memoryLimit:
+        description: Memory limit for a service.
+        type: string
+        default: "1024Mi"
+        pattern: '^[1-9][0-9]*(Gi|Mi)$'
+      cpuLimit:
+        description: CPU limit for a service.
+        type: string
+        default: "500m"
+        pattern: '^[1-9][0-9]*m$'
+
+  defaultHost:
+    description: The host which CALM listens on.
+    type: string
+    default: 0.0.0.0
+
+  storage:
+    description: This parameter only accept "jpa" or "etcd", default value is "jpa".
+    type: string
+    default: jpa
+
+  mariadb:
+    description: MariaDB Configurations.
+    type: object
+    properties:
+      driver:
+        description: Mariadb driver.
+        type: string
+        default: org.mariadb.jdbc.Driver
+      url:
+        description: |
+          If need to configure SSL, url should be "jdbc:mariadb:failover//135.1.238.108:3306/calm_alma?socketTimeout=10000&useSSL=true&enabledSslProtocolSuites=TLSv1,TLSv1.1,TLSv1.2&trustServerCertificate=true" or "jdbc.mariadb:failover//135.1.238.108:3306/calm_alma?socketTimeout=10000&useSSL=true&keyStore=/tmp/mariadb.keystore&keyStorePassword=kspass&enabledSslProtocolSuites=TLSv1,TLSv1.1,TLSv1.2&serverSslCert=/etc/alma/mariadbServerCert.pem&disableSslHostnameVerification=true".
+        type: string
+        default: jdbc:mariadb:failover//10.76.84.127:3306/calm_alma?socketTimeout=10000
+      user:
+        description: MariaDB user name.
+        type: string
+        default: alma_dbuser
+      password:
+        description: secured string.
+        type: string
+        default: U2FsdGVkX183WC8sB+xuoqDtewFZjha+YyR70TUbv5Q= 
+      passphrase:
+        description: key that used for encrypting plain-password.
+        type: string
+        default: mypassphrase
+      mariadbClientKey:
+        description: Mariadb client key.
+        type: string
+        format: text-area
+        default: |+
+          -----BEGIN RSA PRIVATE KEY-----
+          MIIEpQIBAAKCAQEA01FXQ7ItSD5zsKZ/Hw1aIwGeuf6PhI79CtaHcU8RrKAd7zBD
+          oqc8p89dWOIfsn1E/lVlG1zvFfpgNgtPzeNnzJVLvIZJAzAm0jJtXaxYDnKiLrR9
+          hzNeJXuLgp6FYjaXllY2VRVuX+3XX6IGle5olazlte/k+kHBUuOLlUbei8HqVCRF
+          fp+UWkWz85u+QrQlz/EmfB/O8uZ4LJmO6yBDyB123gRyVmi/7c9jIyVclz9+f2uu
+          3jo0Eg5NMuRKkHv8Hh8v9Nx0FrIaz/yr3MX2wqzVuVbEQXYbvXkdzvjyzeswNDEP
+          bO1ER5efTQlIIpAqIe5Iz0phyT7tbh1OM7EiDQIDAQABAoIBAGBDuswk/AngIVXE
+          0z4zF+/Aii1SsNCDTvTD+9l7WqLYIirXQshzBOexSGX4RNZLyMVP44pOkL/jWjbk
+          ekthn+SL0n+kcNhZ9CVnQXkdzNNwFz/Niy2vEeFjYY90ZXDzS6T5yzCBXdGniKiR
+          KAzfGZettstl6Fq037vB2tF7AmCJdrrVNP4uM6QPt/sHNsjyOe7espDK71wQJYfO
+          NiIo/WGqw5MTD0AFWdtX91EU4mgUzIVM67UDpCsq6PcRXSIaMlSTu8UlVpk4z2Wy
+          S4PGoQr3F8HyRXnZc+8rmKnhFYOPoH60OSp0WbeS68BKHmOXhlLVE4bIJqZyfwoD
+          H17Ae8UCgYEA+BbxsxHlX0/QqkGcyiJ57cDgvBMnvJ+ZVQ+dI6+e9fLFuupN/Cbn
+          7x4FOH7a+RkfTvuBQ6GAbCiIViYsO5s05VYmHjyq17+YEWShlos3x8kGCKPzs4NC
+          brDt3dZc6waHGNgicAWw3SwI/oO9RVMDKg6mLy2TyE2Js/EL7q6RyksCgYEA2g4+
+          G0ZctZd3YOCSi1c517zPN8fEedB9HdTiBrc4jz6l9+iCNnc3rII5Sj972AHOjG5E
+          6JEU1byDfFyoqAolV/Fc4p6JgR58zeolJWd9C0gpPAPeUv/O32ukaxS+2WRyBlgq
+          pWq9FT6w7KVEThUnKr2Hyl4e/mc65rQKFM8djgcCgYEA4qYLgF4sICxJ5RF2TVC7
+          9dKNPiV92xwvt/9Av1Z1shpuPHpMbr2YjOLvQBLcuFAUQ1MQYBoOukE5dQMAzB/a
+          bl6LCnrAVcSrB9DYszFS74meoowuW2Tibz/iwBVT5D+dcrwakh8Q2q6dNPBkHQ5e
+          yLCDcHyCE6+Ky0K/dPo1JQsCgYEAvwI65Sl9jJRhvjr6I5UE1jZOTk5vjUVUVA1m
+          8PsOUGxQdhj19z/3ROXNyXxSv6TVia4OLqrn1VKM2yNPmeNJUv/anajCSpiqOrYg
+          U+OTZY6QkEHTPmFWld9051gE1elm+KfCs6QMfc+sq58ZdkyRQp9Dk8Fe5PsIXY7Y
+          ReInwYECgYEA235JYikuSCBTjZpPfIrRge1MKMN+PaEzVsdGj++Gcx2ut8xU8Pio
+          UikLtRWq+yuskL68zT8WgAlzwbYcwMrmiU96YUdGhKx5OSBiktrTvni21hV7eqXK
+          dz8cjtcvl6JdGlWjW3swf7DUsC80YpDgLmKv0ibg8c61e45NLJSCBPQ=
+          -----END RSA PRIVATE KEY-----
+      mariadbClientCert:
+        description: Mariadb client cert.
+        type: string
+        format: text-area
+        default: |+
+          -----BEGIN CERTIFICATE-----
+          MIIC7jCCAdagAwIBAgIBAjANBgkqhkiG9w0BAQsFADATMREwDwYDVQQDDAhNeVRl
+          c3RDQTAeFw0xODAzMjIxMDA4MTFaFw0xOTAzMjIxMDA4MTFaMDExHjAcBgNVBAMM
+          FXl1bWwtdGVzdC5sb2NhbGRvbWFpbjEPMA0GA1UECgwGY2xpZW50MIIBIjANBgkq
+          hkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA01FXQ7ItSD5zsKZ/Hw1aIwGeuf6PhI79
+          CtaHcU8RrKAd7zBDoqc8p89dWOIfsn1E/lVlG1zvFfpgNgtPzeNnzJVLvIZJAzAm
+          0jJtXaxYDnKiLrR9hzNeJXuLgp6FYjaXllY2VRVuX+3XX6IGle5olazlte/k+kHB
+          UuOLlUbei8HqVCRFfp+UWkWz85u+QrQlz/EmfB/O8uZ4LJmO6yBDyB123gRyVmi/
+          7c9jIyVclz9+f2uu3jo0Eg5NMuRKkHv8Hh8v9Nx0FrIaz/yr3MX2wqzVuVbEQXYb
+          vXkdzvjyzeswNDEPbO1ER5efTQlIIpAqIe5Iz0phyT7tbh1OM7EiDQIDAQABoy8w
+          LTAJBgNVHRMEAjAAMAsGA1UdDwQEAwIFoDATBgNVHSUEDDAKBggrBgEFBQcDAjAN
+          BgkqhkiG9w0BAQsFAAOCAQEAEQM+e+8peUh49cdpKCxsGKShkcSw8DOPWbTb26Z2
+          6jS+gE2XhWvvP2qk6i/A0SLvFtpPC2sf+cilA9ZonrH08jQAy/mw0spzG41lQ7Ir
+          nE9jklhKrb8azrorNXMsYI7D7wKhGX4oL8aq7UND2A0cxQhYRvIg9pn/DIFiSAY4
+          O4AyB2JqwBJRj7Wvgymtfqc1QVhuQD+iAUGcfBMZQctbpiQqZKi4wyzj6AnEn+pI
+          3fGCSzLXVZlN2m4aXbhzRZd4mok1YcTa1yalxJymMoguakpzVGNO1UXyPQIXxeQH
+          kJdafMTyYWPXygCdsaSHeggbr6oTpwd395bsA7lcE6d6xw==
+          -----END CERTIFICATE-----
+      mariadbServerCert:
+        description: Mariadb client cert.
+        type: string
+        format: text-area
+        default: |+
+          -----BEGIN CERTIFICATE-----
+          MIIC7jCCAdagAwIBAgIBATANBgkqhkiG9w0BAQsFADATMREwDwYDVQQDDAhNeVRl
+          c3RDQTAeFw0xODAzMjIxMDA2MjlaFw0xOTAzMjIxMDA2MjlaMDExHjAcBgNVBAMM
+          FXl1bWwtdGVzdC5sb2NhbGRvbWFpbjEPMA0GA1UECgwGc2VydmVyMIIBIjANBgkq
+          hkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1/rzylTcz2zSC2764zAthjrtgiV3jd8G
+          4LwpuXVVnv30ZUnXPdbk7KPlujrEBxbuxxtia/9hpYUTj5JtQk32sj2wPh5CmZOd
+          FgstDqtz/oSpCWS31itef+szuKFzNzjNA7VSN/f1e7DQE8fCUT4iVyIQZuDlS6kb
+          MjonNMgdy7RfXmavsGeUt3Kwzptx1VwIDHeUTi97ENrB+bn6MG2orjhAvQLatIFK
+          GtJdt4oU8UvJ9eGBEwqcgxLeJz8F6Hs9RSYE3P+6s8KNi21hedI6gd6oS5u0zqGd
+          B/XoCtadPde2uMv9/NkvU9sLvK0EATw2wnwp1dsmq3g/CWMiAapXJQIDAQABoy8w
+          LTAJBgNVHRMEAjAAMAsGA1UdDwQEAwIFoDATBgNVHSUEDDAKBggrBgEFBQcDATAN
+          BgkqhkiG9w0BAQsFAAOCAQEAKEK+NEJw3AyrDaeScnvccyBUXiEMG6eMkHXpMB0W
+          PhQ7+MapQINL19HrVD3ZI9BDvP9Ky5+/z/7HrLB0ctVpDozKiGpUHPySf8qqlmdM
+          qWNpvEI4Ye0yklWYMitHwP5CJDbF7jRIyotAb7II70HoDRsRJT9V3sDyTyYEX4rz
+          6Mkxeds1t2WMau3WEevFTUNEgH087nCWIEN66iF1O6AnABRYdY2S2QxMBQE8NJhm
+          +7cxmlNTBFmxCrUxsdIzQxUG1NjWHKgL5j81HOMHNHPE6fCT7OaDJKtJ9C5mW0Uv
+          Q0UOKsIFlo/dfiRdVURaucPmtX/4zv6o3jRvBbUMxpSMTQ==
+          -----END CERTIFICATE-----
+
+  etcd:
+    description: ETCD Configurations.
+    type: object
+    properties:
+      endPoint:
+        description: |
+          The IP filled in in endPoint can be ETCD docker ip, kubernetes pod ip, kubernetes service ip or physical node ip.
+        type: string
+        default: http://135.1.238.87:2379
+      systemName:
+        description: System name
+        type: string
+        default: calm
+      nodeName:
+        description: Node name
+        type: string
+        default: hongxin-bcmt-worker-02
+
+  messageQueueType:
+    description: Message Queue Type (rabbitmq or kafka)
+    type: string
+    default: rabbitmq
+
+  kafka:
+    description: KafkaMQ Configurations.
+    type: object
+    properties:
+      zookeeperServerUrls:
+        description: The zookeeper server lists. They are separated by comma.
+        type: string
+        default: 10.76.62.155:2181
+      topic:
+        description: The kafka topic name which the producer sends to.
+        type: string
+        default: alma
+      bootstrapServers:
+        description: The list of IPs and Ports of Kafka brokers. They are separated by comma.
+        type: string
+        default: 10.76.62.155:9092,10.76.62.156:9092
+      enabledSSL:
+        description: Enable kafkamq SSL.
+        type: boolean
+        default: false
+      passphrase:
+        description: Key that used for encrypting plain-password.
+        type: string
+        default: 1234abcd
+      keystorePassword:
+        description: Encrypted Password.
+        type: string
+        default: U2FsdGVkX1+UNn8nwyHwLxtZt8yEmsyIsoPWcWFmrj8=
+      truststorePassword:
+        description: Encrypted Password.
+        type: string
+        default: U2FsdGVkX1+UNn8nwyHwLxtZt8yEmsyIsoPWcWFmrj8=
+      base64Keystore:
+        description: Kafka Base64 Encryption Keystore
+        type: string
+        format: text-area
+        default: |+
+          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
+          xDTRDbKIT+w1WvneSlc2fb1ihbEx
+      base64Truststore:
+        description: Kafka Base64 Encryption Truststore
+        type: string
+        format: text-area
+        default: |+
+          /u3+7QAAAAIAAAABAAAAAgAGY2Fyb290AAABZoYn8iMABVguNTA5AAADfzCCA3swggJjoAMCAQIC
+          CQDXByqQwcsj6zANBgkqhkiG9w0BAQsFADBUMQswCQYDVQQGEwJDTjEQMA4GA1UECAwHQmVpamlu
+          ZzEQMA4GA1UEBwwHQmVpamluZzESMBAGA1UECgwJTXlDb21wYW55MQ0wCwYDVQQDDARZdW1sMB4X
+          DTE4MTAxODA3NTA1NloXDTE5MTAxODA3NTA1NlowVDELMAkGA1UEBhMCQ04xEDAOBgNVBAgMB0Jl
+          aWppbmcxEDAOBgNVBAcMB0JlaWppbmcxEjAQBgNVBAoMCU15Q29tcGFueTENMAsGA1UEAwwEWXVt
+          bDCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBANu7LmJkjxV53dwjfUxMHRxB66BehFoU
+          6dShKfjQ4jC6qLNix2AWv47kVtKhpLZg1KHyjYBC2oHVnF/fPLbcOFZktdAzZWAtuwx8X1bxqfbS
+          1ylh75zDMe6uc1GKuvns9HEfbXqf6UKAfdTZOy3O7M9dWmD1w00YXVyYvpAiEwyNIEz/Hxxo4wnG
+          sdRK6XbUcKp+LF5Mq74IuZzgJMw3NjSnfO/i8ewnHHuVJH75FIE/CoEDz9ulaU3wmS0qqXbS0+hU
+          lQK5yzfGVI7gOjhir58LhEKduK8Fb+fNmbVC8SfdF3/aCJ0XDgsurXRgL1iCfGntwQv6u5xjdsc1
+          WCy3JncCAwEAAaNQME4wHQYDVR0OBBYEFIyIW44LifVXfi0iBNUJ/BaiCLLYMB8GA1UdIwQYMBaA
+          FIyIW44LifVXfi0iBNUJ/BaiCLLYMAwGA1UdEwQFMAMBAf8wDQYJKoZIhvcNAQELBQADggEBADWP
+          uL8nAcRdjjbktXG+6caY/3Df6cYBcz4wuahnF+UCIoIvK43wqHKg8AWG/2+eJE/LfYet0yBRfEe0
+          juyztZi3orfJFVe/vNWg1dL+z8UKEbkUeSV4WfIxFWCLb0yBK+5Ts7D55g363CUv7JcdZWjgcF7s
+          dIRIla2FQGeBR5eRrVg0PZ+ceQJwzVQoPXG13pDMFoG+u6vwrQjPHUXohT6YRD/I+mGAZDMJx8aN
+          HmxfSGFx9MZZH6AkIsupq+WKdatkt9We6HeA/96YVNKzppSoL33QuIaOK2T/W1iqPm36LlpE1Kf3
+          LbwTjcCWV/1RJzO8ZtvP58nY5iWij24TwMQIMKtLgLKAqYoAfi4TzC8TMI2AeA==
+ 
+  mq:
+    description: RabbitMQ Configurations.
+    type: object
+    properties:
+      username:
+        description: RabbitMQ user name.
+        type: string
+        default: alma_mquser
+      password:
+        description: Secured string.
+        type: string
+        default: U2FsdGVkX1/bTESXuu0ktuHaXfeX376bt1Eocz4Kwlo= 
+      hostname:
+        description: Rabbitmq hostname.
+        type: string
+        default: 10.76.84.112:5672
+      passphrase:
+        description: Key that used for encrypting plain-password.
+        type: string
+        default: mypassphrase
+      exchangeName:
+        description: RabbitMQ exchange name.
+        type: string
+        default: cfw
+      routingKey:
+        description: Reouting key.
+        type: string
+        default: event
+      queueName:
+        description: RabbitMQ queue name.
+        type: string
+        default: alma
+      enabledSSL:
+        description: Enable rabbitmq SSL.
+        type: boolean
+        default: false
+      vhost:
+        description: Rabbitmq vhost.
+        type: string
+        default: /
+      encryptProtocol:
+        description: Encrpt protocol.
+        type: string
+        default: TLSv1.2
+      clientKey:
+        description: RabbitMQ client key.
+        type: string
+        format: text-area
+        default: |+
+          -----BEGIN RSA PRIVATE KEY-----
+          MIIEpQIBAAKCAQEA01FXQ7ItSD5zsKZ/Hw1aIwGeuf6PhI79CtaHcU8RrKAd7zBD
+          oqc8p89dWOIfsn1E/lVlG1zvFfpgNgtPzeNnzJVLvIZJAzAm0jJtXaxYDnKiLrR9
+          hzNeJXuLgp6FYjaXllY2VRVuX+3XX6IGle5olazlte/k+kHBUuOLlUbei8HqVCRF
+          fp+UWkWz85u+QrQlz/EmfB/O8uZ4LJmO6yBDyB123gRyVmi/7c9jIyVclz9+f2uu
+          3jo0Eg5NMuRKkHv8Hh8v9Nx0FrIaz/yr3MX2wqzVuVbEQXYbvXkdzvjyzeswNDEP
+          bO1ER5efTQlIIpAqIe5Iz0phyT7tbh1OM7EiDQIDAQABAoIBAGBDuswk/AngIVXE
+          0z4zF+/Aii1SsNCDTvTD+9l7WqLYIirXQshzBOexSGX4RNZLyMVP44pOkL/jWjbk
+          ekthn+SL0n+kcNhZ9CVnQXkdzNNwFz/Niy2vEeFjYY90ZXDzS6T5yzCBXdGniKiR
+          KAzfGZettstl6Fq037vB2tF7AmCJdrrVNP4uM6QPt/sHNsjyOe7espDK71wQJYfO
+          NiIo/WGqw5MTD0AFWdtX91EU4mgUzIVM67UDpCsq6PcRXSIaMlSTu8UlVpk4z2Wy
+          S4PGoQr3F8HyRXnZc+8rmKnhFYOPoH60OSp0WbeS68BKHmOXhlLVE4bIJqZyfwoD
+          H17Ae8UCgYEA+BbxsxHlX0/QqkGcyiJ57cDgvBMnvJ+ZVQ+dI6+e9fLFuupN/Cbn
+          7x4FOH7a+RkfTvuBQ6GAbCiIViYsO5s05VYmHjyq17+YEWShlos3x8kGCKPzs4NC
+          brDt3dZc6waHGNgicAWw3SwI/oO9RVMDKg6mLy2TyE2Js/EL7q6RyksCgYEA2g4+
+          G0ZctZd3YOCSi1c517zPN8fEedB9HdTiBrc4jz6l9+iCNnc3rII5Sj972AHOjG5E
+          6JEU1byDfFyoqAolV/Fc4p6JgR58zeolJWd9C0gpPAPeUv/O32ukaxS+2WRyBlgq
+          pWq9FT6w7KVEThUnKr2Hyl4e/mc65rQKFM8djgcCgYEA4qYLgF4sICxJ5RF2TVC7
+          9dKNPiV92xwvt/9Av1Z1shpuPHpMbr2YjOLvQBLcuFAUQ1MQYBoOukE5dQMAzB/a
+          bl6LCnrAVcSrB9DYszFS74meoowuW2Tibz/iwBVT5D+dcrwakh8Q2q6dNPBkHQ5e
+          yLCDcHyCE6+Ky0K/dPo1JQsCgYEAvwI65Sl9jJRhvjr6I5UE1jZOTk5vjUVUVA1m
+          8PsOUGxQdhj19z/3ROXNyXxSv6TVia4OLqrn1VKM2yNPmeNJUv/anajCSpiqOrYg
+          U+OTZY6QkEHTPmFWld9051gE1elm+KfCs6QMfc+sq58ZdkyRQp9Dk8Fe5PsIXY7Y
+          ReInwYECgYEA235JYikuSCBTjZpPfIrRge1MKMN+PaEzVsdGj++Gcx2ut8xU8Pio
+          UikLtRWq+yuskL68zT8WgAlzwbYcwMrmiU96YUdGhKx5OSBiktrTvni21hV7eqXK
+          dz8cjtcvl6JdGlWjW3swf7DUsC80YpDgLmKv0ibg8c61e45NLJSCBPQ=
+          -----END RSA PRIVATE KEY-----
+      clientCert:
+        description: RabbitMQ client cert.
+        type: string
+        format: text-area
+        default: |+
+          -----BEGIN CERTIFICATE-----
+          MIIC7jCCAdagAwIBAgIBAjANBgkqhkiG9w0BAQsFADATMREwDwYDVQQDDAhNeVRl
+          c3RDQTAeFw0xODAzMjIxMDA4MTFaFw0xOTAzMjIxMDA4MTFaMDExHjAcBgNVBAMM
+          FXl1bWwtdGVzdC5sb2NhbGRvbWFpbjEPMA0GA1UECgwGY2xpZW50MIIBIjANBgkq
+          hkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA01FXQ7ItSD5zsKZ/Hw1aIwGeuf6PhI79
+          CtaHcU8RrKAd7zBDoqc8p89dWOIfsn1E/lVlG1zvFfpgNgtPzeNnzJVLvIZJAzAm
+          0jJtXaxYDnKiLrR9hzNeJXuLgp6FYjaXllY2VRVuX+3XX6IGle5olazlte/k+kHB
+          UuOLlUbei8HqVCRFfp+UWkWz85u+QrQlz/EmfB/O8uZ4LJmO6yBDyB123gRyVmi/
+          7c9jIyVclz9+f2uu3jo0Eg5NMuRKkHv8Hh8v9Nx0FrIaz/yr3MX2wqzVuVbEQXYb
+          vXkdzvjyzeswNDEPbO1ER5efTQlIIpAqIe5Iz0phyT7tbh1OM7EiDQIDAQABoy8w
+          LTAJBgNVHRMEAjAAMAsGA1UdDwQEAwIFoDATBgNVHSUEDDAKBggrBgEFBQcDAjAN
+          BgkqhkiG9w0BAQsFAAOCAQEAEQM+e+8peUh49cdpKCxsGKShkcSw8DOPWbTb26Z2
+          6jS+gE2XhWvvP2qk6i/A0SLvFtpPC2sf+cilA9ZonrH08jQAy/mw0spzG41lQ7Ir
+          nE9jklhKrb8azrorNXMsYI7D7wKhGX4oL8aq7UND2A0cxQhYRvIg9pn/DIFiSAY4
+          O4AyB2JqwBJRj7Wvgymtfqc1QVhuQD+iAUGcfBMZQctbpiQqZKi4wyzj6AnEn+pI
+          3fGCSzLXVZlN2m4aXbhzRZd4mok1YcTa1yalxJymMoguakpzVGNO1UXyPQIXxeQH
+          kJdafMTyYWPXygCdsaSHeggbr6oTpwd395bsA7lcE6d6xw==
+          -----END CERTIFICATE-----
+      serverCert:
+        description: RabbitMQ client cert.
+        type: string
+        format: text-area
+        default: |+
+          -----BEGIN CERTIFICATE-----
+          MIIC7jCCAdagAwIBAgIBATANBgkqhkiG9w0BAQsFADATMREwDwYDVQQDDAhNeVRl
+          c3RDQTAeFw0xODAzMjIxMDA2MjlaFw0xOTAzMjIxMDA2MjlaMDExHjAcBgNVBAMM
+          FXl1bWwtdGVzdC5sb2NhbGRvbWFpbjEPMA0GA1UECgwGc2VydmVyMIIBIjANBgkq
+          hkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1/rzylTcz2zSC2764zAthjrtgiV3jd8G
+          4LwpuXVVnv30ZUnXPdbk7KPlujrEBxbuxxtia/9hpYUTj5JtQk32sj2wPh5CmZOd
+          FgstDqtz/oSpCWS31itef+szuKFzNzjNA7VSN/f1e7DQE8fCUT4iVyIQZuDlS6kb
+          MjonNMgdy7RfXmavsGeUt3Kwzptx1VwIDHeUTi97ENrB+bn6MG2orjhAvQLatIFK
+          GtJdt4oU8UvJ9eGBEwqcgxLeJz8F6Hs9RSYE3P+6s8KNi21hedI6gd6oS5u0zqGd
+          B/XoCtadPde2uMv9/NkvU9sLvK0EATw2wnwp1dsmq3g/CWMiAapXJQIDAQABoy8w
+          LTAJBgNVHRMEAjAAMAsGA1UdDwQEAwIFoDATBgNVHSUEDDAKBggrBgEFBQcDATAN
+          BgkqhkiG9w0BAQsFAAOCAQEAKEK+NEJw3AyrDaeScnvccyBUXiEMG6eMkHXpMB0W
+          PhQ7+MapQINL19HrVD3ZI9BDvP9Ky5+/z/7HrLB0ctVpDozKiGpUHPySf8qqlmdM
+          qWNpvEI4Ye0yklWYMitHwP5CJDbF7jRIyotAb7II70HoDRsRJT9V3sDyTyYEX4rz
+          6Mkxeds1t2WMau3WEevFTUNEgH087nCWIEN66iF1O6AnABRYdY2S2QxMBQE8NJhm
+          +7cxmlNTBFmxCrUxsdIzQxUG1NjWHKgL5j81HOMHNHPE6fCT7OaDJKtJ9C5mW0Uv
+          Q0UOKsIFlo/dfiRdVURaucPmtX/4zv6o3jRvBbUMxpSMTQ==
+          -----END CERTIFICATE-----
+
+  alarmAdapterClasses:
+    description: "Load adapter: AlarmAdapterClasses enable NBI and SBI interfaces of CALM service. Mandatory prefix: 'com.nokia.csf.calm.adapter.', separator: ';'. NBI - any of: 'CveaAdapter', 'CnotAdapter', 'SnmpNorthboundAdapter' (NetAct adapter), 'NetActAlarmAdapter' (legacy NetAct adapter). SBI - one of: 'QueueBasedAlarmAdapter', 'SnmpSouthboundAdapter'."
+    type: string
+    default: com.nokia.csf.calm.adapter.QueueBasedAlarmAdapter;com.nokia.csf.calm.adapter.SnmpNorthboundAdapter
+
+  autoAcknowledgeClearedAlarms:
+    description: Flag for autoAcknowledgeClearedAlarms.
+    type: boolean
+    default: true
+
+  maxActiveAlarmCount:
+    description: |
+      The maxiumum count of active alarms. The default value is 1024.
+    type: integer
+    default: 1024
+
+  maxNumberOfEvents:
+    description: The size of alarm history table, default value is 1000. Only validate using JPA as storage.
+    type: integer  
+    default: 1000
+
+  transactionRetryCount:
+    description: Specifies the number of transaction retrys.
+    type: integer
+    default: 10
+
+  maxThreads:
+    description: The alma thread number and its range is 1~256 and the default value is 20.
+    type: integer
+    default: 20
+
+  maxSnmp4jThreads:
+    description: The alma snmp4j thread number and its range is 1~256 and the default value is 3.
+    type: integer
+    default: 3
+
+  ha:
+    description: ALMA will run in HA mode if set to "true", please make sure the settings in "event.watcher.rabbitmq.properties" is right.
+    type: boolean  
+    default: false
+
+  servers:
+    description: Replica count, set to 3 to provide a default available cluster.
+    type: integer
+    default: 1
+
+  Keycloak:
+    description: Snmp configurations.
+    type: object
+    properties:
+      KeycloakAuthentication:
+        description: Flag for Keycloak authentication.
+        type: boolean 
+        default: false
+      KeycloakAuthServerUrl:
+        description: Specifies ALMA Keycloak authentication parameters.Please ensure the parameter "KeycloakAuthentication" has been set to "true".
+        type: string
+        default: https://<keycloack-server-ip>:<keycloack-server-port>/auth
+      KeycloakValidationUri:
+        description: Specifies ALMA Keycloak authentication parameters.Please ensure the parameter "KeycloakAuthentication" has been set to "true".
+        type: string
+        default: /realms/<realm-name>/protocol/openid-connect/userinfo
+
+  multiTenancy:
+    description: multiTenancy configuration.
+    type: object
+    properties:
+      multiContextEnabled:
+        description: Switch to turn on/off multi-tenancy function.
+        type: string
+        default: false
+      tokenValidationViaKeycloak:
+        description: Swtich to enable/disable token validation via Keycloak.
+        type: string
+        default: false
+      superUserName:
+        description: The name of super-user for RESTful API.
+        type: string
+        default: ""
+      superUserPassword:
+        description: The encrypted password of super-user for RESTful API.
+        type: string
+        default: ""
+      superUserPassphrase:
+        description: The passphrase used to decrypt encrypted password of super-user for RESTful API.
+        type: string
+        default: ""
+
+  snmpMib:
+    description: This option only accepts NokiaEnhancedSnmpSolutionSuiteAlarmIrp or NokiaEmsMib.
+    type: string
+    default: NokiaEnhancedSnmpSolutionSuiteAlarmIrp
+
+  ianaNumber:
+    description: ianaNumber configuration.
+    type: string
+    default: 28458
+
+  snmp:
+    description: Snmp configurations.
+    type: object
+    properties:
+      snmpv3UserConfiguration:
+        description: Snmpv3 user configurations.
+        type: string
+        format: text-area
+        default: |
+          - userName: test1
+            authProtocol: MD5
+            authPassword: U2FsdGVkX1+0gy24BhfY4s8Pu1z9Jsk817UOA6+3/rE=
+            privProtocol: DES
+            privPassword: U2FsdGVkX1+0gy24BhfY4s8Pu1z9Jsk817UOA6+3/rE=
+            passPhrase: mypassphrase
+            context: contexta
+          - userName: test2
+            authProtocol: MD5
+            authPassword: U2FsdGVkX1+0gy24BhfY4s8Pu1z9Jsk817UOA6+3/rE=
+            privProtocol: DES
+            privPassword: U2FsdGVkX1+0gy24BhfY4s8Pu1z9Jsk817UOA6+3/rE=
+            passPhrase: mypassphrase
+            context: contextb
+
+      snmpv2cUserConfiguration:
+        description: Snmpv2 user configurations.
+        type: string
+        format: text-area
+        default: |
+          - securityName: sec1
+            communityName: test11
+            context: contexta
+          - securityName: sec2
+            communityName: test12
+            context: contextb
+
+      groupConfiguration:
+        description: Group configurations.
+        type: string
+        format: text-area
+        default: |
+          - groupName: v2cgroup1
+            securityModel: SNMPv2c
+            userName: sec1
+            context: contexta
+          - groupName: v2cgroup2
+            securityModel: SNMPv2c
+            userName: sec2
+            context: contextb
+          - groupName: v3group1
+            securityModel: USM
+            userName: test1
+            context: contexta
+          - groupName: v3group2
+            securityModel: USM
+            userName: test2
+            context: contextb
+
+      viewConfiguration:
+        description: View configurations.
+        type: string
+        format: text-area
+        default: |
+          - viewName: fullReadView
+            oid: 1.3
+            context: contexta
+          - viewName: fullWriteView
+            oid: 1.3
+            context: contexta
+          - viewName: fullNotifyView
+            oid: 1.3
+            context: admin
+      accessConfiguration:
+        description: Access configurations.
+        type: string
+        format: text-area
+        default: |
+          - groupName: v2cgroup1
+            securityModel: SNMPv2c
+            securityLevel: noAuthNoPriv
+            readView: fullReadView
+            writeView: fullWriteView
+            notifyView: fullNotifyView
+            context: contexta
+          - groupName: v2cgroup2
+            securityModel: SNMPv2c
+            securityLevel: noAuthNoPriv
+            readView: fullReadView
+            writeView: fullWriteView
+            notifyView: fullNotifyView
+            context: contextb
+          - groupName: v3group1
+            securityModel: USM
+            securityLevel: authNoPriv
+            readView: fullReadView
+            writeView: fullWriteView
+            notifyView: fullNotifyView
+            context: contexta
+          - groupName: v3group2
+            securityModel: USM
+            securityLevel: noAuthNoPriv
+            readView: fullReadView
+            writeView: fullWriteView
+            notifyView: fullNotifyView
+            context: contextb
+
+      notificationTargetsConfiguration:
+        description: Notification targets configurations.
+        type: string
+        format: text-area
+        default: |
+          - notifyName: notify1
+            notifyIP: 127.0.0.1
+            notifyPort: 162
+            notifyParams: v2cParams
+            notifyType: trap
+            context: contexta
+          - notifyName: notify2
+            notifyIP: 127.0.0.1
+            notifyPort: 162
+            notifyParams: v2cParams1
+            notifyType: inform
+            context: contextb
+          - notifyName: notify3
+            notifyIP: 127.0.0.1
+            notifyPort: 162
+            notifyParams: v3Params1
+            notifyType: trap
+            context: contexta
+          - notifyName: notify4
+            notifyIP: 127.0.0.1
+            notifyPort: 162
+            notifyParams: v3Params2
+            notifyType: inform
+            context: contextb
+
+      notificationParametersConfiguration:
+        description: Notification parameters configurations.
+        type: string
+        format: text-area
+        default: |
+          - notifyParamsName: v2cParams1
+            notifyUser: sec1
+            notifySecurityModel: SNMPv2c
+            notifySecurityLevel: noAuthNoPriv
+            context: contexta
+          - notifyParamsName: v2cParams2
+            notifyUser: sec2
+            notifySecurityModel: SNMPv2c
+            notifySecurityLevel: noAuthNoPriv
+            context: contextb
+          - notifyParamsName: v3Params1
+            notifyUser: test1
+            notifySecurityModel: USM
+            notifySecurityLevel: authPriv
+            context: contexta
+          - notifyParamsName: v3Params2
+            notifyUser: test2
+            notifySecurityModel: USM
+            notifySecurityLevel: authPriv
+            context: contextb
+
+  sysObjectID:
+    description: System object ID
+    type: string
+    default: 1.3.6.1.4.1.94
+
+  engineId:
+    description: EngineId
+    type: string
+    default: CALMDefaultEngineID
+
+  heartBeatInterval:
+    description: Heart beat interval (in second).
+    type: integer
+    default: 0
+
+  lcm:
+    description: lcm
+    type: object
+    properties:
+      scale_hooks:
+        description: Scale hooks
+        type: string
+        default: noupgradehooks
+      scale_timeout:
+        description: Scale timeout
+        type: integer
+        default: 240
+
+  backuprestore:
+    description : "configuration to enable backuprestore"
+    type: object
+    properties:
+      enabled:
+        description: "whether to enable backuprestore"
+        type: boolean
+        default: false
+      backendMode:
+        type: string
+        pattern: '^(local|NETBKUP|AVAMAR|CEPHS3|AWSS3)$'
+        default: "local"
+      cronJob:
+        type: string
+        pattern: '^[0-9\/ *]*$'
+        default: "*/10 * * * *"
+      brOption:
+        type: integer
+        minimum: 0
+        maxinum: 2
+        default: 0
+      maxCopy:
+        type: integer
+        minimum: 1
+        maximum: 20
+        default: 5
+      pre_defined_sidecar:
+        description: "configuration to enale using pre_defined kind sidecar to backuprestore"
+        type: object
+        properties:
+          enabled:
+            description: "whether to enable pre_defined kind sidecar"
+            type: boolean
+            default: true
+
+  cveaAgentVersion:
+    description: The version of Cvea Agent.
+    type: string
+    default: v5
+
+  cveaAgentHosts:
+    description: The list of IPs and Ports of Cvea Agents and they are separated by comma.
+    type: string
+    default: ""
+
+  cveaAdapterMaxRetries:
+    description: The maximum number of Cvea retries.
+    type: integer
+    default: 3
+
+  cnot:
+    description: CNOT Adapter Configurations.
+    type: object
+    properties:
+      serverURL:
+        description: The IP and Port of CNOT server.
+        type: string
+        default: 127.0.0.1:80
+      maxRetries:
+        description: The maximum number of Cnot retries.
+        type: integer
+        default: 3
+      enabledSSL:
+        description: Enable CNOT Adapter one-way SSL.
+        type: boolean
+        default: false
+      passphrase:
+        description: Key that used for encrypting plain-password.
+        type: string
+        default: 12345678
+      truststorePassword:
+        description: Encrypted Truststore Password.
+        type: string
+        default: U2FsdGVkX1/5rTzuVPGSbnev533X3bjJWxK6XH+y/Ro=
+      base64Truststore:
+        description: CNOT Adapter Base64 Encryption Truststore
+        type: string
+        format: text-area
+        default: |+
+          /u3+7QAAAAIAAAACAAAAAgALc2VydmVyLWNub3QAAAFpBEzR7QAFWC41MDkAAAK0MIICsDCCAZgC
+          CQDT5eS9RqrGvDANBgkqhkiG9w0BAQsFADAOMQwwCgYDVQQDDANDU0YwHhcNMTkwMTI1MDM1MjU2
+          WhcNMjExMDIxMDM1MjU2WjAmMSQwIgYDVQQDDBsqLmRlZmF1bHQuc3ZjLmNsdXN0ZXIubG9jYWww
+          ggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQCbtbTyGi/hpUWWF4AGI21ZrgIamQMef/BC
+          FHzibje3JxSLmPkSEte0MRN2JP395+DexR/DdJbYFqsIFXo20qNLYwvkzhhlLapbeOWX+OgVUPyw
+          pwu43kThuVd8eC5V7I8xyLTbuHVpayribvulblVPQ6up74dCdt5vC7JGlYOph/yHMFrqNvBqpYX6
+          cTUTW9DFP3zMccvIyj+eXGlvXnBS538wPlG6Hv1mTS4fLpQcMWWt0d4Qplxa1f/DEuQvo/fTUPPQ
+          0Rp9K1ueRdAPRxhur3e/opY+gA7gw1g//YcNHMgFwA74Mbxem0Dff6vGNFIImEsgfinp9UdLZvzm
+          E8ydAgMBAAEwDQYJKoZIhvcNAQELBQADggEBAI6CsynY8IKancy9vuNuzmVu5RAt6+QYyQMWZgTD
+          TByZt5n9qha/Skh+K/MbBzsVQD1RTITyrG+2h8boOohveTbUJqEGcr6qI8LBmr312xNfMeyw+u5n
+          EnAtb0ThyuCILWkLfCHcg3rPwE0WYeBh32iyX1aN+kgQ1S2MeyrsUiZgwlmC2uphgabmD0jutI/1
+          1f8GvMwcJqiE19Ceggt8RAdcYeqFS38ECSg5TMssDO4ib7E6CKKqWeJ70096LAlZnvAZZQy3R7hI
+          isrlLA5dvWZ3Eso4fPU5FJqTkJp+Fc6OTF0FzKQYvOyq25pVVg94jfZm/eZe464urex67Dzf8FoA
+          AAACAAZjYXJvb3QAAAFmhifyIwAFWC41MDkAAAN/MIIDezCCAmOgAwIBAgIJANcHKpDByyPrMA0G
+          CSqGSIb3DQEBCwUAMFQxCzAJBgNVBAYTAkNOMRAwDgYDVQQIDAdCZWlqaW5nMRAwDgYDVQQHDAdC
+          ZWlqaW5nMRIwEAYDVQQKDAlNeUNvbXBhbnkxDTALBgNVBAMMBFl1bWwwHhcNMTgxMDE4MDc1MDU2
+          WhcNMTkxMDE4MDc1MDU2WjBUMQswCQYDVQQGEwJDTjEQMA4GA1UECAwHQmVpamluZzEQMA4GA1UE
+          BwwHQmVpamluZzESMBAGA1UECgwJTXlDb21wYW55MQ0wCwYDVQQDDARZdW1sMIIBIjANBgkqhkiG
+          9w0BAQEFAAOCAQ8AMIIBCgKCAQEA27suYmSPFXnd3CN9TEwdHEHroF6EWhTp1KEp+NDiMLqos2LH
+          YBa/juRW0qGktmDUofKNgELagdWcX988ttw4VmS10DNlYC27DHxfVvGp9tLXKWHvnMMx7q5zUYq6
+          +ez0cR9tep/pQoB91Nk7Lc7sz11aYPXDTRhdXJi+kCITDI0gTP8fHGjjCcax1ErpdtRwqn4sXkyr
+          vgi5nOAkzDc2NKd87+Lx7Ccce5UkfvkUgT8KgQPP26VpTfCZLSqpdtLT6FSVArnLN8ZUjuA6OGKv
+          nwuEQp24rwVv582ZtULxJ90Xf9oInRcOCy6tdGAvWIJ8ae3BC/q7nGN2xzVYLLcmdwIDAQABo1Aw
+          TjAdBgNVHQ4EFgQUjIhbjguJ9Vd+LSIE1Qn8FqIIstgwHwYDVR0jBBgwFoAUjIhbjguJ9Vd+LSIE
+          1Qn8FqIIstgwDAYDVR0TBAUwAwEB/zANBgkqhkiG9w0BAQsFAAOCAQEANY+4vycBxF2ONuS1cb7p
+          xpj/cN/pxgFzPjC5qGcX5QIigi8rjfCocqDwBYb/b54kT8t9h63TIFF8R7SO7LO1mLeit8kVV7+8
+          1aDV0v7PxQoRuRR5JXhZ8jEVYItvTIEr7lOzsPnmDfrcJS/slx1laOBwXux0hEiVrYVAZ4FHl5Gt
+          WDQ9n5x5AnDNVCg9cbXekMwWgb67q/CtCM8dReiFPphEP8j6YYBkMwnHxo0ebF9IYXH0xlkfoCQi
+          y6mr5Yp1q2S31Z7od4D/3phU0rOmlKgvfdC4ho4rZP9bWKo+bfouWkTUp/ctvBONwJZX/VEnM7xm
+          28/nydjmJaKPbhPAxHF8+wWMwPA/hnVCVYL64LgfFDwV
+
+  istio:
+    description: |
+      Use of ISTIO-SIDECAR
+    type: object
+    properties:
+      enabled:
+        title: Istio enabled
+        description: Use of istio
+        type: boolean
+        default: false
+      inject:
+        title: Istio inject
+        description: sidecar.istio.io/inject annotation
+        type: boolean
+        default: false
+      permissive:
+        title: Permissive policy
+        description: When mTLS is enabled, making permissive Policy is required
+        type: boolean
+        default: false
+      cni_enabled:
+        title: CNI enabled
+        description: When CNI is enabled, NET_RAW and NET_ADMIN is not required
+        type: boolean
+        default: false
+      ingress:
+        title: Ingress gateway for external access
+        description: Gateway/VirtualService objects
+        type: object
+        properties:
+          enabled:
+            title: Ingress enabled
+            description: Gateway/VirtualService objects
+            type: boolean
+            default: false
+          host:
+            title: Hostname
+            description: Hostname to access CALM REST interface
+            type: string
+            default: "*"
+          port:
+            title: Port
+            description: Port to access CALM REST interface
+            type: integer
+            minimum: 0
+            maxinum: 65535
+            default: 80
+          selector:
+            title: Gateway selector
+            description: Selector of ingress gateway
+            type: string
+            format: text-area
+            default: {istio: ingressgateway}
+          uriRoot:
+            title: URIroot
+            description: Root path of URI
+            type: string
+            default: calm
+          gatewayName:
+            title: Name of gateway to use
+            description: Instead of creating own gateway object use and existing one
+            type: string
+            default:
+          tls:
+            title: Secure ingress gateway
+            description: Use TLS on ingress gateway
+            type: object
+            properties:
+              enabled:
+                title: HTTPS enabled
+                description: HTTPS enabled
+                type: boolean
+                default: false
+              port:
+                title: Port of secure communication
+                description: Secure port to access CALM REST interface
+                type: integer
+                minimum: 0
+                maxinum: 65535
+                default: 443
+              tlsOptions:
+                title: TLS configuration
+                description: TLS configuration YAML, refer https://istio.io/v1.5/docs/reference/config/networking/gateway/#Server-TLSOptions
+                type: string
+                format: text-area
+                default: | 
+                          {
+                          mode: SIMPLE
+                          credentialName: clam-credential
+                          }
+            
+
+  enterprisesAdvanceConfs:
+    description: Enterprises Advance Configurations
+    type: string
+    format: text-area
+    default: |
+      - enterprise:
+        severityOverwrittenRules:
+          - alarm_id: 1
+            moc_id: 1
+            rule: {critical: major, major: minor}
+          - alarm_id: 2
+            moc_id: 2
+            rule: {critical: minor, major: minor}
+        transientAlarmsTimeToLiveRules:
+          specificProblemLevel:
+            - alarmId: 100001
+              mocId: EXT-MOC_ID
+              ttl: 15
+            - alarmId: 100002
+              ttl: 20
+          severityLevel:
+            critical: 14
+            major: 13
+          systemLevel: 5
+        brevityControlRules:
+          - groupId: 1
+            target:
+              alarm_id: 650039
+              moc_id: 1
+            upperThreshold: 4
+            lowerThreshold: 2
+            thresholdPeriod: 30
+          - groupId: 2
+            target:
+              alarm_id: 2
+              moc_id: 2
+            upperThreshold: 100
+            lowerThreshold: 50
+            thresholdPeriod: 10 
+
+  fixAlarmCreateTimeIsUTC:
+    description: ALMA will use the new, fixed alarm time handling if set to "true". When "false" ALMA uses the old, wrong alarm time handling for backward compatibility.
+    type: boolean
+    default: true

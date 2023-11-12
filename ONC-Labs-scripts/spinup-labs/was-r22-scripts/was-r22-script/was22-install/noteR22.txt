@@ -1,0 +1,68 @@
+####Note that:  In the WAS R22, will be used 1 namespace for all Apps by helm3 scripting file
+
+### set sysctl to bind ingress controller 
+### using command below for both node
+sudo sysctl -w net.ipv4.ip_nonlocal_bind=1
+
+net.ipv4.ip_nonlocal_bind=1
+net.ipv6.ip_nonlocal_bind=1
+
+### vi /etc/sysctl.conf append the file on both node
+vm.max_map_count=26214
+
+echo "vm.max_map_count=26214" >> /etc/sysctl.conf
+
+
+###########################################
+###### How to save, pull, push docker images to registry
+
+        Install global
+        sudo wget -O /usr/local/bin/docker-save-and-retag https://gist.github.com/stefanvangastel/d6b5b38e8716ea102b651c67c100225f/raw/b0b13deb46e9cae07458dcb66160c1e5994fd43c/docker-save-and-retag.sh && sudo chmod +x /usr/local/bin/docker-save-and-retag
+
+        Then use docker-save-and-retag instead of ./docker-save-and-retag.sh in examples
+
+        Example: Basic usage docker-save-and-retag.sh
+        ./docker-save-and-retag.sh ubuntu:latest /mydir/ubuntu.tar my.private.registry/docker/ubuntu:latest
+
+        Example: Save and retag all local images as escaped_image_name.tar in /path/to/
+        docker images --format "{{.Repository}}:{{.Tag}}" | while read line ; do ./docker-save-and-retag.sh $line "/path/to/$(echo $line | sed -r 's/[\:\/]+/_/g').tar" "my.private.registry.com/$line" ; done
+
+        Example: Load and push all saved images in /path/to/*.tar
+        for file in /path/to/*.tar; do ./docker-load-and-push.sh $file --push; done
+
+        ### Load images from 
+        for file in NetGuard_Base_Platform_Btel-Images/images/*.tar; do docker load < $file; done
+
+
+        kubectl create -n netguard-base sa cluster-admin
+
+        kubectl create clusterrolebinding netguard-cluster-admin-binding --clusterrole=cluster-admin --serviceaccount=netguard-base:cluster-admin
+
+        kubectl get secret -n netguard-base --no-headers | cut -d ' ' -f 1 | grep cluster-admin-token
+
+
+## edit helm3 in the script
+
+        # Generate the value of bp_config_vars.yaml
+        ./ncmtpl bp_config_vars.tpl -o bp_config_vars.yml
+
+        # Generate Vaule for Chart form bp_config_vars.yml
+        ./generate_values.sh --values-package=NetGuard_Base_Platform-Values-22.2.0.tgz --config-vars=bp_config_vars.yml --output-dir=output/ --work-dir=bp --ncmtpl-bin=./ncmtpl
+
+        # Create access Role for Cluster 
+        # change helm3 script to install 
+        ./filter_rbac.sh --charts-package=./NetGuard_Base_Platform-Charts-22.2.0.tgz --values-package=output/NetGuard_Base_Platform-Values-gen.tgz --output=./rbac_resources.yaml
+
+        kubectl apply -f ./rbac_resources.yaml -n netguard-base
+
+        # Installation NBP
+        # change helm3 script to install
+
+        ./install.sh --action=install --charts-package=./NetGuard_Base_Platform-Charts-22.2.0.tgz --values-package=./output/NetGuard_Base_Platform-Values-gen.tgz
+
+
+./ncmtpl -d bp_config_vars.tpl -d was_config_vars.tpl was_values.tpl -o was_values.yml
+
+./helm-install.sh --action=install --appli-name=was --config-values=was_values.yml
+
+./secrets2configvars.sh --product=framework --namespace=netguard-base --prefix=nwas- --secrets-file=netguard-framework-secret.env getsecrets

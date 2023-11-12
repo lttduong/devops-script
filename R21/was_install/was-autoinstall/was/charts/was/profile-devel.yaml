@@ -1,0 +1,25 @@
+server:
+  resources:
+    requests:
+      memory: 1024Mi
+      cpu: 500m
+    limits:
+      memory: 4096Mi
+      cpu: 1500m
+    jvm:
+      Xms: 512M
+      Xmx: 2G
+      MetaspaceSize: 96M
+      MaxMetaspaceSize: 512M
+      debugPort: 8787
+    config:
+      enableconsole: true
+    
+ui:
+  resources:
+    requests:
+      memory: 1024Mi
+      cpu: 250m
+    limits:
+      memory: 4096Mi
+      cpu: 500m

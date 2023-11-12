@@ -1,0 +1,4 @@
+geo_redundancy:
+  enabled: false
+  mode: active
+  site_index: 1

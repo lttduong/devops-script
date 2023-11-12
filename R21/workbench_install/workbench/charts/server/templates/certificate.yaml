@@ -1,0 +1,39 @@
+apiVersion: {{ .Values.global.certManager.api }}
+kind: Certificate
+metadata:
+  name: {{ .Values.global.releaseNamePrefix }}{{ template "name" . }}-tls
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    "helm.sh/hook": pre-install
+    "helm.sh/hook-weight": "-10"
+spec:
+  organization:
+    - Nokia
+  secretName: {{ .Values.global.releaseNamePrefix }}{{ .Values.certificatesSecretName }}
+  usages:
+    - server auth
+    - client auth
+  duration: {{ .Values.global.certManager.duration }}
+  renewBefore: {{ .Values.global.certManager.renewBefore }}
+  commonName: {{ .Values.belkCName }}
+  dnsNames:
+    - {{ template "name" . }}
+    - {{ template "name" . }}.{{ .Release.Namespace }}
+    - {{ template "name" . }}.{{ .Release.Namespace }}.{{ tpl .Values.global.svcDnsDomain . }}
+    - {{ tpl .Values.global.serverClusterServiceName . }}
+    - {{ tpl .Values.global.serverClusterServiceName . }}.{{ .Release.Namespace }}
+    - {{ tpl .Values.global.serverClusterServiceName . }}.{{ .Release.Namespace }}.{{ tpl .Values.global.svcDnsDomain . }}
+    # Create aliases in this cert for all replicas:
+    {{- range $app, $appvalue := until (.Values.replicaCount | int) }}
+    {{- with $ }}
+    - {{ template "name" . }}-{{ $app }}.{{ template "name" . }}
+    - {{ template "name" . }}-{{ $app }}.{{ template "name" . }}.{{ .Release.Namespace }}
+    - {{ template "name" . }}-{{ $app }}.{{ template "name" . }}.{{ .Release.Namespace }}.{{ tpl .Values.global.svcDnsDomain . }}
+    {{- end }}
+    {{- end }}
+{{- if .Values.extraDns }}
+{{ tpl .Values.extraDns . | indent 4 }}
+{{- end }}
+  issuerRef:
+    name: {{ .Values.global.certManager.issuerRef.name }}
+    kind: {{ .Values.global.certManager.issuerRef.kind }}

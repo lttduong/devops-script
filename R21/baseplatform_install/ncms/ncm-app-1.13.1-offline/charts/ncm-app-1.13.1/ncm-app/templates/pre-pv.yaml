@@ -1,0 +1,116 @@
+{{- if .Values.autonomous }}
+{{- if .Values.autonomous.enabled }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Release.Name }}-pv-sa
+  namespace: "{{.Release.Namespace}}"
+  labels:
+    {{- include "ncm-app.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": pre-upgrade, pre-install
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": hook-succeeded, before-hook-creation
+---
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  namespace: "{{.Release.Namespace}}"
+  name: {{ .Release.Name }}-pv-role
+  labels:
+    {{- include "ncm-app.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": pre-upgrade, pre-install
+    "helm.sh/hook-weight": "1"
+    "helm.sh/hook-delete-policy": hook-succeeded, before-hook-creation
+rules:
+- apiGroups: [""]
+  resources: ["persistentvolumeclaims"]
+  verbs: ["get", "create", "delete", "list", "watch", "update"]
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ .Release.Name }}-pv-rb
+  namespace: "{{.Release.Namespace}}"
+  labels:
+    {{- include "ncm-app.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": pre-upgrade, pre-install
+    "helm.sh/hook-weight": "2"
+    "helm.sh/hook-delete-policy": hook-succeeded, before-hook-creation
+subjects:
+- kind: ServiceAccount
+  name: {{ .Release.Name }}-pv-sa
+  namespace: "{{.Release.Namespace}}"
+  apiGroup: ""
+roleRef:
+  kind: Role
+  name: {{ .Release.Name }}-pv-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}-pv-pre-upgrade
+  labels:
+    {{- include "ncm-app.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": pre-upgrade, pre-install
+    "helm.sh/hook-weight": "3"
+    "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded
+spec:
+  backoffLimit: 1
+  template:
+    metadata:
+      name: "{{ .Release.Name }}"
+      labels:
+        {{- include "ncm-app.labels" . | nindent 8 }}
+    spec:
+      {{- include "placement.spec" . | nindent 6}}
+      serviceAccount: {{ .Release.Name }}-pv-sa
+      securityContext:
+        runAsUser: 1000
+        runAsGroup:  1000
+        fsGroup: 1000
+      restartPolicy: Never
+      containers:
+      - image: "{{ .Values.global.registry }}/{{ .Values.image.name }}:{{ .Values.image.tag }}" 
+        name: {{ .Release.Name }}
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "256Mi"
+            cpu: "250m"
+        command:
+        - /bin/bash
+        - -c
+        - |
+          kubectl get pvc --namespace {{.Release.Namespace}} | grep {{ template "ncm-app.fullname" . }}-pvc && echo "PVC already exists" || {
+          cat <<EOF | kubectl create --namespace {{.Release.Namespace}} -f -
+          kind: PersistentVolumeClaim
+          apiVersion: v1
+          metadata:
+            name: {{ template "ncm-app.fullname" . }}-pvc
+            labels:
+             {{- include "ncm-app.labels" . | nindent 20 }}
+          spec:
+          {{- if .Values.persistence.storageClass }}
+          {{- if (eq "-" .Values.persistence.storageClass) }}
+            storageClassName: ""
+          {{- else }}
+            storageClassName: "{{ .Values.persistence.storageClass }}"
+          {{- end }}
+          {{- end }}
+            accessModes:
+              - {{ default "ReadWriteOnce" .Values.persistence.mode }}
+            resources:
+              requests:
+                storage: "{{ default "2Gi" .Values.persistence.size }}"
+          EOF
+          }
+{{- end }}
+{{- end }}
+

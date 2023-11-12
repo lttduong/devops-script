@@ -1,0 +1,4 @@
+apiVersion: v1
+description: CRMQ config for CKEY event publisher
+name: ckey-crmq-config
+version: 1.0.0

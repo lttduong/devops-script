@@ -1,0 +1,4 @@
+---
+ - import_playbook: backup-restore-wsse/restore-replace-existing-wsse.yml
+ - import_playbook: backup-restore-wsse/reinstall-for-new-wsse.yml
+ - import_playbook: backup-restore-wsse/getinfo-wsse.yml

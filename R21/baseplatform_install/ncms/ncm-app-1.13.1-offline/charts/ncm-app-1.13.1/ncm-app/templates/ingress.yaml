@@ -1,0 +1,61 @@
+{{- if .Values.ingress.enabled -}}
+{{ $paths := list "/ncm" }}
+{{- $releaseName := .Release.Name -}}
+{{- $servicePort := .Values.service.httpPort -}}
+{{- if semverCompare "<1.18.0" .Capabilities.KubeVersion.GitVersion }}
+apiVersion: extensions/v1beta1
+{{- else }}
+apiVersion: networking.k8s.io/v1beta1
+{{- end }}
+kind: Ingress
+metadata:
+  annotations:
+  {{ if .Values.ingress.class }}
+    kubernetes.io/ingress.class: {{ .Values.ingress.class }}
+  {{- end }}
+  {{- range tuple "ingress" "nginx.ingress" }}
+    {{- if $.Values.ingress.sso }}
+    ingress.kubernetes.io/configuration-snippet: |
+     set_by_lua $session_secret 'return os.getenv("LUA_RESTY_SESSION_SECRET")';
+      access_by_lua_block {
+        local paas = require "paas"
+        local res = paas.checkAuth()
+      }
+    {{- end }}
+  {{- end }}
+  {{- range $key, $value := .Values.ingress.annotations }}
+    {{ $key }}: {{ $value | quote }}
+    nginx.{{ $key }}: {{ $value | quote }}
+  {{- end }}
+  labels:
+    {{- include "ncm-app.labels" . | nindent 4 }}
+  name: {{ printf "%s.%s.%.0f" .Release.Namespace $releaseName $servicePort }}
+spec:
+  rules:
+  {{- if .Values.ingress.host }}
+  - host: {{ .Values.ingress.host | quote }}
+    http:
+      paths:
+      - backend:
+          serviceName: {{ template "ncm-app.fullname" . }}
+          servicePort: {{ printf "%.0f" $servicePort }}
+  {{- else }}
+  - http:
+      paths:
+      {{- if .Values.ingress.paths }}
+      {{-   $paths = .Values.ingress.paths -}}
+      {{- else if not .Values.ingress.class -}}
+      {{-   $paths = list "/ncm/applications(.*),/ncm/repos(.*),/ncm/profiles(.*),/ncm/version(.*),/ncm/helm(.*),/ncm/resources(.*),/ncm/bin(.*),/ncm/token(.*)" -}}
+      {{- end }}
+      {{- range $i,$value := $paths }}
+      - backend:
+          serviceName: {{ template "ncm-app.fullname" $ }}
+          servicePort: {{ printf "%.0f" $servicePort }}
+        path: {{ $value }}
+      {{- end }}
+  {{- end -}}
+  {{- if .Values.ingress.tls }}
+  tls:
+{{ toYaml .Values.ingress.tls | indent 4 }}
+  {{- end }}
+{{- end -}}

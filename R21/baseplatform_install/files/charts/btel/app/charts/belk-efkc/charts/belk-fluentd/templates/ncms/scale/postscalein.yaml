@@ -1,0 +1,42 @@
+{{ if (and ( .Values.fluentd.enable_root_privilege ) ( .Values.fluentd.persistence.pvc_auto_delete)) }}
+{{ if gt (int .Values.postscalein ) 0 }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "fluentd.scaleInJob.name" . }}
+spec:
+  template:
+    {{- if .Values.istio.enabled }}
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "false"
+    {{- end }}
+    spec:
+      serviceAccountName: {{ default ( default (printf "%s-serviceaccount" ( include "fluentd.fullname" . )) .Values.global.serviceAccountName ) .Values.fluentd.serviceAccountName }}
+      restartPolicy: Never
+      securityContext:
+        fsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+      containers:
+      - name: {{ template "fluentd.scaleInContainer.name" . }}
+        image: "{{ .Values.global.registry1 }}/{{ .Values.kubectl.image.repo }}:{{ .Values.kubectl.image.tag }}"
+        command:
+        - bash
+        - "-c"
+        - |
+          echo 'Deleting the pvc of the disconnected fluentd pods'
+          FLUENTD_UPDATED_COUNT={{.Values.fluentd.replicas}}
+          echo "FLUENTD_UPDATED_COUNT = ${FLUENTD_UPDATED_COUNT}"
+          FLUENTD_PVC_IN_CLUSTER=`kubectl get pvc -n={{ .Release.Namespace }} -l k8s-app={{ template "fluentd.fullname" . }}-es |awk '{print $1}' |grep -v NAME`
+          echo "FLUENTD_PVC_IN_CLUSTER = ${FLUENTD_PVC_IN_CLUSTER}"
+          for eachpvc in ${FLUENTD_PVC_IN_CLUSTER};do
+          FLUENTD_PVC_NUMBER=${eachpvc##*-}
+          if ((${FLUENTD_PVC_NUMBER} >= ${FLUENTD_UPDATED_COUNT}));then
+          kubectl delete pvc ${eachpvc} --namespace {{ .Release.Namespace }}
+          echo "PVC Deleted is : ${eachpvc}"
+          fi;
+          done;
+{{- end }}
+{{- end }}
+

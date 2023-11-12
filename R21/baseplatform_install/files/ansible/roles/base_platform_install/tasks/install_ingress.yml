@@ -1,0 +1,28 @@
+---
+- name: "Install CITM"
+  shell: >
+    {{ helm }} install {{ chartsPath }}/citm/app
+    --name-template {{ citmHelmName }}
+    --namespace {{ BP_NAMESPACE }}
+    --values {{ chartsPath }}/values/global-values.yaml
+    --values {{ chartsPath }}/citm/app/override.yaml
+    {{ citmConfigurationOverride }}
+    {{ citmResourcesOverride }}
+    {{ citmStorageOverride }}
+    --set serviceDomain={{ svcDnsDomain }}
+    --set realmName={{ keycloakRealmName }}
+    --set client_secret={{ basePlatformSsoSecret }}
+    --set client_id={{ keycloakClientName }}
+    --set global.registry={{ bcmtRegistry }}
+    --set controller.disableIvp4={{ ipv6Only }}
+    --set controller.customLuaModules.modules[0].sourcesConfigMapName={{ citmHelmName }}-citm-ingress-controller-lua-keycloak
+    --set controller.customLuaModules.modules[1].sourcesConfigMapName={{ citmHelmName }}-citm-ingress-controller-lua-uma
+    --set controller.ingressClass={{ INGRESS_CLASS }}
+    --set controller.defaultSSLCertificate={{ BP_NAMESPACE }}/citm-server-cert
+    --set controller.bindAddress={{ BIND_ADDRESSES | quote }}
+    --set controller.securityContextPrivileged=true
+    --set controller.statusPort=18095
+    --set controller.httpPort=8099
+    --set controller.httpsPort=8097
+    --set controller.forcePort=true
+  no_log: "{{ no_log }}"

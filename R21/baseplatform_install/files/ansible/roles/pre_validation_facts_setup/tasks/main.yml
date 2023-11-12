@@ -1,0 +1,25 @@
+- name: "Set possible values for geo redundancy related parameters"
+  set_fact:
+    activeMode: "active"
+    passiveMode: "passive"
+
+- name: "Set password policy"
+  set_fact:
+    passwordLength: 14
+    passwordSigns: "@%^"
+
+- name: "Set possible values for network stack"
+  set_fact:
+    ipV4only: "IPV4_ONLY"
+    ipV4dualStack: "IPV4_DUALSTACK"
+    ipV6only: "IPV6_ONLY"
+
+- name: "Set geoRedundancyEnabled fact"
+  set_fact:
+    geoRedundancyEnabled: "{{ GEO_REDUNDANCY.ENABLED }}"
+  when: GEO_REDUNDANCY.ENABLED is defined
+
+- name: "Set cburCmdbEnabled fact"
+  set_fact:
+    cburCmdbEnabled: "{{ CBUR.CMDB.ENABLED }}"
+  when: CBUR.CMDB.ENABLED is defined

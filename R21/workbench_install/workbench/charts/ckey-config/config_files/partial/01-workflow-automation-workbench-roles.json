@@ -1,0 +1,40 @@
+{
+  "policy": "SKIP",
+  "roles":
+  {
+    "client": {
+      "workflow-automation-workbench": [
+        {
+          "name": "workflow-automation-workbench-view-all-projects",
+          "composite": false,
+          "clientRole": true
+        },
+        {
+          "name": "workflow-automation-workbench-manage-all-projects",
+          "composite": false,
+          "clientRole": true
+        },
+        {
+          "name": "workflow-automation-workbench-view-all-integrations",
+          "composite": false,
+          "clientRole": true
+        },
+        {
+          "name": "workflow-automation-workbench-manage-all-integrations",
+          "composite": false,
+          "clientRole": true
+        },
+        {
+          "name": "workflow-automation-workbench-view-all-reusable-workflows",
+          "composite": false,
+          "clientRole": true
+        },
+        {
+          "name": "workflow-automation-workbench-manage-all-reusable-workflows",
+          "composite": false,
+          "clientRole": true
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,38 @@
+- name: Load WAS config
+  include_vars: "{{ playbook_dir }}/was_config_vars.yml"
+
+- name: Set Helm install names
+  set_fact:
+    productPrefix: "was"
+    namespaceHelmName: "was-namespace"
+    ckeyConfigHelmName: "was-ckey-config"
+    sshConfigHelmName: "was-ssh-config"
+    helmName: "was"
+    db_password_helm_param_names:
+      - "db-configurator.jobs.nosdb.password"
+      - "db-configurator.jobs.bpasdb.password"
+    ckey_client_secret_helm_param_names:
+      - helm_param_name: "global.config.ckey.client.secret.netguardWorkflowAutomationSecret"
+        ckey_client_name: "netguard-workflow-automation"
+      - helm_param_name: "global.config.ckey.client.secret.netguardFrameworkSecret"
+        ckey_client_name: "netguard-framework"
+    crmq_password_helm_param_names:
+      - "crmq-configurator.users.serverUser.password"
+
+- name: "Set helm encryption generate password"
+  set_fact:
+    encryption_password_helm_param_names:
+      - "server.encryptionKey.password"
+  when: (ENCRYPTION_KEY_GENERATION_ENABLED is defined and ENCRYPTION_PASSWORD is defined and ENCRYPTION_KEY_GENERATION_ENABLED|bool) and (ENCRYPTION_PASSWORD is none or ENCRYPTION_PASSWORD == "")
+
+- name: Set customConfigs fact
+  set_fact:
+    customConfigs:
+      - { src: "{{ CUSTOM_CONFIG_DIR_PATH }}/server-config-overrides/", dest: "{{ appThisVersionConfigDirectory }}/charts/{{ productPrefix }}/charts/server/config-override-configmap" }
+      - { src: "{{ CUSTOM_CONFIG_DIR_PATH }}/extended-properties/", dest: "{{ appThisVersionConfigDirectory }}/charts/{{ productPrefix }}/charts/extended-properties/files" }
+      - { src: "{{ CUSTOM_CONFIG_DIR_PATH }}/application-properties-overrides/", dest: "{{ appThisVersionConfigDirectory }}/charts/{{ productPrefix }}/charts/application-properties-overrides/files" }
+  when: CUSTOM_CONFIG_DIR_PATH is defined and CUSTOM_CONFIG_DIR_PATH is not none and CUSTOM_CONFIG_DIR_PATH != ""
+
+- name: Disable the import of NA CKEY Config
+  set_fact:
+    IMPORT_CKEY_NA_CONFIG: false

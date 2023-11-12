@@ -1,0 +1,12 @@
+---
+- name: "Upgrading BTEL db config chart"
+  shell: >
+    {{ helm }}  upgrade {{ btelDatabaseConfigHelmName }} {{ chartsPath }}/btel/db-config
+    --namespace {{ BP_CONFIG_NAMESPACE }}
+    --values {{ chartsPath }}/values/upgrade-global-values.yaml
+    --reuse-values
+    {{ btelResourcesOverride }}
+    --install
+    --timeout {{ wait_timeout }}s
+    --wait
+  no_log: "{{ no_log }}"

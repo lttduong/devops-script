@@ -1,0 +1,67 @@
+- hosts: kubernetes_master_nodes
+  become: yes
+  tasks: 
+    - name: copy bp config file
+      copy:
+        src: bp-packages/bp_config_vars.yml 
+        dest: $HOME
+
+    - name: copy bp deploy job yml
+      copy:
+        src: bp-packages/baseplatform-install-job.yml
+        dest: $HOME
+
+    # - name: copy smtp-mail.yaml 
+    #   copy:
+    #     src: bp-packages/smtp-mail.yaml
+    #     dest: $HOME
+
+    - name: remove configmaps
+      shell: kubectl delete configmap bp-config && kubectl delete configmap kube-config
+      ignore_errors: yes
+
+    - name: create bp-config configmap
+      shell: kubectl create configmap bp-config --from-file=bp_config_vars.yml
+      args:
+        chdir: $HOME
+      ignore_errors: yes
+
+    - name: create kube-config configmap
+      shell: kubectl create configmap kube-config --from-file=.kube/config
+      args:
+        chdir: $HOME
+      ignore_errors: yes
+
+    - name: remove previous deploy job if any
+      shell: kubectl delete -f baseplatform-install-job.yml
+      args:
+        chdir: $HOME
+      ignore_errors: yes
+
+    - name: remove netguard-base namespace
+      shell: kubectl delete ns netguard-base
+      ignore_errors: yes
+
+    - name: remove netguard-configuration namespace
+      shell: kubectl delete ns netguard-configuration
+      ignore_errors: yes
+
+    - name: create netguard-base namespace
+      shell: kubectl create ns netguard-base
+
+    - name: create netguard-configuration namespace
+      shell: kubectl create ns netguard-configuration
+
+    - name: install baseplatform deploy job
+      shell:  kubectl apply -f baseplatform-install-job.yml
+      args:
+        chdir: $HOME
+
+    # - name: install baseplatform deploy job
+    #   shell:  kubectl apply -f smtp-mail.yaml -n netguard-base
+    #   args:
+    #     chdir: $HOME       
+
+    - name: wait for baseplatform deploy job to finish
+      shell: kubectl wait --timeout=1800s --for=condition=Complete job/install-baseplatform 
+

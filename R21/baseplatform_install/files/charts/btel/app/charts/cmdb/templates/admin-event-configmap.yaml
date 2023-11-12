@@ -1,0 +1,19 @@
+{{ $admin_recovery := .Values.admin.recovery | default "none" }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "cmdb.fullname" . }}-admin-event
+  labels:
+    {{- include "cmdb-admin.labels" . | indent 4 }}
+data:
+  recovery_tag: |-
+    {{ $admin_recovery | sha256sum }}
+  cmd_args: |-
+    {{- if contains ":" $admin_recovery }}
+    {{- $vals := (split ":" $admin_recovery) }}
+    node={{ $vals._1 }}
+    {{- end }}
+  {{- if .Values.admin.pwChangeSecret }}
+  pw_change_secret: {{ default "" .Values.admin.pwChangeSecret }}
+  {{- end }}

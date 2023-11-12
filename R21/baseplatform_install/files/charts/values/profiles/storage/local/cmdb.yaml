@@ -1,0 +1,34 @@
+mariadb:
+  persistence:
+    createPv: true
+    enabled: true
+    storageClass: default
+    resourcePolicy: keep
+    resourcePolicyPv: Retain
+    backup:
+      enabled: false
+    labels: |
+      pv-target: mariadb
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: bp-cmdb-database
+          operator: In
+          values:
+          - "true"
+
+admin:
+  persistence:
+    createPv: true
+    enabled: true
+    storageClass: default
+    resourcePolicy: keep
+    resourcePolicyPv: Retain
+    labels: |
+      pv-target: mariadb-admin
+
+volumes:
+  path:
+    mariadbData: /var/netguard_local_storage/mariadb/data
+    admin: /var/netguard_local_storage/mariadb/admin

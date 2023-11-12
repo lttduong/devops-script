@@ -1,0 +1,146 @@
+{{ if .Values.enableNA }}
+{
+  "policy": "SKIP",
+  "roles": 
+  { 
+    "client": {
+      "netguard-networkaccess": [
+        {
+          "name": "networkaccess-manage-snapshots",
+          "composite": false,
+          "clientRole": true
+        },
+        {
+          "name": "networkaccess-manage-credential-password-policies",
+          "composite": false,
+          "clientRole": true
+        },
+        {
+          "name": "networkaccess-manage-network-element-groups",
+          "composite": false,
+          "clientRole": true
+        },
+        {
+          "name": "networkaccess-manage-adapter-request-service",
+          "composite": false,
+          "clientRole": true
+        },
+        {
+          "name": "networkaccess-view-credential-password-policies",
+          "composite": false,
+          "clientRole": true
+        },
+        {
+          "name": "networkaccess-view-management-credentials",
+          "composite": false,
+          "clientRole": true
+        },
+        {
+          "name": "networkaccess-view-discovery-schedules",
+          "composite": false,
+          "clientRole": true
+        },
+        {
+          "name": "networkaccess-view-adapters",
+          "composite": false,
+          "clientRole": true
+        },
+        {
+          "name": "networkaccess-manage-discovery-schedules",
+          "composite": false,
+          "clientRole": true
+        },
+        {
+          "name": "networkaccess-send-adapter-requests",
+          "composite": false,
+          "clientRole": true
+        },
+        {
+          "name": "networkaccess-view-network-element",
+          "composite": false,
+          "clientRole": true
+        },
+        {
+          "name": "networkaccess-view-network-element-groups",
+          "composite": false,
+          "clientRole": true
+        },
+        {
+          "name": "networkaccess-manage-management-credentials",
+          "composite": false,
+          "clientRole": true
+        },
+        {
+          "name": "networkaccess-manage-snapshot-blackouts",
+          "composite": false,
+          "clientRole": true
+        },
+        {
+          "name": "networkaccess-test-network-element-connection",
+          "composite": false,
+          "clientRole": true
+        },
+        {
+          "name": "networkaccess-view-adapter-requests",
+          "composite": false,
+          "clientRole": true
+        },
+        {
+          "name": "networkaccess-manage-agents",
+          "composite": false,
+          "clientRole": true
+        },
+        {
+          "name": "networkaccess-view-plaintext-management-credential-passwords",
+          "composite": false,
+          "clientRole": true
+        },
+        {
+          "name": "networkaccess-view-agents",
+          "composite": false,
+          "clientRole": true
+        },
+        {
+          "name": "networkaccess-manage-network-configuration",
+          "composite": false,
+          "clientRole": true
+        },
+        {
+          "name": "networkaccess-manage-network-element",
+          "composite": false,
+          "clientRole": true
+        },
+        {
+          "name": "networkaccess-view-snapshots",
+          "composite": false,
+          "clientRole": true
+        },
+        {
+          "name": "networkaccess-manage-network-ssh-configuration",
+          "composite": false,
+          "clientRole": true
+        },
+        {
+          "name": "networkaccess-manage-adapters",
+          "composite": false,
+          "clientRole": true
+        },
+        {
+          "name": "networkaccess-view-snapshot-blackouts",
+          "composite": false,
+          "clientRole": true
+        }
+      ]
+    }
+  }
+}
+{{ else }}
+{
+    "policy": "SKIP",
+    "clients":[
+      {
+         "clientId":"netguard-framework"
+      }
+      ]
+}
+{{ end }}

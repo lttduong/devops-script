@@ -1,0 +1,51 @@
+{{- if (and (.Values.istio.enabled) (gt (int .Values.mariadb.count) 1) (ne .Values.cluster_type "galera")) }}
+{{- $g := . -}}
+{{- $has_security_api := semverCompare ">=1.5" (toString .Values.global.istioVersion) }}
+{{- $cluster_type := .Values.cluster_type }}
+{{- $service_name := .Values.services.mariadb.name | default (printf "%s-mariadb" (include "cmdb.fullname" .)) }}
+{{- range $i := until (int .Values.mariadb.count) }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $service_name }}-{{ $i }}
+  labels:
+    {{- include "cmdb-mariadb.labels" $g | indent 4 }}
+    mtls-strict: "true"
+spec:
+  type: ClusterIP
+  ports:
+  - name: tcp-mysql
+    port: 3306
+  - name: tcp-sst
+    port: 4444
+  selector:
+    {{- include "cmdb-mariadb.labels" $g | indent 4 }}
+    type: mariadb
+    statefulset.kubernetes.io/pod-name: {{ template "cmdb.pod-prefix" $g }}-mariadb-{{ $i }}
+
+{{- if not $has_security_api }}
+---
+apiVersion: "authentication.istio.io/v1alpha1"
+kind: "Policy"
+metadata:
+  name: {{ $service_name }}-{{ $i }}-mtls-authn
+spec:
+  targets:
+  - name: {{ $service_name }}-{{ $i }}
+  peers:
+  - mtls:
+      mode: STRICT
+{{- end }}
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: {{ $service_name }}-{{ $i }}-mlts-dr
+spec:
+  host: {{ $service_name }}-{{ $i }}
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+{{- end }}
+{{- end }}

@@ -1,0 +1,42 @@
+---
+- name: "Set crmqCkeyPassword"
+  set_fact:
+    crmqCkeyPassword: "{{ lookup('password', '/dev/null length=1 chars=ascii_uppercase') +
+                         lookup('password', '/dev/null length=1 chars=ascii_lowercase') +
+                         lookup('password', '/dev/null length=1 chars=digits') +
+                         lookup('password', '/dev/null length=1 chars={{ passwordSigns }}') +
+                         lookup('password', '/dev/null length={{ passwordLength-4 }}
+                                 chars=ascii_letters,digits,{{ passwordSigns }}') | shuffle | join | trim }}"
+#  no_log: true
+
+- name: "Generate CRMQ password hash for CKEY user"
+  block:
+    - name: "Generate salt"
+      shell: echo $(tr -dc "A-F0-9" < /dev/urandom | head -c 8)
+      register: crmq_salt
+    - name: "Generate CRMQ password hash"
+      shell:
+        "echo $({{ temporaryAppFilesDirectory }}/generate_rabbitmq_password_hash.sh
+        --salt {{ crmq_salt.stdout }} --passphrase {{ crmqCkeyPassword }})"
+      register: crmq_ckey_password_hash
+  no_log: true
+
+- name: "Set crmqAdminPassword"
+  set_fact:
+    crmqAdminPassword: "{{ lookup('password', '/dev/null length=1 chars=ascii_uppercase') +
+                         lookup('password', '/dev/null length=1 chars=ascii_lowercase') +
+                         lookup('password', '/dev/null length=1 chars=digits') +
+                         lookup('password', '/dev/null length=1 chars={{ passwordSigns }}') +
+                         lookup('password', '/dev/null length={{ passwordLength-4 }}
+                                 chars=ascii_letters,digits,{{ passwordSigns }}') | shuffle | join | trim }}"
+  no_log: true
+
+- name: "Generate rmq erlang cookie"
+  shell: echo $(tr -dc "a-zA-Z0-9" < /dev/urandom | head -c 32)
+  register: rmq_erlang_cookie
+  no_log: true
+
+- name: "Set crmqErlangCookie"
+  set_fact:
+    crmqErlangCookie: "{{ rmq_erlang_cookie.stdout }}"
+  no_log: true

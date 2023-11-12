@@ -1,0 +1,79 @@
+{{- if .Values.hooks.preRollbackJob.enabled }}
+{{ $job := dict "Values" .Values "Chart" .Chart "Release" .Release "Hook" .Values.hooks.preRollbackJob "HookType" "pre"}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "cmdb-job.name" $job }}
+  labels:
+    {{- include "cmdb-admin.labels" . | indent 4 }}
+  annotations:
+    "helm.sh/hook": pre-rollback
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": {{ .Values.hooks.deletePolicy | quote }}
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        {{- include "cmdb-admin.labels" . | indent 8 }}
+        type: admin
+      {{- if .Values.istio.enabled }}
+      annotations:
+        sidecar.istio.io/inject: "true"
+      {{- end }}
+    spec:
+      {{- include "cmdb-admin.secctx" . | nindent 6 }}
+      {{- include "cmdb.sa" . | nindent 6 }}
+      restartPolicy: Never
+
+      containers:
+      - name: {{ template "cmdb-job.container-name" $job }}
+        {{- include "cmdb-admin.image" . | indent 8 }}
+        args: [ "rollback" ]
+        env:
+        - name: CLUSTER_TYPE
+          value: "{{ .Values.cluster_type }}"
+        - name: CLUSTER_NAME
+          value: "{{ .Values.cluster_name | default .Release.Name | trunc 32 }}"
+        # Note: all NEW_* variables will be updated on pre, before the values
+        # are updated in configMap-based cluster.env.  This is to support
+        # allowing changing these values on upgrade rollback.
+        - name: NEW_CLUSTER_SIZE
+          value: "{{ .Values.mariadb.count }}"
+        - name: NEW_MAXSCALE_SIZE
+          value: "{{ .Values.maxscale.count }}"
+        # needed in case metrics turned on/off
+        {{- if .Values.mariadb.metrics.enabled }}
+        - name: NEW_MYSQL_METRICS_USER
+          value: "{{ .Values.mariadb.metrics.user }}"
+        {{- end }}
+        - name: NEW_CHART_VERSION
+          value: "{{ .Chart.Version }}"
+        {{- include "cmdb-job.env" $job | nindent 8 }}
+        {{- include "cmdb-k8s.env" . | nindent 8 }}
+        {{- include "cmdb-admin.service" . | nindent 8 }}
+        resources:
+{{ toYaml .Values.admin.resources | indent 10 }}
+        volumeMounts:
+        - name: cluster-cm
+          mountPath: /chart
+        - name: event-cm
+          mountPath: /event
+
+      volumes:
+      - name: cluster-cm
+        configMap:
+          name: {{ template "cmdb.fullname" . }}-mariadb-cluster
+      - name: event-cm
+        configMap:
+          name: {{ template "cmdb.fullname" . }}-admin-event
+
+    {{- if .Values.admin.tolerations }}
+      tolerations:
+{{ toYaml .Values.admin.tolerations | indent 8 }}
+    {{- end }}
+    {{- if .Values.admin.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.admin.nodeSelector | indent 8 }}
+    {{- end }}
+{{- end }}

@@ -1,0 +1,2271 @@
+# Choose the components that prefered to create
+# CKAF is planned to be removed from BTEL in future release .Recommended to use CRMQ instead.
+tags:
+  btel_cmdb: true
+  btel_belk: true
+  btel_calm: true
+  btel_cpro: true
+  btel_gen3gppxml: true
+  btel_grafana: true
+  btel_crmq: true
+  btel_ckaf: false
+  btel_ckaf_schema: false
+  btel_cnot: true
+  btel_citm: true
+  belk-fluentd: true
+  belk-elasticsearch: true
+  belk-kibana: true
+  belk-curator: true
+
+global:
+  #registry: "csf-docker-delivered.repo.lab.pl.alcatel-lucent.com"
+  #registry1: "csf-docker-delivered.repo.lab.pl.alcatel-lucent.com"
+  #registry2: "csf-docker-delivered.repo.lab.pl.alcatel-lucent.com"
+  #registry3: "csf-docker-delivered.repo.lab.pl.alcatel-lucent.com"
+  #registry4: "csf-docker-delivered.repo.lab.pl.alcatel-lucent.com"
+  istioVersion: 1.5
+  podNamePrefix: ""
+  containerNamePrefix: ""
+
+belk:
+  belk-fluentd:
+    istio:
+      enabled: false
+      version: 1.5
+    fluentd:
+      # We are supporting three different type of kinds i.e DaemonSet, Deployment and StatefulSet
+      kind: DaemonSet
+      #When fluentd is deployed as Deployment or StatefulSet, below flag is used to scale the replicas.
+      #replicas: 1
+      persistence:
+        pvc_auto_delete: false
+      resources:
+        limits:
+          cpu: "500m"
+          memory: "500Mi"
+        requests:
+          cpu: "400m"
+          memory: "300Mi"
+      serviceAccountName: ""
+      service:
+        custom_name: fluentd-metrics
+        enabled: true
+        metricsPort: 24231
+      # This section is added to enable/disable fluentd forward service.
+      forward_service:
+        enabled: true
+        custom_name: fluentd
+        port: 24224
+      nodeSelector: {}
+      tolerations: []
+      fluentd_config: custom-value
+      configFile: |
+        <source>
+          @type tail
+          path /var/log/messages,/var/log/bcmt/apiserver/audit.log
+          pos_file /var/log/td-agent/non-containers.json.access.pos
+          tag kubernetes.non-container
+          #read_from_head true
+          <parse>
+              @type regexp
+              expression /(^(?<header>[^\{]+)?(?<message>\{.+\})$)|(^(?<log>[^\{].+))/
+          </parse>
+        </source>
+
+        <source>
+          @type tail
+          path /var/log/containers/*.log
+          pos_file /var/log/td-agent/containers.json.access.pos
+          tag kubernetes.*
+          #read_from_head true
+          <parse>
+            @type json
+            time_key time
+            time_format %iso8601
+            keep_time_key true
+          </parse>
+        </source>
+
+        <match kubernetes.non-container>
+          @type rewrite_tag_filter
+          <rule>
+            key header
+            pattern \sjournal:( \[stdout\])*\s*$
+            tag kubernetes.non-container.clear
+          </rule>
+          <rule>
+            key message
+            pattern ^\{.+\}$
+            tag kubernetes.non-container.json
+          </rule>
+          <rule>
+            key log
+            pattern .+
+            tag kubernetes.non-container.legacy
+          </rule>
+        </match>
+
+        <match kubernetes.non-container.clear>
+          @type null
+        </match>
+
+        <filter kubernetes.non-container.legacy>
+          @type record_modifier
+          <record>
+            log ${{"message":record['log']}}
+            type log
+          </record>
+        </filter>
+
+        <filter kubernetes.non-container.json>
+            @type parser
+            key_name message
+            format json
+            time_parse false
+        </filter>
+
+        <filter kubernetes.non-container.*>
+          @type record_modifier
+          remove_keys _dummy1_,_dummy2_,_dummy3_
+          <record>
+            _dummy1_ ${if !record.has_key?("host"); record["host"] = ENV["HOST"]; end; "UNAVAILABLE"}
+            _dummy2_ ${if !record.has_key?("system"); record["system"] = ENV["SYSTEM"]; end; "UNAVAILABLE"}
+            _dummy3_ ${if !record.has_key?("systemid"); record["systemid"] = ENV["SYSTEMID"]; end; "UNAVAILABLE"}
+          </record>
+        </filter>
+
+        #this filter is used for C API which remove "[stdout]" from log
+        #if CLOG Unified Logging C API won't be used, this filter can be removed
+        <filter kubernetes.var.log.containers.**.log>
+          @type parser
+          format /^(\[stdout\])*(?<log>.+)$/
+          key_name log
+          suppress_parse_error_log true
+        </filter>
+
+        <filter kubernetes.var.log.containers.**.log>
+           @type record_modifier
+           <record>
+                message ${record["log"]}
+           </record>
+        </filter>
+
+        <filter kubernetes.var.log.containers.**.log>
+           @type record_modifier
+           remove_keys log
+        </filter>
+
+        <filter kubernetes.var.log.containers.**.log>
+          @type kubernetes_metadata
+          kubernetes_url https://kubernetes.default.svc:443
+          de_dot false
+        </filter>
+
+        <match kubernetes.var.log.containers.**.log>
+          @type rewrite_tag_filter
+          <rule>
+            key message
+            pattern ^\s*\{(.+,)?\s*"type":.+\}\s*$
+            tag nokia.logging.json
+          </rule>
+          <rule>
+            key message
+            pattern .+
+            tag nokia.logging.legacy
+          </rule>
+        </match>
+
+        <filter nokia.logging.json>
+            @type parser
+            key_name message
+            reserve_data true
+            format json
+            time_parse false
+        </filter>
+
+        <filter kubernetes.non-container.legacy>
+          @type record_transformer
+          enable_ruby true
+          <record>
+            time ${ Time.new.strftime('%Y-%m-%dT%H:%M:%S.%LZ') }
+          </record>
+        </filter>
+
+        <filter nokia.logging.*>
+          @type record_modifier
+          remove_keys _dummy1_
+          <record>
+            _dummy1_ ${record.has_key?("kubernetes") ? record["namespace"]=record["kubernetes"]["namespace_name"]:record["namespace"] = 'UNAVAILABLE'}
+            tenant_msgtype ${record["namespace"]}.${record["type"]}
+          </record>
+        </filter>
+
+        <match kubernetes.non-container.json>
+          @type rewrite_tag_filter
+          <rule>
+            key type
+            pattern ^(.+)$
+            tag nokia.logging.default.$1
+          </rule>
+        </match>
+
+        <match kubernetes.non-container.legacy>
+          @type rewrite_tag_filter
+          <rule>
+            key log
+            pattern ^(.+)$
+            tag nokia.logging.default.legacy
+          </rule>
+        </match>
+
+        <filter nokia.logging.legacy>
+          @type record_modifier
+          <record>
+            log ${{"message":record["message"]}}
+            type log
+          </record>
+        </filter>
+
+        <match nokia.logging.json>
+          @type rewrite_tag_filter
+          <rule>
+            key "type"
+            pattern ^(.+)$
+            tag "nokia.logging.$1"
+          </rule>
+        </match>
+
+        ##Here is a sample for fluent-plugin-brevity-control
+        ##this plugin can be used to remove reduplicative records
+        ##for more details, please refer to CLOG User Guide
+        #<filter nokia.logging.log>
+        #  @type brevity_control
+        #  interval 10
+        #  num 2
+        #  attr_keys log.message, level
+        #  max_slot_num 100000
+        #  stats_msg_fields kubernetes
+        #</filter>
+
+        <filter nokia.logging.**>
+          @type clog
+        </filter>
+
+        <match nokia.logging.*>
+            @type rewrite_tag_filter
+            <rule>
+                key tenant_msgtype
+                pattern ^(.+)\.log$
+                tag nokia.logging.$1.tmp
+            </rule>
+            <rule>
+                key tenant_msgtype
+                pattern ^(.+\..+)$
+                tag nokia.logging.$1
+            </rule>
+            <rule>
+                key tenant_msgtype
+                pattern ^(.+)\.$
+                tag nokia.logging.$1.legacy
+            </rule>
+        </match>
+
+        <match nokia.logging.*.tmp>
+            @type rewrite_tag_filter
+            <rule>
+              key facility
+              pattern 24
+              tag nokia.logging.${tag_parts[2]}.authlog
+            </rule>
+            <rule>
+              key message
+              pattern ^\s*\{(.+)?\s*"event-type":.+\}\s*$
+              tag nokia.logging.${tag_parts[2]}.auditlog
+            </rule>
+            <rule>
+                key message
+                pattern ^\s*\{(.+)?\s*"message":.+\}\s*$
+                tag nokia.logging.${tag_parts[2]}.log
+            </rule>
+            <rule>
+                key message
+                pattern .+
+                tag nokia.logging.${tag_parts[2]}.log2
+            </rule>
+        </match>
+
+        <filter nokia.logging.*.*>
+            @type record_modifier
+            remove_keys priority, _uid, _gid, _systemd_slice, _machine_id, _transport, _cap_effective, _comm, _exe, _cmdline, _hostname, _systemd_cgroup, _systemd_unit, _selinux_context, _boot_id, _pid, message, container_id_full, container_name, container_tag, _source_realtime_timestamp, docker, kubernetes, tenant_msgtype
+        </filter>
+
+        #############################
+        ## prometheus config start ##
+        #############################
+        <source>
+        @type prometheus
+        #uncomment below line "bind" in IPv6 Env
+        #bind ::  #BTEL_ipv6
+        </source>
+
+        <filter nokia.logging.*.counter>
+          @type record_modifier
+          <record>
+              counter_value ${record["counter"]["value"]}
+              counter_mid ${record["counter"]["mid"]}
+              counter_object ${record["counter"]["object"]}
+              counter_id ${record["counter"]["id"]}
+              namespace ${record["namespace"]}
+          </record>
+        </filter>
+
+        #
+        # WARNING: Don't use the match directive here. Otherwise, the messages of counter
+        # cannot be processed further by other parts behind this block.
+        #
+        <filter nokia.logging.*.counter>
+          @type prometheus
+          <metric>
+              name meas_gauge
+              type gauge
+              desc "measurement exported via fluent-plugin-prometheus"
+              key counter_value
+              append_timestamp true
+              metric_expiration 300
+              group_keys mid, host, namespace
+              audit_interval 30
+              <labels>
+                  mid ${counter_mid}
+                  object ${counter_object}
+                  id ${counter_id}
+                  host ${host}
+                  namespace ${namespace}
+              </labels>
+          </metric>
+        </filter>
+
+        #############################
+        ## prometheus config end   ##
+        #############################
+
+        <match nokia.logging.*.*>
+            @type relabel
+            @label @NOKIA-LOGGING-ROUTING
+        </match>
+
+        <label @NOKIA-LOGGING-ROUTING>
+            <filter nokia.logging.*.alarm>
+                @type record_transformer
+                <record>
+                    @class com.nsn.cam.alma.own.api.event.UnifiedLoggingAlarmEvent
+                </record>
+            </filter>
+
+        #
+        # tag: nokia.logging.${namespace}.${type}
+        #
+            <match nokia.logging.*.alarm>
+              @type copy
+            #######################
+            ## amqp config start ##
+            #######################
+               <store>
+                   @type amqp
+                   host crmq-ext.btel.svc.cluster.local:5672
+                   vhost /
+                   user alma_mquser
+                   pass alma_mqpasswd
+                   key event
+                   exchange cfw
+                   exchange_type direct
+                   content_type application/json
+                   durable true
+                   <buffer>
+                       @type file
+                       path /var/log/td-agent/rabbitmq-buffer/nokia.logging.all.alarm
+                       flush_mode immediate
+                       overflow_action block
+                       total_limit_size 1024m
+                   </buffer>
+               </store>
+            #####################
+            ## amqp config end ##
+            #####################
+
+            ########################
+            ## kafka config start ##
+            ########################
+              # <store>
+                  # @type kafka_buffered
+                  # output_data_type json
+                  # buffer_type file
+                  # ssl_ca_certs_from_system false
+                  # get_kafka_client_log false
+                  # max_send_retries 2
+                  # buffer_path /var/log/td-agent/kafka-buffer/nokia.logging.all.alarm
+                  # brokers kf-btel-releasename:9092
+                  # default_topic alma
+                  # flush_interval 3s
+              # </store>
+            ######################
+            ## kafka config end ##
+            ######################
+
+              <store>
+                  @type rewrite_tag_filter
+                  <rule>
+                    key type
+                    pattern .+
+                    tag ${tag}.es
+                  </rule>
+              </store>
+            </match>
+
+            <match nokia.logging.**>
+              @type copy
+              <store>
+                  @type elasticsearch_dynamic
+                  host elasticsearch
+                  port 9200
+                  resurrect_after 5s
+
+                  type_name fluentd
+                  time_key time
+                  utc_index true
+                  time_key_exclude_timestamp true
+                  logstash_format true
+                  logstash_prefix fluentd-${tag_parts[2]}-${tag_parts[3]}
+                  reload_connections false
+                  reconnect_on_error true
+                  reload_on_failure true
+                  request_timeout 10s
+                  #Below commented lines are ssl properties. Please uncomment below commented lines when you want to use.
+                  #user admin
+                  #password admin
+                  #scheme https
+                  #ssl_verify false
+                  #ssl_version TLSv1_2
+                  <buffer tag, time, namespace, type>
+                      @type file
+                      path /var/log/td-agent/elasticsearch-buffer/nokia.logging.all.all
+                      flush_mode interval
+                      flush_interval 30s
+                      timekey 3600
+                      retry_forever true
+                      retry_max_interval 5s
+                      overflow_action block
+                      total_limit_size 1024m
+                  </buffer>
+              </store>
+            </match>
+        </label>
+
+  belk-elasticsearch:
+    istio:
+      enabled: false
+      # Health check port of istio envoy proxy
+      envoy_health_chk_port: 15020
+      version: 1.5
+    # When istio.enabled is true, network_host is internally fixed to "0.0.0.0"
+    #network_host: "_global:ipv6_"        #BTEL_ipv6
+    network_host: "_site_"        #BTEL_ipv4
+    serviceAccountName: ""
+    persistence:
+        auto_delete: false
+    elasticsearch_master:
+      replicas: 3
+      resources:
+        limits:
+          cpu: "1"
+          memory: "2Gi"
+        requests:
+          cpu: "500m"
+          memory: "1Gi"
+      es_java_opts: "-Xms1g -Xmx1g"
+      nodeSelector: {}
+      tolerations: []
+    elasticsearch_client:
+      replicas: 3
+      resources:
+        limits:
+          cpu: "1"
+          memory: "2Gi"
+        requests:
+          cpu: "500m"
+          memory: "1Gi"
+      es_java_opts: "-Xms1g -Xmx1g"
+      nodeSelector: {}
+      tolerations: []
+    esdata:
+      replicas: 2
+      resources:
+        limits:
+          cpu: "1"
+          memory: "2Gi"
+        requests:
+          cpu: "500m"
+          memory: "1Gi"
+      es_java_opts: "-Xms1g -Xmx1g"
+      nodeSelector: {}
+      tolerations: []
+
+  belk-curator:
+    istio:
+      enabled: false
+      envoy_health_chk_port: 15020
+    curator:
+      serviceAccountName: ""
+    
+  belk-kibana:
+    istio:
+      enabled: false
+      version: 1.5 
+      virtual_svc:
+        hosts:
+        - "*"
+      gateway:
+        existing_gw_name: "btel-common-istio-gateway"
+        selector:
+          istio: ingressgateway
+        port:
+          number: 80
+          protocol: HTTP
+          name: http
+        hosts:
+        - "*"
+        tls: []
+    kibana:
+      replicas: 1
+      serviceAccountName: ""
+      resources:
+        limits:
+          cpu: "1000m"
+          memory: "1Gi"
+        requests:
+          cpu: "500m"
+          memory: "500Mi"
+      nodeSelector: {}
+      tolerations: []
+    ingress:
+      annotations:
+         ingress.citm.nokia.com/sticky-route-services: $cookie_JSESSIONID|JSESSIONID ip_cookie
+         nginx.ingress.kubernetes.io/rewrite-target: /$1
+         nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    kibanabaseurl:
+      url: "/logviewer"
+      #Do not change cg(capture group) parameter below unless you want to change/modify nginx rewrite-target for kibana ingress
+      cg: "/?(.*)"
+
+cnot:
+   
+  fullnameOverride: cnot
+  istio:
+    enabled: false
+    gateway: false
+    # Add NET_ADMIN and NET_RAW to container capabilities (required if no Istio CNI is present; only applies if PSP is being generated by the chart.)
+    legacyCapabilities: false
+    destinationRule: true
+    permissive: false
+  rbac:
+    enabled: true
+  serviceAccountName:
+  
+  wildfly:
+    #ipv6Enabled: true        #BTEL_ipv6
+    ipv6Enabled: false       #BTEL_ipv4
+    https:
+      enabled: true
+      cert: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURHekNDQWdPZ0F3SUJBZ0lKQUtTRk5TYS9jTllPTUEwR0NTcUdTSWIzRFFFQkN3VUFNQnd4RERBS0JnTlYKQkFNTUEwTlRSakVNTUFvR0ExVUVCd3dEUWt4U01CNFhEVEl3TURNd09URTBORGt4TUZvWERUTXdNRE13TnpFMApORGt4TUZvd0hERU1NQW9HQTFVRUF3d0RRMU5HTVF3d0NnWURWUVFIREFOQ1RGSXdnZ0VpTUEwR0NTcUdTSWIzCkRRRUJBUVVBQTRJQkR3QXdnZ0VLQW9JQkFRQzJOQk54WUYxRGRuaE5jN3RKdFdtYjM5d3lDV2kyS2tNbEhFWlMKVlg0cjdHNTVzS1pFS2xzdkJiWnBPamo0NGJXQ1p6MXJUck1Eek1NcEN6WkphMnFBUDhDNFQ3ZzdwVXFDK3dDcgpLMStMc2dpcGxVbW5xNW53YXhVNDFPZUdpVHBPeS8wMy9HdEdvdkh4alVtYnQvR29HU2pDVFV3TzF6UGJCL2poClREcHpnZ3g1MzltTWl5TTFqcVlMMEhnUXdWTFBzZnlDUS9rSDQzOVNQVXY1cldQdUZSWDJ3MUttZDhWbGp1QnIKTlliMk51UktZeU8wMmUycWliMjF3VXZ2TnJtZXYrSDJ1L0R4TmNpTmlic092dmRSZzliZ1ZrNnZRZ0I1Q3JDdwp1VXRyNFRWZkVKVVNUODYxOEtBczJMbWpQdkJnU0lNKzErTDBITFZ5TzRUYmd3eDFBZ01CQUFHallEQmVNQXNHCkExVWREd1FFQXdJQkJqQWRCZ05WSFE0RUZnUVVZVmxDTzkzMHVHR3hXeG5mOU5FaHppZi9BcnN3SHdZRFZSMGoKQkJnd0ZvQVVZVmxDTzkzMHVHR3hXeG5mOU5FaHppZi9BcnN3RHdZRFZSMFRBUUgvQkFVd0F3RUIvekFOQmdrcQpoa2lHOXcwQkFRc0ZBQU9DQVFFQUR3MHVXWnl3S0hTV1d3SmZWa2NsUmN5Z1djVXZFM3MwWVR2am5tWXBRRDBGCjBKMkhreU9WZGVRRjYyNmloclh4NWNBd2NyanYrOVVzbzQ3UFhmWUtDMWl4YzhXKzhZcE1VMkRKMDd1eWhJaXUKL0taWEFhSVpUckk4WWNLMGZiMDd6OWdrRXRUblpLOC9LWE9tcEcwWklJU0tINmloUDZ0Q1J3Q2x0YWtNZ3NVRwpBVUlaZ0p0bCs3cy9qcHE5VFdLZmpUWHhaRGtyMi9PQ2JUWFpiVlZPVE1kQVp3NzlML2Y1cytTcjlUSWhyc1ZmCmVOWkpndkNvOGU4eFZReDFybUlYdFlKc2NsQlAxOTJtclNxV3BHUmdHaHBvSU5DL09tRTY5TE1MazFkeFBVOU8KcStVQ1BSaUlrRUR1UzFCa0JWbHBwNFJ5UTlOMGtBZVUwUUc3aDVKdEtBPT0KLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQotLS0tLUJFR0lOIENFUlRJRklDQVRFLS0tLS0KTUlJRGlqQ0NBbktnQXdJQkFnSUJBVEFOQmdrcWhraUc5dzBCQVFzRkFEQWNNUXd3Q2dZRFZRUUREQU5EVTBZeApEREFLQmdOVkJBY01BMEpNVWpBZUZ3MHlNREF6TURreE5EUTVNVEJhRncwek1EQXpNRGN4TkRRNU1UQmFNRG94Ckp6QWxCZ05WQkFNTUhtTnViM1F1WkdWbVlYVnNkQzV6ZG1NdVkyeDFjM1JsY2k1c2IyTmhiREVQTUEwR0ExVUUKQ2d3R2MyVnlkbVZ5TUlJQklqQU5CZ2txaGtpRzl3MEJBUUVGQUFPQ0FROEFNSUlCQ2dLQ0FRRUE2b0U1ZXpSagpIbmhCRFNEb2l6Wit5RllYOHRUcG9wM1FDa001Y2Faai9kK0M5YzFxNzU5Z2ViZjcwbFdMejJiVmlJdE8rR09pCnQzUmtaYlozNHFMQ1grRXhNZ0c5UGJNRkY3M3hFbXRFTVR6a1hGaTVOd2J3NXJVT2tuSmJNc1dEU0JyNEs1UEwKTjdWRHRyUFNhck9mY0lST3ZnL1RJWU5QSDFtWjJDeC93ektlSEkxd1pIeDRKN0xCRGJOQnhyMy9ibEpNVjVxSwpab2ppVGVzNjVhelhQY1dhczBUVU1rNmwxcW91ZkFlVElIUmMrTTNITEJOeWZFU1RvK1dEYlJtcTdrY0FiWTZyCjNCbGdYNXFrd3kyYnkwOFo2MDZyanNTSWFaV2FkWVFrVDZTeExuQmFFeDJtTmRMNTAxTjZtd052ZTEyaUdQaTgKRFZXWW41U2ZnZSs2RndJREFRQUJvNEc0TUlHMU1Ba0dBMVVkRXdRQ01BQXdDd1lEVlIwUEJBUURBZ1dnTUJNRwpBMVVkSlFRTU1Bb0dDQ3NHQVFVRkJ3TUJNRVlHQTFVZEVRUS9NRDJDSG1OdWIzUXVaR1ZtWVhWc2RDNXpkbU11ClkyeDFjM1JsY2k1c2IyTmhiSUliWTI1dmRDNWlkR1ZzTG5OMll5NWpiSFZ6ZEdWeUxteHZZMkZzTUIwR0ExVWQKRGdRV0JCUXdyZ0Y5T3dUZUxUZWFOUnhOMUhjQkY3OUNoVEFmQmdOVkhTTUVHREFXZ0JSaFdVSTczZlM0WWJGYgpHZC8wMFNIT0ovOEN1ekFOQmdrcWhraUc5dzBCQVFzRkFBT0NBUUVBRnk4d0lVQkNkejNtbjBwMUpvdVY1eVNmCklzOFpzQVNIaEVtT0V6Y3BvOUFETkhZd2hmZ240ZnROY3puSE9zNTlZdkpOSXJpTGpHN29ER3B1KzdYbWxFeHMKK0tWMjhXU0hwdXViUmZpVVpVbDd3dnlUMjczaDV6K1hxVkdXN05WSEs5MmVUenJ1ekRhSlRnT3Zza1RnUldzZwpJbGNKZndGMjRYNnlINURBR0JGOW9hbjdVMTBpakg2RCtTV1hMeGdCMU85RUpLQVU3K0c3SkdNbUJEcnM0YUVmCm1HZ29GNFBVMTBWQ1NaNmRZZ2lNMFlGeWVxRXllNlkza0VQODhsNm5lWDVrbDMvY0xvNHo4dHVjT3J2VzUvN0wKaGY1aWNucUxwdUN1VGM0TVQydFk5N0VqQTIvNVNpL1I3alVUeEF3L0Q5Z1RUYUtVbnh2OW5ubmxUNWtUeUE9PQotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0tCg==
+      key: LS0tLS1CRUdJTiBSU0EgUFJJVkFURSBLRVktLS0tLQpNSUlFcEFJQkFBS0NBUUVBNm9FNWV6UmpIbmhCRFNEb2l6Wit5RllYOHRUcG9wM1FDa001Y2Faai9kK0M5YzFxCjc1OWdlYmY3MGxXTHoyYlZpSXRPK0dPaXQzUmtaYlozNHFMQ1grRXhNZ0c5UGJNRkY3M3hFbXRFTVR6a1hGaTUKTndidzVyVU9rbkpiTXNXRFNCcjRLNVBMTjdWRHRyUFNhck9mY0lST3ZnL1RJWU5QSDFtWjJDeC93ektlSEkxdwpaSHg0SjdMQkRiTkJ4cjMvYmxKTVY1cUtab2ppVGVzNjVhelhQY1dhczBUVU1rNmwxcW91ZkFlVElIUmMrTTNICkxCTnlmRVNUbytXRGJSbXE3a2NBYlk2cjNCbGdYNXFrd3kyYnkwOFo2MDZyanNTSWFaV2FkWVFrVDZTeExuQmEKRXgybU5kTDUwMU42bXdOdmUxMmlHUGk4RFZXWW41U2ZnZSs2RndJREFRQUJBb0lCQURubkNvQm5ZUW9HKzFqNApoVExLaytkM2lwWkZDQ05GQURkb2ZlaVlBeHlPY2RHcmxQbnh5bXFEaVVSWUp4dGc4dHl5T1IrUHluK3QxNVJkCng2QklPK0pjd2o3c3V3TmZEcVRjRzRoR3dDSEFQVXFvQmFPV3JTanFEOTBOSzRPUHpXaWljQ0NpYjQwanpzSncKQ0VhY2I0UGl4MmFhbGJFeXNQaTJzUXYxZ041N1NoWTlGMjFJemxEcUlZNzZIVW1HTjNwUkxuUkNnSitiMmwvVgp1UjJENzBIcW1Zc1F6YWpjOUNIWlJHV0tVZGFmYTRrN3JIVHV6bWZuVlpRVGJaNnpMWmFuMDJBKzliQkhkV2d5ClIxTnZSNWxwYXBsTVNHb1Z1Wm9hT2xwdkRUNjU2aWFnbXFWZzVXOUhBcTRIQm5BVE02RmlONGZTWnN3dWI5NmIKOUpQMDdpRUNnWUVBK1o4UTkzMXNXOTB2VWQ3b09OcitCWUQvSlgwT1dmVU5XdVUyWW9lOWdTUFVqNXNOMk41QQpWSldXZ2VDck1wTWJqK1M2VlB4ZjBycCt1R04xMDZVNDllK3RxOUsxcWFScFRCamNmcUFlU0M4QnJhY2pnYk5lCnBhcnI2R2FEUVRkUEMwOUtNYWhmUGxRU2xONzhzZTN2OStCeXJ2cEh5Rmx5bmM0VCtvTENiT2tDZ1lFQThIOUYKWkdUVUlKRWdoUmVDM0ErYklhQitBd3ZEdENDcWkrQU5JejFNSDk5Z3hlY3F5ZkdFMjJudkIvaC9lZEZTVC9hUgplVE5xU3ZOREdKeDJIVWo5QlRSdGtsMStBMFlRM3dnUmwybTcrR0dZRDgxNUFLLzhUc1JNS1FQUDhlZjRXK3VTCldNdUJwTmw4aHV0anQ2TGt4V1ljNVJwTFdJZkszb1A4cjhGOGp2OENnWUVBbEc5bFRIWTF5RTYzdzh4MGROS3MKZVNOakZhek9xdW1RZm51TW9ueXJVSzY0eUloZ2JKU0Uxb2Q1VDFRRkdYYm16ZU1xZGp6NDBqdDUvVFdQckVJMApvL0paYUxKTXVrcjlIbll1TDlJUkQ4VjhEd0l6bC8zTWkyRWZGVHhZVXFDTURXS2g4UE41WjN2ZzdNdklvaG1tCk45VXMvU1h4SjQ4aEcvdWVYN24vMlhrQ2dZRUFzbnpTaEdyc29HcjFKckhIVmdsakNmYng3dExKWVNNcFQveHQKNDZ4M2xlUVVEMnk4YmZvSXIwc1VzdWF6dlRZa0QrS2dIc0tRN2FWVE02M1RYM0t2RGpEVjdWM2p5d3d5TTBUcQp3V1FndEh2Qi9tQnhvSmY3K24xblJMMW1sRk9rR0p4aUZmS2JlanhMVmxyV3ZCQnlGeXJzNFArOTBhdWVYYnk1ClNidWc5UU1DZ1lCSlZGVXJmeFZMQnJyOE5tNkhLZ3J2WmI2K0FNVm1GYzNRUzYyQjV6empkdjh3M21tNndvWE0KUWFvTU0yNDBqSTQwU3NYWHF2aDRVb0twKzA1RjNJcllLemFuZlUxVDdYek40cjlVNUNveUhjREIrTFJsL1ZOdgpRTCtBMHFZOVV0S3pqMDlXcEZzOEtFSCtuNkF6Uy9OeUJHaDNlMFpodlVORUV4VGhOWnpXYlE9PQotLS0tLUVORCBSU0EgUFJJVkFURSBLRVktLS0tLQoK
+      applikeystorepass: dGVzdDEyMzQ=
+      vaultpass: dGVzdDEyMzQ=
+  cnot:
+    replicaCount: 1
+    resources:
+      limits:
+        cpu: "1"
+        memory: "1Gi"
+      requests:
+        cpu: "500m"
+        memory: "512Mi"
+    service:
+      #annotations:
+        #prometheus.io/scrape: "true"
+        #prometheus.io/scheme: "http" 
+        #prometheus.io/path: "/api/cnot/v1/metrics"
+      servicePort: 80
+      servicePortHTTPS: 443
+    nodeSelector: {}
+    tolerations: []
+  cnot-configmap:
+    cnotFiles:
+      app_conf.yaml:
+        CHANNELS:
+          ALARM:
+            servers:
+              - id: AlarmServer
+            default: AlarmServer
+          EMAIL:
+            servers:
+              - id: SMTPServer1
+                host: localhost
+                port: 25
+                auth: false
+                userName: user1
+                password: '{2-5590228828990040}oIZvbnI='
+                from: from@nokia.com
+                to: to@nokia.com
+                sendAsHtml: false
+                tls: false
+                starttls: false
+                trustCert: EMAIL_SMTPServer1.crt
+                description: one SMTP relay server
+            default: SMTPServer1
+        PROFILES:
+          - id: ProfileForCPRO
+            channels:
+              - type: ALARM
+                content:
+                  - filter:
+                      location: $.alerts[*]
+                    transform:
+                      alarmId:
+                        selected: $.labels.id
+                        required: true
+                      alarmName:
+                        selected: $.labels.name
+                        required: true
+                      alarmSeverity:
+                        selected: $[?(@.status == 'firing')].labels.severity
+                        default: CLEARED
+                      alarmKey:
+                        selected: $.labels.key
+                        default: ''
+                      alarmTask:
+                        default: NOTIFY
+                      alarmText:
+                        selected: $.labels.text
+                        required: true
+                      alarmEventType:
+                        selected: $.labels.eventType
+                        required: true
+                      alarmProbableCause:
+                        selected: $.labels.probableCause
+                        required: true
+                      alarmData:
+                        selected: $.annotations.description
+                      time:
+                        selected: $.startsAt
+                      host:
+                        selected: $.labels.host
+                      system:
+                        selected: $.labels.system
+                      systemId:
+                        selected: $.labels.systemid
+                      extension.source:
+                        selected: $.labels.source
+                      extension.Enterprise:
+                        selected: $.labels.namespace
+          - id: ProfileForCALM
+            channels:
+              - type: EMAIL
+                content:
+                  - filter:
+                      location: $.alerts[*]
+                    transform:
+                      subject:
+                        default: AlarmNotice
+                      text:
+                        template: EmailTemplate1
+                        variables:
+                          alarmId:
+                            selected: $.labels.id
+                            required: true
+                          alarmName:
+                            selected: $.labels.name
+                            required: true
+                          alarmTask:
+                            selected: $.labels.task
+                            required: true
+                          alarmSeverity:
+                            selected: $.labels.severity
+                            required: true
+                          alarmKey:
+                            selected: $.labels.key
+                          alarmText:
+                            selected: $.labels.text
+                            required: true
+                          alarmEventType:
+                            selected: $.labels.eventType
+                            required: true
+                          alarmProbableCause:
+                            selected: $.labels.probableCause
+                            required: true
+                          alarmData:
+                            selected: $.annotations.description
+                          time:
+                            selected: $.time
+                          timeZone:
+                            selected: $.timezone
+                          process:
+                            selected: $.process
+                          service:
+                            selected: $.service
+                          container:
+                            selected: $.container
+                          host:
+                            selected: $.host
+                          system:
+                            selected: $.system
+                          systemId:
+                            selected: $.systemid
+                          source:
+                            selected: $.labels.source
+                          namespace:
+                            selected: $.labels.namespace
+                      from:
+                        default: someone@nokia.com
+                      sendAsHtml:
+                        default: false
+                      to:
+                        default: to1@nokia.com
+
+    cnotOutboundTrustCerts:
+      EMAIL_SMTPServer1.crt: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUM3ekNDQWRlZ0F3SUJBZ0lKQUxLV2dyWnRqc2xpTUEwR0NTcUdTSWIzRFFFQkN3VUFNQTR4RERBS0JnTlYKQkFNTUEwTlRSakFlRncweE9UQXhNalV3TXpVeU5UWmFGdzAwTmpBMk1USXdNelV5TlRaYU1BNHhEREFLQmdOVgpCQU1NQTBOVFJqQ0NBU0l3RFFZSktvWklodmNOQVFFQkJRQURnZ0VQQURDQ0FRb0NnZ0VCQU1GeEVBMEQyZXpBCm5SK3gwWU1jRFNmVUlKU0l3aS9SbWYxcWtjUVVDZm9rWFNuVWVnL0o0TXErRElyZEpQcXRLSVdFT0hMVmdUZUEKTFRxdjRkaHJ5V0lvRVNhY0U1YVN6VzhRRFRubUlrNEMyamZHeVZubTlzK1pleEMvUXZ4eGNHUldhSVl5Nm1kWAo0dVArbWNVWXJxUm1yUnhZUzQwek53Z3ZqcnRUZ3ovM1VVMk9XSENpU3M2RVJueTM4UVhLeWFVSEUrT2RXeWIwCkI5azViVzl2OERCZENwS1RCaGhjeFMwWndDN1o0TVFZQ0RqNUJiRGZzWldxbzdvTU5NUEJsd1FvUzg3WUpqZ0QKOXh2RmFiWkE1K0prZW4xdnNpNkNRV3VPSXplSTZNNkVVUUp2T21mcFFzUWlHRHg4eS9FSFM1cEYvS1JtMVZ6agp5L1Y2emp2YWk4RUNBd0VBQWFOUU1FNHdIUVlEVlIwT0JCWUVGREc1UmZyNk1iUXFYUFl6VkN1RzdrU0pLMUp4Ck1COEdBMVVkSXdRWU1CYUFGREc1UmZyNk1iUXFYUFl6VkN1RzdrU0pLMUp4TUF3R0ExVWRFd1FGTUFNQkFmOHcKRFFZSktvWklodmNOQVFFTEJRQURnZ0VCQUJ2VHhYUGFBRmV1UzNvdzI1ZTJ4UzlpM21pcnl3WmtGY1dxcW1nYQpKV2pvejNydnQ3VWhZNFNJb2NFN1ZnandLYWNhY1pPQTc2eTRsTXJsUDV1RVZDTUNTNTdiZ3Jrdks5OXl0WmQrCmZJMDVzTVo0TEhkWlRBQVBybjJ2QzJSUjk1Z0tKbURUTXdnaCszWTFQRUtyTExyWi81VHlZK0R0c2dMM3gwaHYKVW9SaW1jT1QyTWMrQUlLd1YxSEsyM21WMzlwZFhwQWxPUnhhNVNnWGtBZWh5TUVqaUNSYk9mZXc4VEFwL0s1TQpQWmplSzF0eko3QXNCQzJjTDBKWXJ0cjdEMFZtVGh2Rmp2bGNJS1U4Z0xHeE5IUkU3ZXNSRk9kSUVFdUF1OUlKClU3d3MrbXJpK3RwQUhHdjBTSktwaEpVNkU5bjJ4V3p2Y1pUcnpoeWxFTVUyTFFBPQotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0t
+
+
+calm:
+  maxActiveAlarmCount: 1024
+  rbac:
+    enabled: true
+  istio:
+    enabled: false
+    inject: true
+    cni_enabled: true
+    permissive: false
+    ingress:
+      enabled: true
+      host: "*"
+      port: 80
+      selector: {istio: ingressgateway}
+      uriRoot: calm
+      gatewayName: "btel-common-istio-gateway"
+      tls:
+        enabled: true
+        port: 443
+        tlsOptions:
+          mode: SIMPLE
+          credentialName: calm-credential
+  ha: false
+  #servers: 2
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 250m
+    limits:
+      memory: 1024Mi
+      cpu: 500m
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  #logLevel: DEBUG
+  alarmAdapterClasses: com.nokia.csf.calm.adapter.QueueBasedAlarmAdapter;com.nokia.csf.calm.adapter.SnmpNorthboundAdapter;com.nokia.csf.calm.adapter.CnotAdapter
+  
+  ## MariaDB Configurations
+  driver: org.mariadb.jdbc.Driver
+  ## Only need to replace the IP address
+  ## url: jdbc:mariadb:failover//135.1.238.108:3306/calm_alma?socketTimeout=10000&useSSL=true&enabledSslProtocolSuites=TLSv1,TLSv1.1,TLSv1.2&trustServerCertificate=true
+  url: jdbc:mariadb:failover//cmdb-mysql.btel.svc.cluster.local:3306/calm_alma?socketTimeout=10000
+  ## url: jdbc:mariadb:failover//135.1.238.108:3306/calm_alma?useSSL=true&keyStore=/tmp/mariadb.keystore&keyStorePassword=kspass&enabledSslProtocolSuites=TLSv1,TLSv1.1,TLSv1.2&serverSslCert=/etc/alma/mariadbServerCert.pem&disableSslHostnameVerification=true
+  user: alma_dbuser
+  password: U2FsdGVkX183WC8sB+xuoqDtewFZjha+YyR70TUbv5Q=
+  passphrase: mypassphrase
+  mariadbClientKey: |+
+    -----BEGIN RSA PRIVATE KEY-----
+    MIIEpQIBAAKCAQEA01FXQ7ItSD5zsKZ/Hw1aIwGeuf6PhI79CtaHcU8RrKAd7zBD
+    oqc8p89dWOIfsn1E/lVlG1zvFfpgNgtPzeNnzJVLvIZJAzAm0jJtXaxYDnKiLrR9
+    hzNeJXuLgp6FYjaXllY2VRVuX+3XX6IGle5olazlte/k+kHBUuOLlUbei8HqVCRF
+    fp+UWkWz85u+QrQlz/EmfB/O8uZ4LJmO6yBDyB123gRyVmi/7c9jIyVclz9+f2uu
+    3jo0Eg5NMuRKkHv8Hh8v9Nx0FrIaz/yr3MX2wqzVuVbEQXYbvXkdzvjyzeswNDEP
+    bO1ER5efTQlIIpAqIe5Iz0phyT7tbh1OM7EiDQIDAQABAoIBAGBDuswk/AngIVXE
+    0z4zF+/Aii1SsNCDTvTD+9l7WqLYIirXQshzBOexSGX4RNZLyMVP44pOkL/jWjbk
+    ekthn+SL0n+kcNhZ9CVnQXkdzNNwFz/Niy2vEeFjYY90ZXDzS6T5yzCBXdGniKiR
+    KAzfGZettstl6Fq037vB2tF7AmCJdrrVNP4uM6QPt/sHNsjyOe7espDK71wQJYfO
+    NiIo/WGqw5MTD0AFWdtX91EU4mgUzIVM67UDpCsq6PcRXSIaMlSTu8UlVpk4z2Wy
+    S4PGoQr3F8HyRXnZc+8rmKnhFYOPoH60OSp0WbeS68BKHmOXhlLVE4bIJqZyfwoD
+    H17Ae8UCgYEA+BbxsxHlX0/QqkGcyiJ57cDgvBMnvJ+ZVQ+dI6+e9fLFuupN/Cbn
+    7x4FOH7a+RkfTvuBQ6GAbCiIViYsO5s05VYmHjyq17+YEWShlos3x8kGCKPzs4NC
+    brDt3dZc6waHGNgicAWw3SwI/oO9RVMDKg6mLy2TyE2Js/EL7q6RyksCgYEA2g4+
+    G0ZctZd3YOCSi1c517zPN8fEedB9HdTiBrc4jz6l9+iCNnc3rII5Sj972AHOjG5E
+    6JEU1byDfFyoqAolV/Fc4p6JgR58zeolJWd9C0gpPAPeUv/O32ukaxS+2WRyBlgq
+    pWq9FT6w7KVEThUnKr2Hyl4e/mc65rQKFM8djgcCgYEA4qYLgF4sICxJ5RF2TVC7
+    9dKNPiV92xwvt/9Av1Z1shpuPHpMbr2YjOLvQBLcuFAUQ1MQYBoOukE5dQMAzB/a
+    bl6LCnrAVcSrB9DYszFS74meoowuW2Tibz/iwBVT5D+dcrwakh8Q2q6dNPBkHQ5e
+    yLCDcHyCE6+Ky0K/dPo1JQsCgYEAvwI65Sl9jJRhvjr6I5UE1jZOTk5vjUVUVA1m
+    8PsOUGxQdhj19z/3ROXNyXxSv6TVia4OLqrn1VKM2yNPmeNJUv/anajCSpiqOrYg
+    U+OTZY6QkEHTPmFWld9051gE1elm+KfCs6QMfc+sq58ZdkyRQp9Dk8Fe5PsIXY7Y
+    ReInwYECgYEA235JYikuSCBTjZpPfIrRge1MKMN+PaEzVsdGj++Gcx2ut8xU8Pio
+    UikLtRWq+yuskL68zT8WgAlzwbYcwMrmiU96YUdGhKx5OSBiktrTvni21hV7eqXK
+    dz8cjtcvl6JdGlWjW3swf7DUsC80YpDgLmKv0ibg8c61e45NLJSCBPQ=
+    -----END RSA PRIVATE KEY-----
+  mariadbClientCert: |+
+    -----BEGIN CERTIFICATE-----
+    MIIC7jCCAdagAwIBAgIBAjANBgkqhkiG9w0BAQsFADATMREwDwYDVQQDDAhNeVRl
+    c3RDQTAeFw0xODAzMjIxMDA4MTFaFw0xOTAzMjIxMDA4MTFaMDExHjAcBgNVBAMM
+    FXl1bWwtdGVzdC5sb2NhbGRvbWFpbjEPMA0GA1UECgwGY2xpZW50MIIBIjANBgkq
+    hkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA01FXQ7ItSD5zsKZ/Hw1aIwGeuf6PhI79
+    CtaHcU8RrKAd7zBDoqc8p89dWOIfsn1E/lVlG1zvFfpgNgtPzeNnzJVLvIZJAzAm
+    0jJtXaxYDnKiLrR9hzNeJXuLgp6FYjaXllY2VRVuX+3XX6IGle5olazlte/k+kHB
+    UuOLlUbei8HqVCRFfp+UWkWz85u+QrQlz/EmfB/O8uZ4LJmO6yBDyB123gRyVmi/
+    7c9jIyVclz9+f2uu3jo0Eg5NMuRKkHv8Hh8v9Nx0FrIaz/yr3MX2wqzVuVbEQXYb
+    vXkdzvjyzeswNDEPbO1ER5efTQlIIpAqIe5Iz0phyT7tbh1OM7EiDQIDAQABoy8w
+    LTAJBgNVHRMEAjAAMAsGA1UdDwQEAwIFoDATBgNVHSUEDDAKBggrBgEFBQcDAjAN
+    BgkqhkiG9w0BAQsFAAOCAQEAEQM+e+8peUh49cdpKCxsGKShkcSw8DOPWbTb26Z2
+    6jS+gE2XhWvvP2qk6i/A0SLvFtpPC2sf+cilA9ZonrH08jQAy/mw0spzG41lQ7Ir
+    nE9jklhKrb8azrorNXMsYI7D7wKhGX4oL8aq7UND2A0cxQhYRvIg9pn/DIFiSAY4
+    O4AyB2JqwBJRj7Wvgymtfqc1QVhuQD+iAUGcfBMZQctbpiQqZKi4wyzj6AnEn+pI
+    3fGCSzLXVZlN2m4aXbhzRZd4mok1YcTa1yalxJymMoguakpzVGNO1UXyPQIXxeQH
+    kJdafMTyYWPXygCdsaSHeggbr6oTpwd395bsA7lcE6d6xw==
+    -----END CERTIFICATE-----
+  mariadbServerCert: |+
+    -----BEGIN CERTIFICATE-----
+    MIIC7jCCAdagAwIBAgIBATANBgkqhkiG9w0BAQsFADATMREwDwYDVQQDDAhNeVRl
+    c3RDQTAeFw0xODAzMjIxMDA2MjlaFw0xOTAzMjIxMDA2MjlaMDExHjAcBgNVBAMM
+    FXl1bWwtdGVzdC5sb2NhbGRvbWFpbjEPMA0GA1UECgwGc2VydmVyMIIBIjANBgkq
+    hkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1/rzylTcz2zSC2764zAthjrtgiV3jd8G
+    4LwpuXVVnv30ZUnXPdbk7KPlujrEBxbuxxtia/9hpYUTj5JtQk32sj2wPh5CmZOd
+    FgstDqtz/oSpCWS31itef+szuKFzNzjNA7VSN/f1e7DQE8fCUT4iVyIQZuDlS6kb
+    MjonNMgdy7RfXmavsGeUt3Kwzptx1VwIDHeUTi97ENrB+bn6MG2orjhAvQLatIFK
+    GtJdt4oU8UvJ9eGBEwqcgxLeJz8F6Hs9RSYE3P+6s8KNi21hedI6gd6oS5u0zqGd
+    B/XoCtadPde2uMv9/NkvU9sLvK0EATw2wnwp1dsmq3g/CWMiAapXJQIDAQABoy8w
+    LTAJBgNVHRMEAjAAMAsGA1UdDwQEAwIFoDATBgNVHSUEDDAKBggrBgEFBQcDATAN
+    BgkqhkiG9w0BAQsFAAOCAQEAKEK+NEJw3AyrDaeScnvccyBUXiEMG6eMkHXpMB0W
+    PhQ7+MapQINL19HrVD3ZI9BDvP9Ky5+/z/7HrLB0ctVpDozKiGpUHPySf8qqlmdM
+    qWNpvEI4Ye0yklWYMitHwP5CJDbF7jRIyotAb7II70HoDRsRJT9V3sDyTyYEX4rz
+    6Mkxeds1t2WMau3WEevFTUNEgH087nCWIEN66iF1O6AnABRYdY2S2QxMBQE8NJhm
+    +7cxmlNTBFmxCrUxsdIzQxUG1NjWHKgL5j81HOMHNHPE6fCT7OaDJKtJ9C5mW0Uv
+    Q0UOKsIFlo/dfiRdVURaucPmtX/4zv6o3jRvBbUMxpSMTQ==
+    -----END CERTIFICATE-----
+
+  cnot:
+    serverURL: https://cnot.btel.svc.cluster.local:443
+    passphrase: 123
+    truststorePassword: U2FsdGVkX1/UUuEvaXgKlezzLkQ2bOUoGenreyH5RFQ=
+    enabledSSL: true
+    base64Truststore: |+
+      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
+
+  messageQueueType: rabbitmq
+  #messageQueueType: kafka
+  kafka:
+    zookeeperServerUrls: zk-btel-releasename:2181
+    topic: alma
+    bootstrapServers: kf-btel-releasename:9092
+    enabledSSL: false
+    passphrase: 1234abcd
+    keystorePassword: U2FsdGVkX1+UNn8nwyHwLxtZt8yEmsyIsoPWcWFmrj8=
+    truststorePassword: U2FsdGVkX1+UNn8nwyHwLxtZt8yEmsyIsoPWcWFmrj8=
+    base64Keystore: |+
+      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
+      xDTRDbKIT+w1WvneSlc2fb1ihbEx
+    base64Truststore: |+
+      /u3+7QAAAAIAAAABAAAAAgAGY2Fyb290AAABZoYn8iMABVguNTA5AAADfzCCA3swggJjoAMCAQIC
+      CQDXByqQwcsj6zANBgkqhkiG9w0BAQsFADBUMQswCQYDVQQGEwJDTjEQMA4GA1UECAwHQmVpamlu
+      ZzEQMA4GA1UEBwwHQmVpamluZzESMBAGA1UECgwJTXlDb21wYW55MQ0wCwYDVQQDDARZdW1sMB4X
+      DTE4MTAxODA3NTA1NloXDTE5MTAxODA3NTA1NlowVDELMAkGA1UEBhMCQ04xEDAOBgNVBAgMB0Jl
+      aWppbmcxEDAOBgNVBAcMB0JlaWppbmcxEjAQBgNVBAoMCU15Q29tcGFueTENMAsGA1UEAwwEWXVt
+      bDCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBANu7LmJkjxV53dwjfUxMHRxB66BehFoU
+      6dShKfjQ4jC6qLNix2AWv47kVtKhpLZg1KHyjYBC2oHVnF/fPLbcOFZktdAzZWAtuwx8X1bxqfbS
+      1ylh75zDMe6uc1GKuvns9HEfbXqf6UKAfdTZOy3O7M9dWmD1w00YXVyYvpAiEwyNIEz/Hxxo4wnG
+      sdRK6XbUcKp+LF5Mq74IuZzgJMw3NjSnfO/i8ewnHHuVJH75FIE/CoEDz9ulaU3wmS0qqXbS0+hU
+      lQK5yzfGVI7gOjhir58LhEKduK8Fb+fNmbVC8SfdF3/aCJ0XDgsurXRgL1iCfGntwQv6u5xjdsc1
+      WCy3JncCAwEAAaNQME4wHQYDVR0OBBYEFIyIW44LifVXfi0iBNUJ/BaiCLLYMB8GA1UdIwQYMBaA
+      FIyIW44LifVXfi0iBNUJ/BaiCLLYMAwGA1UdEwQFMAMBAf8wDQYJKoZIhvcNAQELBQADggEBADWP
+      uL8nAcRdjjbktXG+6caY/3Df6cYBcz4wuahnF+UCIoIvK43wqHKg8AWG/2+eJE/LfYet0yBRfEe0
+      juyztZi3orfJFVe/vNWg1dL+z8UKEbkUeSV4WfIxFWCLb0yBK+5Ts7D55g363CUv7JcdZWjgcF7s
+      dIRIla2FQGeBR5eRrVg0PZ+ceQJwzVQoPXG13pDMFoG+u6vwrQjPHUXohT6YRD/I+mGAZDMJx8aN
+      HmxfSGFx9MZZH6AkIsupq+WKdatkt9We6HeA/96YVNKzppSoL33QuIaOK2T/W1iqPm36LlpE1Kf3
+      LbwTjcCWV/1RJzO8ZtvP58nY5iWij24TwMQIMKtLgLKAqYoAfi4TzC8TMI2AeA==
+
+  mq:
+    username: alma_mquser
+    password: U2FsdGVkX1/bTESXuu0ktuHaXfeX376bt1Eocz4Kwlo=
+    passphrase: mypassphrase
+    hostname: crmq-ext.btel.svc.cluster.local:5671
+    enabledSSL: true
+    vhost: /
+    exchangeName: cfw
+    routingKey: event
+    queueName: alma
+    encryptProtocol: TLSv1.2
+    clientKey: |+
+        -----BEGIN RSA PRIVATE KEY-----
+        MIIEpQIBAAKCAQEAzNzs+Lw/LaxphmdlBdMetxtLBIyn9RGVXAhSBG/P8rpCubA1
+        N+Fz2Um2A19vZXOjBm/Rm+Ymf1JkQBTsQSDKPEZdHBBWymQ3jr5F3tc/NKO13q87
+        6M4m1SKf0tLBr2ZbxgsYTs6mzs1pUxhE38FwdR1Xaw36sQs4zJCkPuJbBKZgeJgd
+        8ysHZ5rAxR4W5Zo5wyiNDHxcosoxJ/tFVLWzbViKfCasPaeP54f4faaG9/B65zyL
+        6Sk7k1zGSxD/mZiInx67JXaQZp4QE8Te1qF2uD2YD3BhW+oxlXBC4jwRZcQB/k/r
+        j8dVDDX8MgBNzL8DStqH1z34mzUVqwJQpSXjVQIDAQABAoIBAQChMaioYv7XQlVZ
+        8xszRRZi/2+8qawykd5TJxzZ7tzR4atFDpghWx1buLsl1j8BtcZt9ygYIjTidAL7
+        xTrMWC+o07jJrzWLVOW+RIsXt4g9NB+Tk5BxM1ys0eyt5zWNfN3za6F5yPLJwCkC
+        wBLZeQyyqh6x1rMOAYV0uM7zyAnUEmletdgpAlS4Dl2HJfxH/bkScf7yieHM1w8n
+        CYsIlOXs/+gCZvW3wq3s803/SPmCWoTba7ruzMegNd/+uKH1QCCwLLXzAusG8hVR
+        RcJFqtVl3jNzWCvyt4Uw+XQnUGOX+gjnfl/rrDYwS7zOhzxczTwSKpSqAbpPafxU
+        cpt+L/z1AoGBAOjwL3U90EqNylw0YNq9upkFai/vLIh85eaN+DtoLslHMX7hAX9A
+        JJrMvsClQzYhPNFw77tw9Mfmxu4DeD+MXkgzClMLe1amzGZ8oCY/t7PslTWw5DRB
+        r3eHmiWtnoOqMPt+ZeVEwHSoWn91+a5oNzAtFMLF4tdDgHPgP8qCzXjTAoGBAOEl
+        LI95mvLkO+JpJ8YvvLZ9TNm1b+/WAAhYllzGQbVLHQl6z+gGqLQVIqcAJKQcMtHH
+        RtSY6XFAZzzmg7FXumS4cgFPR6wj2LDWMO5Jl4KaJ5Nx4Dtx+R4Vpaz3WhPou4QI
+        PtwCy0EsfVdwwpnK6y2bDSEPejxWoHkIMyRbJpo3AoGARlCSktqI8KhiiHjLL9yL
+        4jsvNa8GC2FgaLs8TnqBfQK/nyQ+tnHfWtcpUa/RXRqlaDemNje/vEQekqR7fPtb
+        ToIRwMW7gomxM9K06TbctjRZSi7OhDO7yuIlFvCU4/vQ82nRSmb5jX1wa/9p0krl
+        Nea12KGxeveGY/QybWgUrD8CgYEAyqLzpTp03FHRGCk+tCB4/+JsjbHASqNYKirZ
+        QizqLOqq+sI/Z3y+0D4JjzcQw2fh0W9C78ukp9qoUGbEdpQX3dkoOseJIYSt3hMZ
+        vQ4dQF3QauNeRwKAjbQ8Bh4mQ67/PolRUiFtoH4TXeTOMS8yVjysJ2pPwQjSq7xW
+        k006xCcCgYEA2lo5pDnlsoLiWe9UWIa2kjjRWHi/xIZm+9H9dUXY0z5xY7qtkc1G
+        Jycm0MP6mtW/1YJRjgqmldlRLFm1wYBczKF/bH0YDMMguIkoUVLNzCzXT2FffvJV
+        LGzZkmIAscparCAaLJHCuI/WtMZlcN3+QJerp5Cy5iVCzFa6sac+x+4=
+        -----END RSA PRIVATE KEY-----
+    clientCert: |+
+        -----BEGIN CERTIFICATE-----
+        MIIC7DCCAdSgAwIBAgIBAjANBgkqhkiG9w0BAQsFADATMREwDwYDVQQDDAhNeVRl
+        c3RDQTAeFw0xOTEyMDIwOTA0MTJaFw0yOTExMjkwOTA0MTJaMC8xHDAaBgNVBAMM
+        E2hhaXlhbm5naW54LmFleGhvbWUxDzANBgNVBAoMBmNsaWVudDCCASIwDQYJKoZI
+        hvcNAQEBBQADggEPADCCAQoCggEBAMzc7Pi8Py2saYZnZQXTHrcbSwSMp/URlVwI
+        UgRvz/K6QrmwNTfhc9lJtgNfb2VzowZv0ZvmJn9SZEAU7EEgyjxGXRwQVspkN46+
+        Rd7XPzSjtd6vO+jOJtUin9LSwa9mW8YLGE7Ops7NaVMYRN/BcHUdV2sN+rELOMyQ
+        pD7iWwSmYHiYHfMrB2eawMUeFuWaOcMojQx8XKLKMSf7RVS1s21YinwmrD2nj+eH
+        +H2mhvfweuc8i+kpO5NcxksQ/5mYiJ8euyV2kGaeEBPE3tahdrg9mA9wYVvqMZVw
+        QuI8EWXEAf5P64/HVQw1/DIATcy/A0rah9c9+Js1FasCUKUl41UCAwEAAaMvMC0w
+        CQYDVR0TBAIwADALBgNVHQ8EBAMCBaAwEwYDVR0lBAwwCgYIKwYBBQUHAwIwDQYJ
+        KoZIhvcNAQELBQADggEBAJ7VY3iVjGs5sU3Afs0P2BobSZh3iDTIyGHi/wK8sVGH
+        DGATY60HmcuqaMLcAptPqAbTE0zWfDXWP+dS1Pop+2cnMQNDWo3xnYx+EkWI4tXP
+        /Y72xL4h6lq3NjnWOm7MsbiRI+HeYpmovjsouG2mBn434vPUEf1mSWZ+Y3pjMZbb
+        2e0GtKcz+hb2YYF6A595LJPHlVFn5fphiLbah/k0dw8NNSmBS9Qnqvnwht6hL214
+        Kl011W82gG7Xc5r7imcsvpS27os/e8r2j4JgcOQohAWeuARYjsqlbYo5Dr1kMtFe
+        ULOhxh1JVVFM9LCaIs03udCW87E/dC4V1HiOcSpnSB4=
+        -----END CERTIFICATE-----
+    serverCert: |+
+        -----BEGIN CERTIFICATE-----
+        MIIC7DCCAdSgAwIBAgIBATANBgkqhkiG9w0BAQsFADATMREwDwYDVQQDDAhNeVRl
+        c3RDQTAeFw0xOTEyMDIwOTAxMTNaFw0yOTExMjkwOTAxMTNaMC8xHDAaBgNVBAMM
+        E2hhaXlhbm5naW54LmFleGhvbWUxDzANBgNVBAoMBnNlcnZlcjCCASIwDQYJKoZI
+        hvcNAQEBBQADggEPADCCAQoCggEBAOGOowNQ+5DXHvhIgkK67qS8iOWzIL+MOht/
+        IQiq12SKjRFmBq0ThoE3YBWdVpC625PtPZm6QGbOPelo/VyHn8nFuvAJWuGaGFdv
+        54LdnR2rha9NiNBt9bTIcHAGjBMJNBavFk9sed6/wCEl4aKQ1N6r1qHu0ENaq4va
+        tNElqTMH5F8zG1JsOkw3I4I1qIyNHSsSfGXdSZNPJRVZjICuRuOHD4HSxBYFTPhl
+        TA7/1LG4TemkYjakOPjBlTv3kq5qAR2jrbWBzZl/7+nenVp2TPvafUZBzPerESwd
+        J2IJOGP20A1nJSRGhL+2RJmEFHzsfnVZfo8DFGpIC5eRG6j3ZLECAwEAAaMvMC0w
+        CQYDVR0TBAIwADALBgNVHQ8EBAMCBaAwEwYDVR0lBAwwCgYIKwYBBQUHAwEwDQYJ
+        KoZIhvcNAQELBQADggEBAIPmDOv+jGHteBS/DtMlt8d6rmNJA+K8053guPJWFi29
+        ufl/7e8o45isEhyGbGQv2IF56OkVq0pOmeT6ti2IJ4YeIB8Soiez/ypXKCIJWDNg
+        wExxKYHOXASPn/pC1XfsMGhqgpyjwuIMqtGTqZfihxeooAZMNOOrdnKC3K1wHebF
+        vZcjt/9Xz/rzQmLhgpzNZjxBXuwXfxB3lItASZemQ+S/IO3KJ7j/WL36m0FgkyP/
+        AzGTrV99xPHjiLyrNy91V09rl6tsLyxTPxw7wWboXlJgCAiwdCkuPFNK/XJqMEEe
+        hI2Hd93Xi4Lql7ekWoUlgXWucGUAoV7lGBXGqUrdkXg=
+        -----END CERTIFICATE-----
+
+cpro:
+  fullnameOverride: cpro
+  rbac:
+    enabled: true
+    pspUseAppArmor: false
+  serviceAccountName:
+  exportersServiceAccountName:
+  istio:
+    enable: false
+    mtls_enable: true
+    cni_enable: true
+    test_timeout: 60
+  # it's only useful when ha.enabled == true
+  persistence:
+    reservePvc: false
+  alertmanager:
+    enabled: true
+    fullnameOverride: cpro-alertmanager
+    baseURL: ""
+    nodeSelector: {}
+    tolerations: []
+    replicaCount: 2
+    resources:
+      limits:
+        cpu: 500m
+        memory: 1Gi
+      requests:
+        cpu: 10m
+        memory: 32Mi
+    istioIngress:
+      enabled: true
+      Contextroot: alertmanager
+      selector: {istio: ingressgateway}
+      host: "*"
+      httpPort: 80
+      gatewayName: "btel-common-istio-gateway" 
+      tls:
+        enabled: true
+        httpsPort: 443
+        mode: SIMPLE
+        credentialName: "am-gateway"
+    outboundTLS:
+      enabled: true
+      cert: "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURCVENDQWUyZ0F3SUJBZ0lCQWpBTkJna3Foa2lHOXcwQkFRc0ZBREFjTVF3d0NnWURWUVFEREFORFUwWXgKRERBS0JnTlZCQWNNQTBKTVVqQWVGdzB5TURBek1Ea3hORFE1TVRCYUZ3MHpNREF6TURjeE5EUTVNVEJhTUNneApGVEFUQmdOVkJBTU1ER05zYVdWdWRITXVZblJsYkRFUE1BMEdBMVVFQ2d3R1kyeHBaVzUwTUlJQklqQU5CZ2txCmhraUc5dzBCQVFFRkFBT0NBUThBTUlJQkNnS0NBUUVBbkExMC9hK3JHU0ZqVzlyOTNzQlRLUkJFeDdjUmwvUGMKSEtvcHlsQ0M3Rnl3dGxCZVNCOHY3R3F5am0yTXZLRk5LL0xKUnA4cU1QZEtLZksrK1Jmbm44aWhPTFFaZmxKdQpNYldpdW5JOGJ4K3hJTGJFbEYwNVBLTmFydm9NWkZyVE0yVnNjVGtENWoyVTl5TDlTK3VsZlJSTFFrZE55M2ZoCm11YmhnbmRPTzhYaEdLeTRza0hDZjBnc1VVL1dtc05BdlJhNWpiczYra1VKb1BBOE41M01JR0pCclJLakpCWDAKbGxzdUFpZWRGN0JVUyswaXNibmJZRTMxQzg4UnJqRlB0TjljNmdUN0o5NlZXTTFNelBQYVRkaGJabnhuVk4wSApjQ0tZQk9aZjdpRjZiL3FFUVZoYUk0SUxKK3o1TkJ1S0dxSi9hRHU4QWROMURyWE5rbzdveHdJREFRQUJvMFl3ClJEQUpCZ05WSFJNRUFqQUFNQXNHQTFVZER3UUVBd0lGb0RBVEJnTlZIU1VFRERBS0JnZ3JCZ0VGQlFjREFqQVYKQmdOVkhSRUVEakFNZ2dwQ1ZFVk1RMHhKUlU1VU1BMEdDU3FHU0liM0RRRUJDd1VBQTRJQkFRQ0JsNmcwRHlzegpYTzBKNU9VWUtmRmpQK205NFhFOU5KWFBDam9sc0k2Z2ZJZDkyVXJKN2ZmYkFpN2pmWTgxemFMV2FpTnhSUXN3CnRabHN6bXhsNXAvWWg4SGJveTJ3aHMwQkZMbG5ia09vSE5GQUxFaHdqakFiL3NPY1o5dWFxOVpvd0daMThQQ3UKNmJtSldDZTBlYTVtTXRIV1hzOFBHeVJHbnR1RGc3cGs1amhUbzBiZSs2cnVXcUxhRlI3dGRFOU5zeVNQSWszRQovaklCTVRObUxNN3kzaVQ2M0VZclBjclB2ZHZnYWlVWlcrMXFtRzBRWHJXUDNHb2ZpdWNPREY4OHhaOTBScFpIClpqOTRJcklnM25FKzk4Ukk3Q1p3YVB2WXNwRlpZbnB5RWZRdEtoM1lNN1U4b2ZreFZmdVhnaE1ONjlqdldIcS8KMi9rSjZSSHFvcWRqCi0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0KLS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURHekNDQWdPZ0F3SUJBZ0lKQUtTRk5TYS9jTllPTUEwR0NTcUdTSWIzRFFFQkN3VUFNQnd4RERBS0JnTlYKQkFNTUEwTlRSakVNTUFvR0ExVUVCd3dEUWt4U01CNFhEVEl3TURNd09URTBORGt4TUZvWERUTXdNRE13TnpFMApORGt4TUZvd0hERU1NQW9HQTFVRUF3d0RRMU5HTVF3d0NnWURWUVFIREFOQ1RGSXdnZ0VpTUEwR0NTcUdTSWIzCkRRRUJBUVVBQTRJQkR3QXdnZ0VLQW9JQkFRQzJOQk54WUYxRGRuaE5jN3RKdFdtYjM5d3lDV2kyS2tNbEhFWlMKVlg0cjdHNTVzS1pFS2xzdkJiWnBPamo0NGJXQ1p6MXJUck1Eek1NcEN6WkphMnFBUDhDNFQ3ZzdwVXFDK3dDcgpLMStMc2dpcGxVbW5xNW53YXhVNDFPZUdpVHBPeS8wMy9HdEdvdkh4alVtYnQvR29HU2pDVFV3TzF6UGJCL2poClREcHpnZ3g1MzltTWl5TTFqcVlMMEhnUXdWTFBzZnlDUS9rSDQzOVNQVXY1cldQdUZSWDJ3MUttZDhWbGp1QnIKTlliMk51UktZeU8wMmUycWliMjF3VXZ2TnJtZXYrSDJ1L0R4TmNpTmlic092dmRSZzliZ1ZrNnZRZ0I1Q3JDdwp1VXRyNFRWZkVKVVNUODYxOEtBczJMbWpQdkJnU0lNKzErTDBITFZ5TzRUYmd3eDFBZ01CQUFHallEQmVNQXNHCkExVWREd1FFQXdJQkJqQWRCZ05WSFE0RUZnUVVZVmxDTzkzMHVHR3hXeG5mOU5FaHppZi9BcnN3SHdZRFZSMGoKQkJnd0ZvQVVZVmxDTzkzMHVHR3hXeG5mOU5FaHppZi9BcnN3RHdZRFZSMFRBUUgvQkFVd0F3RUIvekFOQmdrcQpoa2lHOXcwQkFRc0ZBQU9DQVFFQUR3MHVXWnl3S0hTV1d3SmZWa2NsUmN5Z1djVXZFM3MwWVR2am5tWXBRRDBGCjBKMkhreU9WZGVRRjYyNmloclh4NWNBd2NyanYrOVVzbzQ3UFhmWUtDMWl4YzhXKzhZcE1VMkRKMDd1eWhJaXUKL0taWEFhSVpUckk4WWNLMGZiMDd6OWdrRXRUblpLOC9LWE9tcEcwWklJU0tINmloUDZ0Q1J3Q2x0YWtNZ3NVRwpBVUlaZ0p0bCs3cy9qcHE5VFdLZmpUWHhaRGtyMi9PQ2JUWFpiVlZPVE1kQVp3NzlML2Y1cytTcjlUSWhyc1ZmCmVOWkpndkNvOGU4eFZReDFybUlYdFlKc2NsQlAxOTJtclNxV3BHUmdHaHBvSU5DL09tRTY5TE1MazFkeFBVOU8KcStVQ1BSaUlrRUR1UzFCa0JWbHBwNFJ5UTlOMGtBZVUwUUc3aDVKdEtBPT0KLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo="
+  kubeStateMetrics:
+    fullnameOverride: cpro-kube-state-metrics
+    enabled: true
+    replicaCount: 1
+    resources:
+      limits:
+        cpu: 100m
+        memory: 300Mi
+      requests:
+        cpu: 10m
+        memory: 32Mi
+    nodeSelector: {}
+    tolerations: []
+  nodeExporter:
+    fullnameOverride: cpro-node-exporter
+    enabled: true
+    resources:
+      limits:
+        cpu: 500m
+        memory: 500Mi
+      requests:
+        cpu: 100m
+        memory: 30Mi
+    extraArgs:
+      web.listen-address: ":9100"
+    service:
+      servicePort: 9101
+      podContainerPort: 9100
+      podHostPort: 9100
+    nodeSelector: {}
+    tolerations:
+      - operator: 'Exists'
+        effect: 'NoExecute'
+  server:
+    fullnameOverride: cpro-server
+    replicaCount: 2
+    baseURL: ""
+    resources:
+      limits:
+        cpu: 2
+        memory: 4Gi
+      requests:
+        cpu: 500m
+        memory: 512Mi
+    extraHostPathMounts: []
+    nodeSelector: {}
+    tolerations: []
+    istioIngress:
+      enabled: true
+      Contextroot: prometheus
+      selector: {istio: ingressgateway}
+      host: "*"
+      httpPort: 80
+      gatewayName: "btel-common-istio-gateway"
+      tls:
+        enabled: true
+        httpsPort: 443
+        mode: SIMPLE
+        credentialName: "am-gateway"
+  pushgateway:
+    fullnameOverride: cpro-pushgateway
+    enabled: true
+    replicaCount: 1
+    baseURL: ""
+    resources:
+      limits:
+        cpu: 100m
+        memory: 200Mi
+      requests:
+        cpu: 10m
+        memory: 32Mi
+    nodeSelector: {}
+    tolerations: []
+    istioIngress:
+      enabled: true
+      selector: {istio: ingressgateway}
+      Contextroot: pushgateway
+      host: "*"
+      httpPort: 80
+      gatewayName: "btel-common-istio-gateway"
+      tls:
+        enabled: false
+        httpsPort: 443
+        mode: SIMPLE
+        credentialName: "pushgateway-secret"
+  ha:
+    enabled: true
+  alertmanagerFiles:
+    alertmanager.yml:
+      receivers:
+        - name: default-receiver
+          webhook_configs:
+            - url: 'https://cnot.btel.svc.cluster.local/api/cnot/v1/notif'
+              http_config:
+                tls_config:
+                  ca_file: /etc/config/alertmanager/tls/alertmanager.cert
+
+  serverFiles:
+    prometheus.yml:
+      global:
+        scrape_interval: 1m
+        scrape_timeout: 10s
+        evaluation_interval: 1m
+      scrape_configs:
+        - job_name: prometheus
+          static_configs:
+            - targets:
+              - localhost:9090
+          honor_labels: true
+
+          kubernetes_sd_configs:
+            - role: endpoints
+
+          relabel_configs:
+            - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_probe]
+              action: keep
+              regex: prometheus
+            - source_labels: [__meta_kubernetes_pod_container_name]
+              action: drop
+              regex: istio-proxy
+            - source_labels: [__meta_kubernetes_namespace]
+              action: replace
+              target_label: namespace
+            - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_path]
+              action: replace
+              target_label: __metrics_path__
+
+        # Uncomment the below lines if etcd metrics are to be scrapped in BCMT environment.
+        #- job_name: bcmt-etcd
+        #  kubernetes_sd_configs:
+        #    - role: node
+        #  metrics_path: /metrics
+        #  scheme: https
+        #  tls_config:
+        #    ca_file: /etc/etcd/ssl/ca.crt
+        #    cert_file: /etc/etcd/ssl/tls.crt
+        #    key_file: /etc/etcd/ssl/tls.key
+        #    insecure_skip_verify: true
+        #  relabel_configs:
+        #  - action: keep
+        #    regex: true
+        #    source_labels:
+        #    - __meta_kubernetes_node_label_is_control
+        #  - action: replace
+        #    regex: (.*)
+        #    replacement: $1:2379
+        #    source_labels:
+        #    - __meta_kubernetes_node_address_InternalIP
+        #    target_label: __address__
+        #  - action: replace
+        #    regex: (.*)
+        #    replacement: $1
+        #    source_labels:
+        #    - job
+        #    target_label: component
+
+        - job_name: 'kubernetes-apiservers'
+
+          kubernetes_sd_configs:
+            - role: endpoints
+
+          # Default to scraping over https. If required, just disable this or change to
+          # `http`.
+          scheme: https
+
+          # This TLS & bearer token file config is used to connect to the actual scrape
+          # endpoints for cluster components. This is separate to discovery auth
+          # configuration because discovery & scraping are two separate concerns in
+          # Prometheus. The discovery auth config is automatic if Prometheus runs inside
+          # the cluster. Otherwise, more config options have to be provided within the
+          # <kubernetes_sd_config>.
+          tls_config:
+            ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+            # If your node certificates are self-signed or use a different CA to the
+            # master CA, then disable certificate verification below. Note that
+            # certificate verification is an integral part of a secure infrastructure
+            # so this should only be disabled in a controlled environment. You can
+            # disable certificate verification by uncommenting the line below.
+            #
+            insecure_skip_verify: true
+          bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+
+          # Keep only the default/kubernetes service endpoints for the https port. This
+          # will add targets for each API server which Kubernetes adds an endpoint to
+          # the default/kubernetes service.
+          relabel_configs:
+            - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+              action: keep
+              regex: default;kubernetes;https
+            - source_labels: [__meta_kubernetes_namespace]
+              action: replace
+              target_label: namespace
+
+        - job_name: 'kubernetes-nodes'
+
+          # Default to scraping over https. If required, just disable this or change to
+          # `http`.
+          scheme: https
+
+          # This TLS & bearer token file config is used to connect to the actual scrape
+          # endpoints for cluster components. This is separate to discovery auth
+          # configuration because discovery & scraping are two separate concerns in
+          # Prometheus. The discovery auth config is automatic if Prometheus runs inside
+          # the cluster. Otherwise, more config options have to be provided within the
+          # <kubernetes_sd_config>.
+          tls_config:
+            ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+            # If your node certificates are self-signed or use a different CA to the
+            # master CA, then disable certificate verification below. Note that
+            # certificate verification is an integral part of a secure infrastructure
+            # so this should only be disabled in a controlled environment. You can
+            # disable certificate verification by uncommenting the line below.
+            #
+            insecure_skip_verify: true
+          bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+
+          kubernetes_sd_configs:
+            - role: node
+
+          relabel_configs:
+            - action: labelmap
+              regex: __meta_kubernetes_node_label_(.+)
+            - target_label: __address__
+              replacement: kubernetes.default.svc:443
+            - source_labels: [__meta_kubernetes_node_name]
+              regex: (.+)
+              target_label: __metrics_path__
+              replacement: /api/v1/nodes/${1}/proxy/metrics
+            - source_labels: [__meta_kubernetes_namespace]
+              action: replace
+              target_label: namespace
+
+
+        - job_name: 'kubernetes-nodes-cadvisor'
+
+          # Default to scraping over https. If required, just disable this or change to
+          # `http`.
+          scheme: https
+
+          # This TLS & bearer token file config is used to connect to the actual scrape
+          # endpoints for cluster components. This is separate to discovery auth
+          # configuration because discovery & scraping are two separate concerns in
+          # Prometheus. The discovery auth config is automatic if Prometheus runs inside
+          # the cluster. Otherwise, more config options have to be provided within the
+          # <kubernetes_sd_config>.
+          tls_config:
+            ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+            # If your node certificates are self-signed or use a different CA to the
+            # master CA, then disable certificate verification below. Note that
+            # certificate verification is an integral part of a secure infrastructure
+            # so this should only be disabled in a controlled environment. You can
+            # disable certificate verification by uncommenting the line below.
+            #
+            insecure_skip_verify: true
+          bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+
+          kubernetes_sd_configs:
+            - role: node
+
+          # This configuration will work only on kubelet 1.7.3+
+          # As the scrape endpoints for cAdvisor have changed
+          # if you are using older version you need to change the replacement to
+          # replacement: /api/v1/nodes/${1}:4194/proxy/metrics
+          # more info here https://github.com/coreos/prometheus-operator/issues/633
+          relabel_configs:
+            - action: labelmap
+              regex: __meta_kubernetes_node_label_(.+)
+            - target_label: __address__
+              replacement: kubernetes.default.svc:443
+            - source_labels: [__meta_kubernetes_node_name]
+              regex: (.+)
+              target_label: __metrics_path__
+              replacement: /api/v1/nodes/${1}/proxy/metrics/cadvisor
+            - source_labels: [__meta_kubernetes_namespace]
+              action: replace
+              target_label: namespace
+
+        # Scrape config for service endpoints.
+        #
+        # The relabeling allows the actual service scrape endpoint to be configured
+        # via the following annotations:
+        #
+        # * `prometheus.io/scrape`: Only scrape services that have a value of `true`
+        # * `prometheus.io/scheme`: If the metrics endpoint is secured then you will need
+        # to set this to `https` & most likely set the `tls_config` of the scrape config.
+        # * `prometheus.io/path`: If the metrics path is not `/metrics` override this.
+        # * `prometheus.io/port`: If the metrics are exposed on a different port to the
+        # service then set this appropriately.
+        - job_name: 'kubernetes-service-endpoints-insecure'
+
+          kubernetes_sd_configs:
+            - role: endpoints
+
+          relabel_configs:
+            - source_labels: [__meta_kubernetes_pod_container_name]
+              action: drop
+              regex: istio-proxy
+            - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_scrape]
+              action: keep
+              regex: true
+            - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_scheme]
+              action: keep
+              target_label: __scheme__
+              regex: http
+            - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_path]
+              action: replace
+              target_label: __metrics_path__
+              regex: (.+)
+            - source_labels: [__address__, __meta_kubernetes_service_annotation_prometheus_io_port]
+              action: replace
+              target_label: __address__
+              regex: ([^:]+)(?::\d+)?;(\d+)
+              replacement: $1:$2
+            - action: labelmap
+              regex: __meta_kubernetes_service_label_(.+)
+            - source_labels: [__meta_kubernetes_namespace]
+              action: replace
+              target_label: namespace
+            - source_labels: [__meta_kubernetes_service_name]
+              action: replace
+              target_label: kubernetes_name
+            - source_labels: [__meta_kubernetes_pod_node_name]
+              target_label: kubernetes_io_hostname
+              action: replace
+          # Start of custom modification of original chart for CSFS-27019 - resolved "works as expected" keep custom mod
+          tls_config:
+            insecure_skip_verify: true
+          # End of custom modification of original chart for CSFS-27019
+        - job_name: 'prometheus-pushgateway'
+          honor_labels: true
+          scheme: http
+          kubernetes_sd_configs:
+            - role: service
+
+          relabel_configs:
+            - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_probe]
+              action: keep
+              regex: pushgateway
+            - source_labels: [__meta_kubernetes_namespace]
+              action: replace
+              target_label: namespace
+            - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_path]
+              action: replace
+              target_label: __metrics_path__
+
+        - job_name: 'kubernetes-pods-insecure'
+          kubernetes_sd_configs:
+            - role: pod
+          relabel_configs:  # If first two labels are present, pod should be scraped  by the istio-secure job.
+            - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+              action: keep
+              regex: true
+            - source_labels: [__meta_kubernetes_pod_annotation_sidecar_istio_io_status, __meta_kubernetes_pod_annotation_istio_mtls]
+              action: drop
+              regex: (([^;]+);([^;]*))|(([^;]*);(true))
+            - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scheme]
+              action: drop
+              regex: https
+            - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+              action: replace
+              target_label: __metrics_path__
+              regex: (.+)
+            - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+              action: replace
+              regex: ([^:]+)(?::\d+)?;(\d+)
+              replacement: $1:$2
+              target_label: __address__
+            - action: labelmap
+              regex: __meta_kubernetes_pod_label_(.+)
+            - source_labels: [__meta_kubernetes_namespace]
+              action: replace
+              target_label: namespace
+            - source_labels: [__meta_kubernetes_pod_name]
+              action: replace
+              target_label: kubernetes_pod_name
+            - source_labels: [__meta_kubernetes_pod_node_name]
+              action: replace
+              target_label: instance
+
+        # Example scrape config for probing services via the Blackbox Exporter.
+        #
+        # The relabeling allows the actual service scrape endpoint to be configured
+        # via the following annotations:
+        #
+        # * `prometheus.io/probe`: Only probe services that have a value of `true`
+        #
+        #
+        - job_name: 'prometheus-nodeexporter'
+          honor_labels: true
+
+          kubernetes_sd_configs:
+            - role: endpoints
+
+          relabel_configs:
+            - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_probe]
+              action: keep
+              regex: node-exporter
+            - source_labels: [__meta_kubernetes_namespace]
+              action: replace
+              target_label: namespace
+            - source_labels: [__meta_kubernetes_pod_node_name]
+              target_label: kubernetes_io_hostname
+              action: replace
+
+        - job_name: 'kubernetes-services'
+
+          metrics_path: /probe
+          params:
+            module: [http_2xx]
+
+          kubernetes_sd_configs:
+            - role: service
+
+          relabel_configs:
+            - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_probe]
+              action: keep
+              regex: true
+            - source_labels: [__address__]
+              target_label: __param_target
+            - target_label: __address__
+              replacement: blackbox
+            - source_labels: [__param_target]
+              target_label: instance
+            - action: labelmap
+              regex: __meta_kubernetes_service_label_(.+)
+            - source_labels: [__meta_kubernetes_namespace]
+              target_label: namespace
+            - source_labels: [__meta_kubernetes_service_name]
+              target_label: kubernetes_name
+
+        # Example scrape config for pods
+        #
+        # The relabeling allows the actual pod scrape endpoint to be configured via the
+        # following annotations:
+        #
+        # * `prometheus.io/scrape`: Only scrape pods that have a value of `true`
+        # * `prometheus.io/path`: If the metrics path is not `/metrics` override this.
+        # * `prometheus.io/port`: Scrape the pod on the indicated port instead of the default of `9102`.
+        # Mixer scrapping. Defaults to Prometheus and mixer on same namespace.
+        - job_name: 'istio-mesh'
+          kubernetes_sd_configs:
+          - role: endpoints
+            namespaces:
+              names:
+              - istio-system
+          relabel_configs:
+          - source_labels: [__meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: istio-telemetry;prometheus
+
+        # Scrape config for envoy stats
+        - job_name: 'envoy-stats'
+          metrics_path: /stats/prometheus
+          kubernetes_sd_configs:
+          - role: pod
+
+          relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_container_port_name]
+            action: keep
+            regex: '.*-envoy-prom'
+          - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+            action: replace
+            regex: ([^:]+)(?::\d+)?;(\d+)
+            replacement: $1:15090
+            target_label: __address__
+          - action: labeldrop
+            regex: __meta_kubernetes_pod_label_(.+)
+          - source_labels: [__meta_kubernetes_namespace]
+            action: replace
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            action: replace
+            target_label: pod_name
+
+        - job_name: 'istio-policy'
+          kubernetes_sd_configs:
+          - role: endpoints
+            namespaces:
+              names:
+              - istio-system
+
+
+          relabel_configs:
+          - source_labels: [__meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: istio-policy;http-policy-monitoring
+
+        - job_name: 'istio-telemetry'
+          kubernetes_sd_configs:
+          - role: endpoints
+            namespaces:
+              names:
+              - istio-system
+
+          relabel_configs:
+          - source_labels: [__meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: istio-telemetry;http-monitoring
+
+        - job_name: 'pilot'
+          kubernetes_sd_configs:
+          - role: endpoints
+            namespaces:
+              names:
+              - istio-system
+
+          relabel_configs:
+          - source_labels: [__meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: istiod;http-monitoring
+          - source_labels: [__meta_kubernetes_service_label_app]
+            target_label: app
+
+        - job_name: 'galley'
+          kubernetes_sd_configs:
+          - role: endpoints
+            namespaces:
+              names:
+              - istio-system
+
+          relabel_configs:
+          - source_labels: [__meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: istio-galley;http-monitoring
+
+        - job_name: 'citadel'
+          kubernetes_sd_configs:
+          - role: endpoints
+            namespaces:
+              names:
+              - istio-system
+
+          relabel_configs:
+          - source_labels: [__meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: istio-citadel;http-monitoring
+
+        - job_name: 'sidecar-injector'
+
+          kubernetes_sd_configs:
+          - role: endpoints
+            namespaces:
+              names:
+              - istio-system
+
+          relabel_configs:
+          - source_labels: [__meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: istio-sidecar-injector;http-monitoring
+
+
+
+
+
+  restserver:
+    enabled: true
+    resources:
+    # We usually recommend not to specify default resources and to leave this as a conscious
+    # choice for the user. This also increases chances charts run on environments with little
+    # resources, such as Minikube. If you do want to specify resources, uncomment the following
+    # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+      limits:
+        cpu: 500m
+        memory: 500Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+    istioIngress:
+      enabled: true
+      selector: {istio: ingressgateway}
+      Contextroot: restserver
+      host: "*"
+      httpPort: 80
+      gatewayName: "btel-common-istio-gateway"
+      tls:
+        enabled: false
+        httpsPort: 443
+        mode: SIMPLE
+        credentialName: "restserver-gateway"
+    nodeSelector: {}
+    tolerations: []
+    configs:
+      ncmsUsername: user-input
+      ncmsPassword: user-input
+      ncmsPassPhrase: user-input
+      httpsEnabled: false
+      restCACert: |+
+        -----BEGIN CERTIFICATE-----
+        MIIEETCCAvmgAwIBAgIJAIQFm91ZPjOsMA0GCSqGSIb3DQEBCwUAMIGeMQswCQYD
+        VQQGEwJDTjEQMA4GA1UECAwHQmVpamluZzERMA8GA1UEBwwIV2FuZ2ppbmcxDjAM
+        BgNVBAoMBU5va2lhMQwwCgYDVQQLDANDU0YxHjAcBgNVBAMMFW1pYW9mZW5rLWNh
+        Lm5va2lhLmNvbTEsMCoGCSqGSIb3DQEJARYdbWlhb2Zlbmcua2FuZ0Bub2tpYS1z
+        YmVsbC5jb20wHhcNMTgwNTIxMDIwNjIyWhcNMjgwNTE4MDIwNjIyWjCBnjELMAkG
+        A1UEBhMCQ04xEDAOBgNVBAgMB0JlaWppbmcxETAPBgNVBAcMCFdhbmdqaW5nMQ4w
+        DAYDVQQKDAVOb2tpYTEMMAoGA1UECwwDQ1NGMR4wHAYDVQQDDBVtaWFvZmVuay1j
+        YS5ub2tpYS5jb20xLDAqBgkqhkiG9w0BCQEWHW1pYW9mZW5nLmthbmdAbm9raWEt
+        c2JlbGwuY29tMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA6NyT+S/i
+        rFotAivpTUb2WjHVvvREgiC5f4pSqwHk/sVYvl+sTaaHPSd/wWa9yc1C9nQ3iHvX
+        9PYo8dRKYsPKxoFcSl8C1DLoVYCUDrpVS2HbpBxXlUrBow46LMFDaUQAH8e4fi4K
+        +l/H5kxvnQRXPkKnx2uc13vGW5mRXTGfLGLHUwoVdighnRNAhqUUZqwafveBMXWf
+        6mBTdOi6JUg+Hz6UrIsZlTciYI7t1weFm944YSKeF7L8LcqqnZxBfvbttyw8XmWd
+        M0XbT8SJ3G1om4y8nbFyMHa4Fm8eN0TyxM7lUa2r1GAeda2rMNf+RSOreryEXbYY
+        pNIzbUPyFFKkYQIDAQABo1AwTjAdBgNVHQ4EFgQUn4mdychSlHrO2W/uP+25A8dU
+        x7wwHwYDVR0jBBgwFoAUn4mdychSlHrO2W/uP+25A8dUx7wwDAYDVR0TBAUwAwEB
+        /zANBgkqhkiG9w0BAQsFAAOCAQEA4iMY4kEKlcOmihQnEn6a3Jwn+7ajEJ5MQOWw
+        UONUH6T/EzUWJL74g2uoXFz2ykqv/eSSWJk6T0F+hJVKh2yXMeGS6+WvJlrakPNF
+        sylpjRR7rYqFXLqtWpLGoXE/mTHj0PeakvCN9Fo+kJ8PmkdYuIcVxdMIlLv0judJ
+        yrNL/3v2MLkEKF9xmtpjeyIYoRVlkf2ehdMVvWrpeWbY1PSNE2BSM60qFb5pCd9G
+        O1yQ15b4smvgx1kcIerZ6abMsLJUF9Z+8crHKja1/4e9/xoP5n/CSjzPNWnaGQM1
+        r/IGGTDpw6eym9yPH0nbv76/Mse3xqGGSZJA0eSlT6B2aXtUSg==
+        -----END CERTIFICATE-----
+      restServerKey: |+
+        -----BEGIN PRIVATE KEY-----
+        MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDIcfMXbmZrWcOj
+        081L1wHhTJgZ6ZdkUXAj/Abkkk3PLwPoZ9KxYwKhZ54Zy1N6owy+raYa0bGZWNZf
+        b4P1cFMoGX7+vJYGOmkorF9AYBCh6jbeVoHfEYw1ozejFRo64Eud2g3MKBFLwcVB
+        Za+bebm7QXLn0j3LURzN2Vembj7FZETg/weTGZC2Nw2RK+vACEFIeXkeDx2jSldQ
+        hCquOAYvRV0emAZIm7uf80Or6LoBOjKBkTUxGLWDbvSkzxUPGXgbZTl5ZpeS+jpc
+        JH/gdjHVqoa+XDTzT8xZOrTXJp9HJUGg/Jy6P6MFRHJtkaFQ7Ci8j51teuBh2xFf
+        /fxhdPF7AgMBAAECggEAXdmkhRsGz0qXJHS90b2YvsFbEf7iCHFs/Rw6qfiqf9A2
+        lzFNYArIp4PZbaBatLf09q5dcH8wFWmX7dVLxrZR6RuO73yjDcV5iTaz3nNcNkNw
+        b0e3xRb1PAPwv+XYgyqTnRQEk8tK1dqjHgybXUNwJ/Hr+AjjL/gJcYRK2r0RnN+S
+        FCPX4dpjNet7O+vSZ4nK+51qMJ2OEvLdzhvIJkmKbjRr0/S6b+Ze1BKzo9DGFkvg
+        6B2O7As1ReHX5ahqSXlGPRGldcvW3VI4okHXtbIL30Y59c2+Prqjtg79fk/ClO0M
+        Te4jUYm16wSW1RHMWtD8BweMCN/0A3nLvKhOekV0EQKBgQDyoKMXHJu2WrMsTtjY
+        llwuvFeD/gCaHnS9W9m61TkvkcnjZkwTXN16k16EmRgtbNaqDojnTU18LbOOR2O6
+        8w7ai79diL0G5bCst+uXpjIzld4tnf6n8TZYsuiG8EI0u4CpmUkRXU7s0X8cu0qO
+        pw22stvsVzhUvWRHG0H2QZtygwKBgQDTfiN1RmjafyqrLWzcH0AUEhtijtfndBuE
+        NMaM1IBSUQnDJoJf0rMX+UEttj9VohRmRM8p8aAMEN6IjLh7Y9oYjoXGyYxzk2Pz
+        TacsueV477KkVBoS0snEAIjcrGxsCp2eCX/s1+4fJAYPS0WNDEDRMjoE7dBf6f6t
+        LnvXYgzzqQKBgAGDoSDuy8X6kO2w3EeVwKOGB2HKfwR3NjFMVnKFDCNQ3Jqvs7/X
+        L4apTsizD+SQrlJHXvFamSYyPtGffm7XP3t7rckOpmdZnZ2mVDERF3Uc9VMBjmpL
+        5hPtoefdrfwYQ3hLfZo/I9P0hr+OJ6v2PO6r9RVngfF9cRfEgsffpvGzAoGAJw6p
+        b7QEEy3e7GPkMbaXt90sL4RfvP/FQSIZ9NIdrJYIroCDHT0lE+1VKyL4CVF4YPae
+        J4nW28OVxTPvseHb2iMf83kvNfznPXx+vhTKmw3xOMXLVuSUnFzY6Z/yGfXP6+qn
+        NE8gS6H0eIiXHJhBtCCJdHWSwNPO0569Aia6a5kCgYEA1B0FdO4Ok8z3ut39aZpw
+        SlJooCCxdx5udyXtQvNPrmyMRRpTqFezYCYIGYVquR5KyZjISQJswCUzCMbJc3hi
+        nqY/F+5nre9HURT1py66VDxX6rOXldiRlCbDS6VacV0JnfYX6FwtRjGosgdhv6nV
+        NDZmqe58yC7pYp77yFHJOPM=
+        -----END PRIVATE KEY-----
+      restServerCert: |+
+        -----BEGIN CERTIFICATE-----
+        MIIDtDCCApwCCQDIFRUb+zmnGDANBgkqhkiG9w0BAQUFADCBnjELMAkGA1UEBhMC
+        Q04xEDAOBgNVBAgMB0JlaWppbmcxETAPBgNVBAcMCFdhbmdqaW5nMQ4wDAYDVQQK
+        DAVOb2tpYTEMMAoGA1UECwwDQ1NGMR4wHAYDVQQDDBVtaWFvZmVuay1jYS5ub2tp
+        YS5jb20xLDAqBgkqhkiG9w0BCQEWHW1pYW9mZW5nLmthbmdAbm9raWEtc2JlbGwu
+        Y29tMB4XDTE4MDUyMTAyMDYyMloXDTE5MDUyMTAyMDYyMlowgZgxCzAJBgNVBAYT
+        AkNOMRAwDgYDVQQIDAdCZWlqaW5nMREwDwYDVQQHDAhXYW5namluZzEOMAwGA1UE
+        CgwFTm9raWExDDAKBgNVBAsMA0NTRjEYMBYGA1UEAwwPbWlhb2Zlbmsuc2VydmVy
+        MSwwKgYJKoZIhvcNAQkBFh1taWFvZmVuZy5rYW5nQG5va2lhLXNiZWxsLmNvbTCC
+        ASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAMhx8xduZmtZw6PTzUvXAeFM
+        mBnpl2RRcCP8BuSSTc8vA+hn0rFjAqFnnhnLU3qjDL6tphrRsZlY1l9vg/VwUygZ
+        fv68lgY6aSisX0BgEKHqNt5Wgd8RjDWjN6MVGjrgS53aDcwoEUvBxUFlr5t5ubtB
+        cufSPctRHM3ZV6ZuPsVkROD/B5MZkLY3DZEr68AIQUh5eR4PHaNKV1CEKq44Bi9F
+        XR6YBkibu5/zQ6vougE6MoGRNTEYtYNu9KTPFQ8ZeBtlOXlml5L6Olwkf+B2MdWq
+        hr5cNPNPzFk6tNcmn0clQaD8nLo/owVEcm2RoVDsKLyPnW164GHbEV/9/GF08XsC
+        AwEAATANBgkqhkiG9w0BAQUFAAOCAQEAKNOkKbdLhTwxGDE8941CIiLHZ7pyYCP7
+        h+Ov0zfkLRzEwbIQwcrkAfQYyOO7xWCmNfcHaSdFTayaHV/i3QktSdQFwcI3i8+L
+        i/XkmGX+IvKG0KiQ/JwClKjO6B/DUKqU6fyg5lHWPUyOvLdNo0kKEVe30Fb9wNr+
+        8dMHAW/drTbxngUtNArPM8xsa5gQId887bHRzXJs7Pd9tojWMeyny8A0bXrshrdF
+        812eZNla7nBiQTipb9nJwjzW31B6V5jP95R4UnlvIgdhj2/UxEyrb/6yj/lfyO5H
+        h8BzBBa1gf2pvJfxh9idS4cHC0Bqc+Etqble6tGNNuUTmFzfx2+rgg==
+        -----END CERTIFICATE-----
+
+
+grafana:
+  fullnameOverride: grafana
+  istio:
+    enable: false
+    mtls_enable: true
+    cni_enable: true
+  rbac:
+    enabled: true
+    pspUseAppArmor: false
+  serviceAccountName:
+  HA:
+    enabled: true
+  helm3: true
+  resources:
+    limits:
+      cpu: 500m
+      memory: 1Gi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  cmdb:
+    enabled: true
+    #rbac_enabled: true
+    #istio:
+      #enabled: false
+    #mariadb:
+      #persistence:
+        #preserve_pvc: false
+        #backup:
+          #preserve_pvc: false
+  grafana_ini:
+    server:
+      protocol: https 
+      root_url: "%(protocol)s://%(domain)s:%(http_port)s/grafana"
+      cert_file: /etc/grafana/ssl/server.crt
+      cert_key: /etc/grafana/ssl/server.key
+      serve_from_sub_path: false
+    auth:
+      disable_login_form: false
+      disable_signout_menu: false
+    database:
+      type: mysql
+      host: cmdb-mysql.btel.svc.cluster.local:3306
+      name: grafana
+      user: grafana
+      password: grafana
+    session:
+      provider: mysql
+      provider_config: '`grafana:grafana@tcp(cmdb-mysql:3306)/grafana`'
+  SetDatasource:
+    enabled: true
+    datasource:
+      url: "http://cpro-server-int.btel.svc.cluster.local:9090"
+      
+  istioIngress:
+    enabled: true
+    Contextroot: grafana
+    selector: {istio: ingressgateway}
+    host: "*"
+    httpPort: 80
+    gatewayName: "btel-common-istio-gateway"
+    tls:
+      enabled: true
+      httpsPort: 443
+      mode: SIMPLE
+      credentialName: "am-gateway"
+      
+  ingress:
+    annotations:
+      ingress.citm.nokia.com/sticky-route-services: $cookie_JSESSIONID|JSESSIONID ip_cookie
+      kubernetes.io/ingress.class: nginx
+      nginx.ingress.kubernetes.io/rewrite-target: /$1
+      ###  when ingress version is or lower than 1.14.30, use below value
+      #nginx.ingress.kubernetes.io/rewrite-target: /
+      nginx.ingress.kubernetes.io/secure-backends: "true"
+      nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    path: /grafana/?(.*)
+  scheme: https
+  persistence:
+    enabled: false
+  livenessProbe:
+    scheme: HTTPS
+  readinessProbe:
+    scheme: HTTPS
+
+gen3gppxml:
+  istio:
+    enable: false
+    mtls_enable: true
+    cni_enable: true
+  helm3: true
+  rbac:
+    enabled: true
+    pspUseAppArmor: false
+  serviceAccountName:
+  
+  replicaCount: 1
+  persistence:
+    pvc_auto_delete: true
+  configOverride: |+
+    OVERRIDE_prometheus_url = http://cpro-server-int.btel.svc.cluster.local:9090/api/v1 
+  service:
+    name: gen3gppxml
+    serviceType: NodePort
+    sftpPort: 2309
+    sftpNodePort: 30022
+  istioIngress:
+    enabled: true
+    selector: {istio: ingressgateway}
+    Contextroot: gen3gppxml
+    host: "*"
+    httpPort: 80
+    gatewayName: "btel-common-istio-gateway"
+    tls:
+      enabled: false
+      httpsPort: 443
+      mode: PASSTHROUGH
+      credentialName: "am-gateway"
+    #tcpGatewayName is used for sftp
+    tcpGatewayName: ""
+    sftpPort: 31400
+    tcpHost: "*"
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 250m
+    limits:
+      memory: 1024Mi
+      cpu: 500m
+  tolerations: []
+  nodeSelector: {}
+
+crmq:
+  fullnameOverride: crmq
+  #ipv6Enabled: true        #BTEL_ipv6
+  ipv6Enabled: false        #BTEL_ipv4
+  tmpForceRecreateResources: false
+  istio:
+    enabled: false
+    version: 1.5
+    cni:
+      enabled: true
+    mtls:
+      enabled: true
+    permissive: false
+  rbac:
+    enabled: true
+    serviceAccountName: 
+    serviceAccountNamePostDel : 
+    serviceAccountNameScale : 
+    serviceAccountNameAdminForgetnode : 
+    test: 
+      enabled: true
+      serviceAccountNameHelmTest:
+      helmTestSecret:
+  persistence:
+    reservePvc: false
+    reservePvcForScalein: false
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 350m
+    limits:
+      memory: 512Mi
+      cpu: 1
+  replicas: 3
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  rabbitmq:
+    username: alma_mquser
+    password: alma_mqpasswd
+    tls:
+      cacert: |+
+        -----BEGIN CERTIFICATE-----
+        MIICxjCCAa6gAwIBAgIJANn9Wpig/IzpMA0GCSqGSIb3DQEBCwUAMBMxETAPBgNV
+        BAMMCE15VGVzdENBMB4XDTE5MTIwMjA4NTQ0NloXDTI5MTEyOTA4NTQ0NlowEzER
+        MA8GA1UEAwwITXlUZXN0Q0EwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIB
+        AQCirQz5j4DtJ0wywNPLuFbVqSmoJ82ocGJ75nnuQ6chieahfWB2iWdmtKeJilqT
+        +z2gfoD2ycV5+xdPUKBmkW3B90/n5l2znuvktKclowcpjPyktt3PSSxymeyBMiy1
+        YP8oNT7Nu6lkUwaW/zitm7hJQTrQXTcUOaUpBRUQk6CJYRmx36/lcIbOf8WDnrp3
+        mlU5Rzi+vPiwa+o3ssoGyH6l2DdkOi8QrfdNqMK89l2FYxVLz4y93/JRcQHuTFY1
+        +jUwlHCz7c6UV6k4d6HUF6t2REqTTTDdykpr/+vXcZBTEg+xfycGsJJPFqVBXEI+
+        QnFdq5BLllTYWhaEkpCaY1jlAgMBAAGjHTAbMAwGA1UdEwQFMAMBAf8wCwYDVR0P
+        BAQDAgEGMA0GCSqGSIb3DQEBCwUAA4IBAQACG5n8nC6NDi7Fr8ukCyMswl3F6K0L
+        MON6poD6A8Z1rp042SLt4s1kQ2CgymPgQWWcrM1fbQxPLDXaU+KWHNura88rZ5fL
+        Ray3+a4ojevESuMFF40v+6UQl23hC81ISLUTft5DAbpp+IuIUnRpw8GiD735fJCy
+        7CEYXGqusJ3951P9XjIpHudl5uvbUxoo9fPxAIDbKCuOMq+30V68+mxWjhuyWtJe
+        ID9aS+UFIhG9jkBt1t4AbhEacSKp8WCK6BwRtacXdnEPfx6SLRWxAOmeDvi8XIjF
+        +k7FeeZT5WlbEjW3YlwZVqb4qsV5WYA/bZAVdlDRyqEOj8vZNIpGrKhg
+        -----END CERTIFICATE-----
+      cert: |+
+        -----BEGIN CERTIFICATE-----
+        MIIC7DCCAdSgAwIBAgIBATANBgkqhkiG9w0BAQsFADATMREwDwYDVQQDDAhNeVRl
+        c3RDQTAeFw0xOTEyMDIwOTAxMTNaFw0yOTExMjkwOTAxMTNaMC8xHDAaBgNVBAMM
+        E2hhaXlhbm5naW54LmFleGhvbWUxDzANBgNVBAoMBnNlcnZlcjCCASIwDQYJKoZI
+        hvcNAQEBBQADggEPADCCAQoCggEBAOGOowNQ+5DXHvhIgkK67qS8iOWzIL+MOht/
+        IQiq12SKjRFmBq0ThoE3YBWdVpC625PtPZm6QGbOPelo/VyHn8nFuvAJWuGaGFdv
+        54LdnR2rha9NiNBt9bTIcHAGjBMJNBavFk9sed6/wCEl4aKQ1N6r1qHu0ENaq4va
+        tNElqTMH5F8zG1JsOkw3I4I1qIyNHSsSfGXdSZNPJRVZjICuRuOHD4HSxBYFTPhl
+        TA7/1LG4TemkYjakOPjBlTv3kq5qAR2jrbWBzZl/7+nenVp2TPvafUZBzPerESwd
+        J2IJOGP20A1nJSRGhL+2RJmEFHzsfnVZfo8DFGpIC5eRG6j3ZLECAwEAAaMvMC0w
+        CQYDVR0TBAIwADALBgNVHQ8EBAMCBaAwEwYDVR0lBAwwCgYIKwYBBQUHAwEwDQYJ
+        KoZIhvcNAQELBQADggEBAIPmDOv+jGHteBS/DtMlt8d6rmNJA+K8053guPJWFi29
+        ufl/7e8o45isEhyGbGQv2IF56OkVq0pOmeT6ti2IJ4YeIB8Soiez/ypXKCIJWDNg
+        wExxKYHOXASPn/pC1XfsMGhqgpyjwuIMqtGTqZfihxeooAZMNOOrdnKC3K1wHebF
+        vZcjt/9Xz/rzQmLhgpzNZjxBXuwXfxB3lItASZemQ+S/IO3KJ7j/WL36m0FgkyP/
+        AzGTrV99xPHjiLyrNy91V09rl6tsLyxTPxw7wWboXlJgCAiwdCkuPFNK/XJqMEEe
+        hI2Hd93Xi4Lql7ekWoUlgXWucGUAoV7lGBXGqUrdkXg=
+        -----END CERTIFICATE-----
+      key: |+
+        -----BEGIN RSA PRIVATE KEY-----
+        MIIEogIBAAKCAQEA4Y6jA1D7kNce+EiCQrrupLyI5bMgv4w6G38hCKrXZIqNEWYG
+        rROGgTdgFZ1WkLrbk+09mbpAZs496Wj9XIefycW68Ala4ZoYV2/ngt2dHauFr02I
+        0G31tMhwcAaMEwk0Fq8WT2x53r/AISXhopDU3qvWoe7QQ1qri9q00SWpMwfkXzMb
+        Umw6TDcjgjWojI0dKxJ8Zd1Jk08lFVmMgK5G44cPgdLEFgVM+GVMDv/UsbhN6aRi
+        NqQ4+MGVO/eSrmoBHaOttYHNmX/v6d6dWnZM+9p9RkHM96sRLB0nYgk4Y/bQDWcl
+        JEaEv7ZEmYQUfOx+dVl+jwMUakgLl5EbqPdksQIDAQABAoIBAGDtjcnIDEMi3rEt
+        X6TTdegfCOlEv+bwmKvmRsjVubf//j0ize2kfWGb7VN8iI2rbt6zzYv5SOGk8WAT
+        eQVBVv47VWj/bCmUsa8pbKCFIZZ1df5uYEPJbRQiKodJmPo5M0QoO3soD3sUhbj4
+        8WyNtpx11cdCvAaluSBhfOB/waUmiWSovGwCicjH5y2OP0PpQi1SM2PwmsYS1r5v
+        GI29fnwsFBehlxmcGfJqovXbt0EwG4ec+QbkXKFIA+GW2C2NC5vhTv3o4NvM91Gm
+        hXFSM+krZlzRsWLsZmHizzkyu9jZ4GuOGlijW/fQuGvP9rCzKRil+VZI7IfPDwu+
+        dzyMy9ECgYEA+aJP02RqwSp+YeB7FcBf1BF1q++eQFdOu2TNP40rn+znUe+sIpQh
+        MUOFtgL+LbUpn86ISpHBskrEws2H3+jrkWqtG2E6lzjJWdX4krfw3R9naxV+V6ps
+        XCvZhWOZVh9vMuQmj2mUShZJ0DVCag93KGPI2xR8/asXtI3epfUQGF0CgYEA508k
+        z0NXrMl2EqxqKlpLGYlFG6u4702/qrdy4p5a+PnRirlzGRDIeEFvVxE6HjO2OVIl
+        Du2VKnvOJMff7xa14i2v7P2EEAVqW16JnTrRPGGkPigSsX+yMSPG31LbEByulHxE
+        Fd0KagvMPgdoifF0aS++Mo+egZCt6OWYp1MYaGUCgYB+aT4pGwmgRcd4AvfxXNhq
+        CGlhJtcpV8zrwjDZhMBZnNrKuCaf4Akq7DlyoPNb7Ahm/2wu7r56bbhTuUacEVPw
+        8Gc2nTbRSxVTY7Ibgf/7yaJSLLEs7YUv65icHoKQhRyHVddc+ib4mW7Je57lHG3H
+        yzf0ENz2i8RWTx03RvDelQKBgAsX0ZUbDq5brwzwNds4H1fnLGhKUQExAlsmlxzl
+        KUm9eV4kzK9MDcEuqi9LxTTDmB6hoONZY4j5DQbYixXFSg3B0SkVc2rtR4+ANitT
+        McuqhxzwAQ2AKUSQCa6WI6lfJsQ6PW2q/x/c1vu2kT3kVYfh4UY9ewWNsbl0oWCM
+        7KO9AoGAfzU6Fl5UDR0bk9CO9wfooQ+FwuwBy5Dpw73L0/RzdfkbOUfiXpFUUL55
+        8JgJU25ph9+sWxQEcOC8BKkt9BX1iI9fLNa6RXt70nxMWM6BxDxOM4J4GIg2qPTU
+        0uHZP+7+KtNmkjt0jywDrdTUdeS6pHTM1FnXYkHyqUYvdLn9oC8=
+        -----END RSA PRIVATE KEY-----
+      verify_option: "verify_peer"
+      fail_if_no_peer_cert: "true"
+      ssl_port: 5671
+
+cmdb:
+  fullnameOverride: cmdb
+  cluster_type: "simplex"
+  istio:
+    enabled: false
+  rbac_enabled: true
+  serviceAccountName:
+  services:
+    mysql:
+      #name:
+      type: ClusterIP
+    mariadb:
+      #name:
+      exporter:
+        #name:
+        port: 9104
+    mariadb_master:
+      #name:
+      type: NodePort
+      #nodePort:
+    maxscale:
+      #name:
+      type: ClusterIP
+      port: 8989
+      #nodePort:
+      exporter:
+        #name:
+        port: 9195
+    admin:
+      #name:
+      type: ClusterIP
+    #endpoints:
+      #master:
+        #name:
+      #maxscale:
+        #name:
+  mariadb:
+    count: 1
+    use_tls: false
+    audit_logging:
+      enabled: false
+    resources:
+      requests:
+        memory: 256Mi
+        cpu: 250m
+      limits:
+        memory: 512Mi
+        cpu: 500m
+    nodeAffinity:
+      enabled: true
+      key: is_worker
+      value: true
+    certificates:
+      client_ca_cert:     client-ca-cert.pem
+      server_ca_cert:     server-ca-cert.pem
+      client_cert:        client-cert.pem
+      client_key:         client-key.pem
+      server_cert:        server-cert.pem
+      server_key:         server-key.pem
+      secret:
+    root_password: cjAwdHIwMHQ=
+    allow_root_all: true
+    databases:
+      - name: grafana
+        character_set: utf8
+        collate: utf8_general_ci
+      - name: calm_alma
+        character_set: keybcs2
+        collate: keybcs2_bin
+    users:
+      - name: grafana
+        password: Z3JhZmFuYQ==
+        host: "%"
+        privilege: ALL
+        object: "grafana.*"
+        # if use_tls set, require SSL/X509 or not
+        requires: ""
+      - name: alma_dbuser
+        password: YWxtYV9kYnBhc3N3ZAo=
+        host: "%"
+        privilege: ALL
+        object: "calm_alma.*"
+        requires: ""
+        with: "GRANT OPTION"
+  maxscale:
+    count: 0
+    resources:
+      requests:
+        memory: 256Mi
+        cpu: 250m
+      limits:
+        memory: 512Mi
+        cpu: 500m
+    tolerations:
+      - key: 'is_edge'
+        operator: 'Equal'
+        value: 'true'
+        effect: 'NoExecute'
+    nodeAffinity:
+      enabled: true
+      key: is_edge
+      value: true
+  admin:
+    resources:
+      requests:
+        memory: 256Mi
+        cpu: 250m
+      limits:
+        memory: 512Mi
+        cpu: 500m
+    nodeAffinity:
+      enabled: true
+      key: is_worker
+      value: true
+
+ckaf-kafka:
+  Replicas: 3
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+  kafkaNodeSelector:
+    enable: false
+    nodeLabel:
+  tolerationsForTaints:
+    enable: false
+    tolerations:
+      - key: <"key1">
+        operator: <"Equal">
+        value: <"val1">
+        effect: <"NoSchedule">
+  JmxExporter:
+    jmxResources:
+      resources:
+        requests:
+          cpu: 100m
+          memory: 1Gi
+        limits:
+          cpu: 250m
+          memory: 1Gi
+  ckaf-zookeeper:
+    servers: 3
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        cpu: 1
+        memory: 2Gi
+    zookeeperNodeSelector:
+      enable: false
+      nodeLabel:
+    tolerationsForTaints:
+        enable: false
+        tolerations:
+          - key: <"key1">
+            operator: <"Equal">
+            value: <"val1">
+            effect: <"NoSchedule">
+  ssl:
+    enabled: false
+    secret_name: <secret-name>
+    keystore_key: keyStore
+    truststore_key: trustStore
+    truststore_passwd_key: trustStorePass
+    keystore_passwd_key: keyPass
+    keystore_key_passwd_key: keyStorePass
+    enabledProtocols: TLSv1.2,TLSv1.1,TLSv1
+    keyStoreType: JKS
+    trustStoreType: JKS
+    SecurityInterBrokerProtocol: SSL
+    securityProtocols: SSL
+    secureRamdomImpl: |+
+      SHA1PRNG
+      ssl.client.auth=required
+      ssl.client.auth=requested
+      ssl.client.auth=none This means client authentication is not needed.
+    clientAuth: required
+
+citm-ingress:
+  rbac:
+    enabled: true
+    serviceAccountName: default
+  istio:
+    enabled: false
+    version: 1.5
+    cni:
+      enabled: true
+    mtls:
+      enabled: true
+    permissive: true
+  default404:
+    rbac:
+      enabled: true
+      serviceAccountName: default
+    istio:
+      enabled: false
+      version: 1.5
+      cni:
+        enabled: true
+      mtls:
+        enabled: true
+      permissive: true
+    tolerations: []
+    nodeSelector: {}
+  controller:
+    tolerations:
+      - key: 'is_edge'
+        operator: 'Equal'
+        value: 'true'
+        effect: 'NoExecute'
+    nodeSelector: {}
+    replicaCount: 1
+    resources:
+      requests:
+        memory: 256Mi
+        cpu: 250m
+      limits:
+        memory: 512Mi
+        cpu: 500m
+    healthzPort:
+    httpPort: 80
+    httpsPort: 443
+    service:
+      targetPorts:
+        http: 80
+        https: 443
+    ingressClass: nginx
+
+btel_istio_gateway:
+  create  : false
+  gatewayName: "btel-common-istio-gateway"
+  customgateway_spec:
+    selector:
+      istio: ingressgateway
+    servers:
+    - hosts:
+      - '*'
+      port:
+        name: https
+        number: 80
+        protocol: HTTPS
+      tls:
+        credentialName: btel-gw-tls-credential
+        mode: SIMPLE
+

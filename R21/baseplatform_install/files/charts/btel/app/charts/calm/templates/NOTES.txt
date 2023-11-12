@@ -1,0 +1,43 @@
+
+
+The exposed ports can be obtained by below command:
+kubectl get --namespace {{ .Release.Namespace }} services {{ template "alarm.fullname" . }}
+
+
+Then, the snmp service and restful service can be accessed via above exposed ports.
+The following commands are depending on your configuration.
+
+{{- if eq "NodePort" .Values.snmpServiceType }}
+Alarm service is exposed via NodePort service type.
+export SNMP_PORT=$(kubectl get --namespace {{ .Release.Namespace }} -o jsonpath="{.spec.ports[0].nodePort}" services {{ template "alarm.fullname" . }})
+export REST_PORT=$(kubectl get --namespace {{ .Release.Namespace }} -o jsonpath="{.spec.ports[1].nodePort}" services {{ template "alarm.fullname" . }})
+export SNMPTRAP_PORT=$(kubectl get --namespace {{ .Release.Namespace }} -o jsonpath="{.spec.ports[2].nodePort}" services {{ template "alarm.fullname" . }})
+SNMP:
+snmpwalk -v2c -c test3 <Any node IP in your BCMT cluster>:$SNMP_PORT 1.3.6.1.4.1.94.7.1.4.2.1
+snmpwalk -v 3 -n "" -a MD5 -A 12345678 -x DES -X 12345678 -l authPriv -u test1 -e 80006f2a0443414c4d44656661756c74456e67696e654944  <Any node IP in your BCMT cluster>:$SNMP_PORT
+SNMPTRAP:
+snmptrap -v 3 -n "" -a MD5 -A 12345678 -x DES -X 12345678 -l authPriv -u test1 -e 80006f2a0443414c4d44656661756c74456e67696e654944  <Any node IP in your BCMT cluster>:$SNMPTRAP_PORT TRAP-PARAMETERS
+
+{{- else }}
+
+Alarm service is exposed via ClusterIP service type.
+export CLUSTER_IP=$(kubectl get --namespace {{ .Release.Namespace }} -o jsonpath="{.spec.clusterIP}" services {{ template "alarm.fullname" . }})
+SNMP:
+snmpwalk -v2c -c test3 $CLUSTER_IP:1161 1.3.6.1.4.1.94.7.1.4.2.1
+snmpwalk -v 3 -n "" -a MD5 -A 12345678 -x DES -X 12345678 -l authPriv -u test1 -e 80006f2a0443414c4d44656661756c74456e67696e654944  $CLUSTER_IP:1161
+SNMPTRAP:
+snmptrap -v 3 -n "" -a MD5 -A 12345678 -x DES -X 12345678 -l authPriv -u test1 -e 80006f2a0443414c4d44656661756c74456e67696e654944  $CLUSTER_IP:1162 TRAP-PARAMETERS
+
+{{- end }}
+
+{{- if eq "NodePort" .Values.restServiceType }}
+
+REST:
+curl -v http://<Any node IP in your BCMT cluster>:$REST_PORT/api/alma/alarms
+
+{{- else }}
+
+REST:
+curl -v http://$CLUSTER_IP:8182/api/alma/alarms
+
+{{- end }}

@@ -1,0 +1,23 @@
+version: "3.9"
+services:
+  teamcity-db:
+    image: mysql
+    restart: always
+    command: --default-authentication-plugin=mysql_native_password
+    environment:
+      - MYSQL_DATABASE=teamcity
+      - MYSQL_ROOT_PASSWORD=teamcity
+    volumes:
+      - /mysql:/var/lib/mysql
+  teamcity-server:
+    depends_on:
+      - teamcity-db
+    image: jetbrains/teamcity-server
+    user: root
+    restart: always
+    ports:
+      - 8080:8111
+    volumes:
+      - /teamcity-prod/data:/data/teamcity_server/datadir
+      - /teamcity-prod/logs:/opt/teamcity/logs
+

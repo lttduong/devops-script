@@ -1,0 +1,20 @@
+{{- if eq .Values.ingress.enableExternalAccess true }}
+{{- $replicas := .Values.Replicas | int }}
+{{- $servicePort := .Values.ingress.startPortRangeOnEdgeNode | int }}
+{{- $hostName := include "kafka.name" . }}
+{{- $root := . }}
+{{- $citmName := .Values.ingress.citmReleaseName }}
+{{- $releaseNamespace :=  .Release.Namespace }}
+{{- range $replica := until $replicas }}
+  {{- $externalListenerPort := add $servicePort $replica }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $citmName }}-citm-ingress-tcp-{{ $hostName }}-{{ $replica }}
+  namespace: {{ $releaseNamespace }}
+data:
+  {{ $externalListenerPort }}: {{ $releaseNamespace }}/{{ $hostName }}-{{ $replica }}-broker-external:9092
+{{- end }}
+{{- end }}
+

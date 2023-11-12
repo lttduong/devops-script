@@ -1,0 +1,88 @@
+{{- if .Values.service.prometheus_metrics.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "elasticsearch.fullname" . }}-drh
+  annotations:
+   {{- if .Values.searchguard.enable }}
+   {{ .Values.service.prometheus_metrics.pro_annotation_https_scrape }}: "true"
+   {{- if or (.Values.istio.enabled) (not .Values.searchguard.http_ssl) }}
+   prometheus.io/scheme: "http"
+   {{- else }}
+   prometheus.io/scheme: "https"
+   {{- end }}
+   {{- else }}
+   prometheus.io/scrape: "true"
+   prometheus.io/scheme: "http"
+   {{- end }}
+   prometheus.io/path: /_prometheus/metrics
+   prometheus.io/port: "9200"
+  labels:
+    component: elasticsearch
+    release: {{ .Release.Name | quote }}
+spec:
+  clusterIP : None
+  selector:
+    component: elasticsearch
+    role: data
+    release: {{ .Release.Name | quote }}
+  ports:
+    - name: tcp-rest
+      port: {{.Values.service.client_port}}
+      protocol: TCP
+      targetPort: tcp-rest
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "elasticsearch.fullname" . }}-mrh
+  annotations:
+   {{- if .Values.searchguard.enable }}
+   {{ .Values.service.prometheus_metrics.pro_annotation_https_scrape }}: "true"
+   {{- if or (.Values.istio.enabled) (not .Values.searchguard.http_ssl) }}
+   prometheus.io/scheme: "http"
+   {{- else }}
+   prometheus.io/scheme: "https"
+   {{- end }}
+   {{- else }}
+   prometheus.io/scrape: "true"
+   prometheus.io/scheme: "http"
+   {{- end }}
+   prometheus.io/path: /_prometheus/metrics
+   prometheus.io/port: "9200"
+  labels:
+    component: elasticsearch
+    release: {{ .Release.Name | quote }}
+spec:
+  clusterIP : None
+  selector:
+    component: elasticsearch
+    role: master
+    release: {{ .Release.Name | quote }}
+  ports:
+    - name: tcp-rest
+      port: {{.Values.service.client_port}}
+      protocol: TCP
+      targetPort: tcp-rest
+---
+{{- if .Values.istio.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "elasticsearch.fullname" . }}-crh
+  labels:
+    component: elasticsearch
+    release: {{ .Release.Name | quote }}
+spec:
+  clusterIP : None
+  selector:
+    component: elasticsearch
+    role: client
+    release: {{ .Release.Name | quote }}
+  ports:
+    - name: tcp-rest
+      port: {{.Values.service.client_port}}
+      protocol: TCP
+      targetPort: tcp-rest
+{{- end }}
+{{- end }}

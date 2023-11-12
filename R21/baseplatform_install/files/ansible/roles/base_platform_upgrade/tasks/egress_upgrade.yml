@@ -1,0 +1,10 @@
+---
+- name: "Upgrading {{ BP_NAMESPACE }} egress"
+  shell: >
+    {{ helm }}  upgrade {{ egressHelmName }} {{ chartsPath }}/egress/app
+    --install
+    --namespace {{ BP_NAMESPACE }}
+    --reuse-values
+    --wait
+    --timeout 1000s
+  when: EGRESS.ENABLED

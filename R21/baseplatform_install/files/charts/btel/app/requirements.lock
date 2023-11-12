@@ -1,0 +1,36 @@
+dependencies:
+- name: cmdb
+  repository: https://repo.lab.pl.alcatel-lucent.com/csf-helm-stable/
+  version: 7.13.5
+- name: belk-efkc
+  repository: https://repo.lab.pl.alcatel-lucent.com/csf-helm-stable
+  version: 6.3.2
+- name: calm
+  repository: https://repo.lab.pl.alcatel-lucent.com/csf-helm-stable
+  version: 20.9.2
+- name: cpro
+  repository: https://repo.lab.pl.alcatel-lucent.com/csf-helm-stable
+  version: 2.11.0
+- name: cpro-gen3gppxml
+  repository: https://repo.lab.pl.alcatel-lucent.com/csf-helm-stable
+  version: 2.3.0
+- name: cpro-grafana
+  repository: https://repo.lab.pl.alcatel-lucent.com/csf-helm-stable
+  version: 3.16.1
+- name: crmq
+  repository: https://repo.lab.pl.alcatel-lucent.com/csf-helm-stable/
+  version: 2.4.6
+- name: ckaf-kafka
+  repository: https://repo.lab.pl.alcatel-lucent.com/csf-helm-stable/
+  version: 3.0.2
+- name: ckaf-schema-registry
+  repository: https://repo.lab.pl.alcatel-lucent.com/csf-helm-stable/
+  version: 6.0.1
+- name: cnot
+  repository: https://repo.lab.pl.alcatel-lucent.com/csf-helm-stable/
+  version: 1.5.15
+- name: citm-ingress
+  repository: https://repo.lab.pl.alcatel-lucent.com/csf-helm-stable/
+  version: 1.18.7
+digest: sha256:2b4b3e04abc23d07d6c749bfebf335fbbeccecb105ea5a74e2b1f7efcbb7749e
+generated: "2020-10-30T12:01:10.245972534Z"

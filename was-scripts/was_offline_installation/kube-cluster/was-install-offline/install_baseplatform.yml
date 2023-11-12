@@ -1,0 +1,7 @@
+---
+  - import_playbook: playbooks/initize_master.yml
+  - import_playbook: playbooks/initize_worker.yml
+  - import_playbook: playbooks/workers_setup.yml
+  - import_playbook: playbooks/master_setup.yml
+  - import_playbook: playbooks/baseplatform_presetup.yml
+  - import_playbook: playbooks/baseplatform_setup.yml

@@ -1,0 +1,26 @@
+# Port forwarding
+
+* Used in minikube, kube-proxy:
+
+POD_NAME=$(kubectl get pods --namespace {{ .Release.Namespace }} -l "app={{ template "cnot.name" . }},component={{ .Values.cnot.name }}" -o jsonpath="{.items[0].metadata.name}")
+kubectl --namespace {{ .Release.Namespace }} port-forward $POD_NAME 8443
+
+* Please be aware, port forwarding is active while this process is in running state
+
+# API calls
+
+## Available endpoints
+
+* metrics - for getting statistics about prior API calls and notification handling
+* notif - for sending notifications, POST request with parameter
+* reload - for config map reload
+* healthy - liveness probe
+* ready - readiness probe (same check is done as in case of "healthy" - whether the CNOT API Service is up and running)
+
+## How to use them
+
+curl -k https://CNOT-SERVER/api/cnot/v1/metrics
+
+* For example:
+
+curl -k https://REL_NAME.NAMESPACE_NAME.svc.cluster.local/api/cnot/v1/metrics

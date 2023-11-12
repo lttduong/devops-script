@@ -1,0 +1,130 @@
+---
+- name: "Install CKEY configurator config"
+  shell:
+    "{{ helm }} install {{ chartsPath }}/ckey/configurator-config
+    --name-template {{ ckeyConfiguratorConfigHelmName }}
+    --namespace {{ BP_CONFIG_NAMESPACE }}
+    --values {{ chartsPath }}/values/global-values.yaml
+    {{ ckeyConfigurationOverride }}
+    {{ ckeyResourcesOverride }}
+    --set global.registry={{ bcmtRegistry }}
+    --set dns.domain={{ svcDnsDomain }}
+    --set basePlatformNamespace={{ BP_NAMESPACE }}
+    --set keycloakPassword={{ keycloakPassword }}
+    --set cbur.enabled={{ CBUR.CONFIG_SECRETS.ENABLED | default(false) }}
+    --set cbur.maxiCopy={{ CBUR.CONFIG_SECRETS.COPIES | default(1) }}
+    --set cbur.brCronSpec=\"{{ CBUR.CONFIG_SECRETS.SCHEDULE.CRONJOB | default('0 0 * * *') }}\"
+    --set cbur.autoEnableCron={{ CBUR.CONFIG_SECRETS.SCHEDULE.ENABLED }}
+    --set cbur.autoUpdateCron={{ CBUR.CONFIG_SECRETS.SCHEDULE.ENABLED }}
+    --set cbur.backendMode={{ CBUR.BACKEND_MODE }}
+    --set config.ckey.netguard.clientSecret={{ netguardAdminSecret }}
+    --set config.ckey.master.clientSecret={{ masterAdminSecret }}
+    {{ configuratorsConfigGeoSettings | default('') }}"
+  no_log: "{{ no_log }}"
+
+- name: "Installing CKEY CRMQ configurator"
+  shell:
+    "{{ helm }} install {{ chartsPath }}/ckey/crmq-config
+    --name-template {{ ckeyCrmqConfiguratorHelmName }}
+    --namespace {{ BP_CONFIG_NAMESPACE }}
+    --values {{ chartsPath }}/values/global-values.yaml
+    {{ ckeyConfigurationOverride }}
+    {{ ckeyResourcesOverride }}
+    --set image.registry={{ bcmtRegistry }}
+    --set dns.domain={{ svcDnsDomain }}
+    --set config.crmq.users.ckey.username={{ crmqCkeyUsername }}
+    --set config.crmq.users.ckey.password={{ crmqCkeyPassword }}
+    --set config.crmq.ckeyExchangeName={{ crmqCkeyExchangeName }}
+    --set ipv6Enabled={{ ipv6Only }}
+    --wait
+    --timeout {{ wait_timeout }}s"
+
+- name: "Set login security banner"
+  set_fact:
+    loginSecurityBanner: '{{ LOGIN_SECURITY_BANNER | regex_escape() | quote }}'
+
+- name: "Install CKEY master config"
+  shell:
+    "{{ helm }} install {{ chartsPath }}/ckey/master-config
+    --name-template {{ ckeyMasterConfigHelmName }}
+    --namespace {{ BP_CONFIG_NAMESPACE }}
+    --values {{ chartsPath }}/values/global-values.yaml
+    {{ ckeyConfigurationOverride }}
+    {{ ckeyResourcesOverride }}
+    --set image.registry={{ bcmtRegistry }}
+    --set keycloakPassword={{ keycloakPassword }}
+    --set config.ckey.loginSecurityBanner={{ loginSecurityBanner }}
+    --set config.ckey.csfPushEventListenerEnabled={{ csfPushEventListenerEnabled }}
+    --set cmdbConfiguratorEnabled={{ dbPopulatingEnabled }}
+    --set config.ckey.clientSecret={{ masterAdminSecret }}
+    --timeout {{ wait_timeout }}s
+    --wait"
+  no_log: "{{ no_log }}"
+
+- name: "Generate redirect uris lists"
+  set_fact:
+    logoutRedirectUris: "{{ redirectUris.results | map(attribute='ansible_facts.logoutUri') | list }}"
+    keycloakRedirectUris: "{{ redirectUris.results | map(attribute='ansible_facts.keycloakUri') | list }}"
+    ssoRedirectUris: "{{ redirectUris.results | map(attribute='ansible_facts.ssoRedirectUri') | list }}"
+    rootRedirectUris: "{{ redirectUris.results | map(attribute='ansible_facts.rootUri') | list }}"
+
+- name: "Merge redirect uris"
+  set_fact:
+    bpRedirectUris: "{{ logoutRedirectUris + keycloakRedirectUris + ssoRedirectUris + rootRedirectUris }}"
+
+- name: "Generate base_platform_sso secret"
+  shell: uuidgen
+  register: generatedBasePlatformSsoSecret
+  no_log: true
+  when: basePlatformSsoSecret is not defined
+
+- name: "Set base_platform_sso secret"
+  set_fact:
+    basePlatformSsoSecret: "{{ generatedBasePlatformSsoSecret.stdout  }}"
+  no_log: true
+  when: basePlatformSsoSecret is not defined
+
+- name: "Install CKEY netguard config"
+  shell:
+    "{{ helm }} install
+    {{ chartsPath }}/ckey/netguard-config
+    --name-template {{ ckeyNetguardConfigHelmName }}
+    --namespace {{ BP_CONFIG_NAMESPACE }}
+    --values {{ chartsPath }}/values/global-values.yaml
+    {{ ckeyConfigurationOverride }}
+    {{ ckeyResourcesOverride }}
+    --set image.registry={{ bcmtRegistry }}
+    --set config.ckey.basePlatformSso.secret={{ basePlatformSsoSecret }}
+    --set config.ckey.adminPassword={{ NETGUARD_ADMIN_PASSWORD }}
+    --set config.ckey.redirectUris=\"{{ bpRedirectUris | join(\"\\, \") }}\"
+    --set config.ckey.csfPushEventListenerEnabled={{ csfPushEventListenerEnabled }}
+    --set config.ckey.loginSecurityBanner={{ loginSecurityBanner }}
+    --set cmdbConfiguratorEnabled={{ dbPopulatingEnabled }}
+    --set config.ckey.clientSecret={{ netguardAdminSecret }}
+    --timeout {{ wait_timeout }}s
+    --wait"
+  no_log: "{{ no_log }}"
+
+- set_fact:
+    keycloakServiceUrl: "ckey-ckey.{{ BP_NAMESPACE }}.{{ svcDnsDomain }}:8443"
+
+- set_fact:
+    keycloakAllowedUrls: "https://{{ keycloakServiceUrl }}"
+
+- set_fact:
+    keycloakAllowedUrls: "{{ keycloakAllowedUrls }};https://{{ item }}"
+  loop: "{{ all_addresses }}"
+
+- set_fact:
+    keycloakAllowedUrls: "{{ keycloakAllowedUrls | quote }}"
+
+- name: "Install realm-urls config"
+  shell:
+    "{{ helm }} install
+    {{ chartsPath }}/ckey/realm-urls-config
+    --name-template {{ realmUrlsConfigurationHelmName }}
+    --namespace {{ BP_CONFIG_NAMESPACE }}
+    --set config.ckey.realmUrls={{ keycloakAllowedUrls }}
+    --set config.ckey.serviceUrl={{ keycloakServiceUrl }}
+    --timeout {{ wait_timeout}}s
+    --wait"

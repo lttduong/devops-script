@@ -1,0 +1,67 @@
+{{- if and .Values.istio.enable .Values.alertmanager.enabled}}
+{{- if .Values.alertmanager.istioIngress.enabled }}
+{{- if eq .Values.alertmanager.istioIngress.gatewayName "" }}
+apiVersion: networking.istio.io/v1alpha3
+kind: Gateway 
+metadata: 
+  labels:
+    app: {{ template "prometheus.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    component: "{{ .Values.alertmanager.name }}"
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+{{- include "prometheus-labels" (tuple .Values.global.labels) | indent 4}}
+  name: {{ template "prometheus.alertmanager.fullname" . }}-istio-gateway
+{{- if .Values.global.annotations }}
+  annotations:
+{{- include "prometheus-annotations" (tuple .Values.global.annotations) | indent 4}}
+{{- end }}
+spec:
+  {{- if .Values.alertmanager.istioIngress.selector }}
+  selector:
+{{ toYaml .Values.alertmanager.istioIngress.selector | indent 4 }}
+  {{- end }}
+  servers:
+  {{- if .Values.alertmanager.istioIngress.tls.enabled }}
+  - hosts:
+    - '{{ .Values.alertmanager.istioIngress.host }}'
+    port:
+      name: http
+      number: {{ .Values.alertmanager.istioIngress.httpPort }}
+      protocol: HTTP 
+    tls:
+      httpsRedirect: true # sends 301 redirect for http requests
+  - hosts:
+    - '{{ .Values.alertmanager.istioIngress.host }}'
+    port:
+      name: https_alert
+      number: {{ .Values.alertmanager.istioIngress.tls.httpsPort }}
+      protocol: HTTPS
+    tls:
+      {{- if eq .Values.alertmanager.istioIngress.tls.mode "PASSTHROUGH" }}
+      mode: PASSTHROUGH
+      {{- else if eq .Values.alertmanager.istioIngress.tls.mode "SIMPLE" }}
+      credentialName : {{ .Values.alertmanager.istioIngress.tls.credentialName}}
+      mode: SIMPLE
+      {{- else if eq .Values.alertmanager.istioIngress.tls.mode "MUTUAL" }}
+      credentialName : {{ .Values.alertmanager.istioIngress.tls.credentialName}}
+      mode: MUTUAL
+      {{- else if eq .Values.alertmanager.istioIngress.tls.mode "ISTIO_MUTUAL" }}
+      {{- if eq .Values.alertmanager.istioIngress.tls.credentialName "" }}
+      mode: ISTIO_MUTUAL
+      {{- else}}
+      mode: ISTIO_MUTUAL
+      credentialName : {{ .Values.alertmanager.istioIngress.tls.credentialName}}
+      {{- end }}
+      {{- end }}
+  {{- else }}
+  - hosts:
+    - '{{ .Values.alertmanager.istioIngress.host }}'
+    port:
+      name: http
+      number: {{ .Values.alertmanager.istioIngress.httpPort }}
+      protocol: HTTP
+  {{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

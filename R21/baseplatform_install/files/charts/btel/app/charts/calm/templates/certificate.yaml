@@ -1,0 +1,23 @@
+## Start of custom chart file for CSFID-2993
+{{- if .Values.global.certManager.used }}
+apiVersion: {{ .Values.global.certManager.api }}
+kind: Certificate
+metadata:
+  name: {{ template "alarm.fullname" . }}-certificate
+  namespace: {{ .Release.Namespace }}
+spec:
+  secretName: {{ template "alarm.fullname" . }}-tls
+  issuerRef:
+    name: {{ .Values.global.certManager.issuerRef.name }}
+    kind: {{ .Values.global.certManager.issuerRef.kind }}
+  duration: {{ .Values.global.certManager.duration }}
+  renewBefore: {{ .Values.global.certManager.renewBefore }}
+  keySize: {{ .Values.global.certManager.keySize }}
+  commonName: server
+  dnsNames:
+    - server
+    - {{ template "alarm.fullname" . }}.{{ .Release.Namespace }}.{{ .Values.dns.domain }}
+#  organization:
+#    - Nokia
+{{- end }}
+## End of custom chart file

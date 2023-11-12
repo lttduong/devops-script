@@ -1,0 +1,85 @@
+cbur:
+  enabled: false
+
+centos:
+  image:
+    name: centos-micro
+
+cronjob:
+  suspended: true
+  successfulJobsHistoryLimit: 30
+  failedJobsHistoryLimit: 10
+  startingDeadlineSeconds: 60
+  niamScriptName: postRestoreNiamIndicesCommand.sh
+  restoreScriptName: runRestore.sh
+  restoreMetadataPath: /etc/elasticsearch/restore/metadata
+
+geoRedundancyBtel:
+  persistence:
+    accessMode: ReadWriteOnce
+    createPv: false
+    resourcePolicyPv: Retain
+    size: 1Mi
+    storageClass: vsphere
+  volumes:
+    hostPath:
+      restoreMetadata: /var/btel/restore/metadata
+  image:
+    name: geo-redundancy-btel
+
+geo_redundancy:
+  enabled: false
+  config:
+    scriptsPath: /opt/elasticsearch/scripts
+    geoRedundancyPath: /opt/geo_redundancy_btel/
+    backupScriptFilename: esBackup.sh
+  btel:
+    restore_schedule: 0 * * * *
+
+global:
+  certManager:
+    used: true
+    duration: "8760h" # 365d
+    renewBefore: "360h" # 15d
+    keySize: "2048"
+    api: "cert-manager.io/v1alpha2"
+    issuerRef:
+      name: ncms-ca-issuer
+      kind: ClusterIssuer
+  config:
+    btel:
+      elasticsearchServiceName: elasticsearch
+      elasticsearchClientPort: 9200
+      backupScriptConfigmapName: btel-belk-elasticsearch-backup-script
+      backupScriptFilename: preBackupCommand.sh
+  seccompAllowedProfileNames: docker/default
+  seccompDefaultProfileName: docker/default
+  image:
+    pullPolicy: IfNotPresent
+
+image:
+  registry: epsec-docker-releases.repo.lab.pl.alcatel-lucent.com/common
+  tag: latest
+
+nfsServer:
+  address:
+  backupsPath: /var/nfsshare/bp/elasticsearch-backup
+  backupsMountPath: /elasticsearch-backup
+  mountOptions:
+    - "hard,"
+    - "async,"
+    - "timeo=600,"
+    - "actimeo=300,"
+    - "retrans=16,"
+    - "vers=4.1,"
+
+resources:
+  limits:
+    cpu: "200m"
+    memory: "128Mi"
+  requests:
+    cpu: "100m"
+    memory: "64Mi"
+
+searchguard:
+  enable: true

@@ -1,0 +1,15 @@
+---
+- name: Connect to WSHA to run script update
+  hosts: restore_wsha_vm
+  become: yes  
+  
+  tasks:         
+  - name: Run script to update the setup
+    shell: |
+      cd /opt/wsha-full-installer-21.08.0.1-release-b95/
+      yes 'qweQWE123!@#' | ./wsha_installer.sh --update
+    become: true
+
+
+
+   

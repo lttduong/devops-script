@@ -1,0 +1,194 @@
+---
+ - name: Connect to WSSE
+   hosts: restore_wsse_vm
+   become: yes
+   gather_facts: no
+
+   tasks:
+   - name: run script to user & pass
+     shell: |
+       cd /opt/wavesuite/cp/22.02.0/bin/
+       spawn sudo ./update_vault.sh -v
+       expect "Vault password: "
+       send "admin@123\r"
+       interact
+       exit 0
+     args:
+       executable: /usr/bin/expect
+     register: output
+
+   - name: Set facts
+     set_fact:
+       set_output: "{{ output.stdout }}"
+
+   - name: Show out keycloak_master_realm_admin_password
+     shell: echo  {{ output.stdout_lines[4] }} | cut -c 1-48
+     register: keycloak_master
+
+   - name: Print out keycloak_master_realm_admin_password
+     shell: echo  " {{ keycloak_master.stdout }} " > /wsseCredential.txt
+
+   - name: Show out mariadb_keycloak_user_password
+     shell: echo {{ output.stdout_lines[5] }} | cut -c 1-42
+     register: mariadb_keycloak
+
+   - name: Print out mariadb_keycloak
+     shell: echo  " {{ mariadb_keycloak.stdout }} " >> /wsseCredential.txt
+
+   - name: Show out mariadb_kong_user_password
+     shell: echo {{ output.stdout_lines[6] }} | cut -c 1-38
+     register: mariadb_kong
+
+   - name: Print out pass admin
+     shell: echo " {{ mariadb_kong.stdout }} " >> /wsseCredential.txt
+
+   - name: Show out mariadb_root_user_password
+     shell: echo {{ output.stdout_lines[7] }} | cut -c 1-38
+     register: mariadb_root
+
+   - name: Print out mariadb_root_user_password
+     shell : echo " {{ mariadb_root.stdout }} " >> /wsseCredential.txt
+
+   - name: Show out mariadb_wscp_user_password
+     shell: echo {{ output.stdout_lines[8] }} | cut -c 1-38
+     register: mariadb_wscp
+
+   - name: Print out mariadb_wscp password 
+     shell: echo " {{ mariadb_wscp.stdout }} " >> /wsseCredential.txt
+
+   - name: Show out ssl_keystore_password
+     shell: echo {{ output.stdout_lines[9] }} | cut -c 1-33
+     register: ssl_keystore
+
+   - name: Print out ssl_keystore_password
+     shell: echo " {{ ssl_keystore.stdout }} " >> /wsseCredential.txt
+
+   - name: Show out ssl_truststore_password
+     shell: echo {{ output.stdout_lines[10] }} | cut -c 1-35
+     register: ssl_truststore
+
+   - name: Print out ssl_truststore
+     shell: echo " {{ ssl_truststore.stdout }} " >> /wsseCredential.txt
+
+   - name: Show out wavesuite_admin_password
+     shell: echo {{ output.stdout_lines[11] }} | cut -c 1-36
+     register: wavesuite_admin
+
+   - name: Print out wavesuite_admin_password
+     shell: echo " {{ wavesuite_admin.stdout }} " >> /wsseCredential.txt
+
+   - name: Show out kafka_admin_password
+     shell: echo {{ output.stdout_lines[12] }} | cut -c 1-32
+     register: kafka_admin
+
+   - name: Print out kafka_admin_password
+     shell: echo " {{ kafka_admin.stdout }} " >> /wsseCredential.txt
+
+   - name: Show out keycloak_sure_realm_admin_password
+     shell: echo {{ output.stdout_lines[13] }} | cut -c 1-46
+     register: keycloak_sure
+
+   - name: Print out keycloak_sure_realm_admin_password
+     shell: echo " {{ keycloak_sure.stdout }} " >> /wsseCredential.txt
+
+   - name: Show out neo4j_cypher_shell_password
+     shell: echo {{ output.stdout_lines[14] }} | cut -c 1-39
+     register: neo4j_cypher
+
+   - name: Print out neo4j_cypher_shell_password
+     shell: echo " {{ neo4j_cypher.stdout }} " >> /wsseCredential.txt
+
+   - name: Show out network_operator_systemuser_password
+     shell: echo {{ output.stdout_lines[15] }} | cut -c 1-48
+     register: network_operator
+
+   - name: Print out network_operator_systemuser_password
+     shell: echo " {{ network_operator.stdout }} " >> /wsseCredential.txt
+
+   - name: Show out mariadb_wsse_user_password
+     shell: echo {{ output.stdout_lines[16] }} | cut -c 1-38
+     register: mariadb_wsse
+
+   - name: Print out mariadb_wsse_user_password
+     shell: echo " {{ mariadb_wsse.stdout }} " >> /wsseCredential.txt
+
+   - name: Show out nfmt_password
+     shell: echo {{ output.stdout_lines[17] }} | cut -c 1-24
+     register: nfmt_password
+
+   - name: Print out nfmt_password
+     shell: echo " {{ nfmt_password.stdout }} " >> /wsseCredential.txt
+
+   - name: Show out workflow_engine_admin_password
+     shell: echo {{ output.stdout_lines[18] }} | cut -c 1-42
+     register: workflow_engine
+
+   - name: Print out workflow_engine_admin_password
+     shell: echo " {{ workflow_engine.stdout }} " >> /wsseCredential.txt
+
+   - name: Tail file log
+     shell: |
+      cd /opt/wavesuite/logs/
+      ls | tail -1
+     register: logfile
+
+   - name: Get tenant URL
+     shell: cat /opt/wavesuite/logs/{{ logfile.stdout }} | grep tenantId | grep -o "[^']*" | sed '38q;d' > /tenantid.txt
+     register: tenantidname
+
+   - name: Get tenant ID
+     shell: cat /opt/wavesuite/logs/{{ logfile.stdout }} | grep tenantId | awk -F '?' '{print $2}' | awk -F "'" '{print $1}' | awk -F "=" '{print $2}' >> /tenantid.txt
+
+   - name: Fetch tenanid to host
+     fetch:
+      src: /tenantid.txt
+      dest: ./
+      flat: yes
+
+   - name: Fetch tenanid to host
+     fetch:
+      src: /wsseCredential.txt
+      dest: ./
+      flat: yes
+
+   - name: Delete tenantid file 
+     shell: rm -f /tenantid.txt
+
+   - name: Delete wsseCredential file
+     shell: rm -f /wsseCredential.txt
+
+ - name: Get URL of WSSE  
+   hosts: localhost
+   connection: local
+   gather_facts: no
+   become: yes
+   collections:
+    - azure.azcollection
+
+   vars_files:
+      se_env_variables
+
+   tasks:      
+     - name: Get tenantURL
+       shell: awk '{if(NR==1) print $1}' ./tenantid.txt
+       register: tenantURL
+
+     - name: Show URL of APP WSSE
+       debug:
+        msg: " This is URL of WSSE: {{ tenantURL.stdout }} "
+
+     - name: Print out Resource Group of New WSSE
+       debug:
+        msg: " This is Resource Group of New WSSE: {{ newRG }} "
+
+     - name: Print out VM name of New WSSE
+       debug:
+        msg: " This is VM name of New WSSE: {{ wsseName }} "
+
+     - name: set credentials
+       shell: cat ./wsseCredential.txt
+       register: credential
+
+     - name: Show out Credentials of WSSE
+       debug: 
+        msg: "{{ credential.stdout_lines }}"

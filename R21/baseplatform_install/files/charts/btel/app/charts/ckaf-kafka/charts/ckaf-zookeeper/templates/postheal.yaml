@@ -1,0 +1,48 @@
+{{ if gt (int .Values.global.postheal ) 0 }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "zookeeper.name" . }}-zk-postheal-job
+  annotations:
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: {{ .Values.global.seccompAllowedProfileNames }}
+    seccomp.security.alpha.kubernetes.io/defaultProfileName: {{ .Values.global.seccompDefaultProfileName }}
+spec:
+  template:
+    metadata:
+      labels:
+        app: {{ .Chart.Name }}
+      annotations:
+        sidecar.istio.io/inject: "false"
+    spec:
+      {{- if .Values.global.rbacEnable }}
+      serviceAccountName: {{ template "zkserviceAccount.name" . }}
+      {{- end }}
+      {{- if eq .Values.security.enabled true }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: {{ .Values.security.runAsUser }}
+        fsGroup: {{ .Values.security.fsGroup }}
+      {{- end }}
+      restartPolicy: Never
+      containers:
+      - name: ckaf-zookeeper-zk-postheal
+        image: "{{ .Values.global.registry3}}/{{ .Values.kubectlImage }}:{{ .Values.kubectlTag }}"
+        {{- if eq .Values.security.enabled true }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          privileged: false
+          capabilities:
+            drop:
+              - all
+        {{- end }}
+        imagePullPolicy: IfNotPresent
+        resources:
+{{ toYaml .Values.jobResources | indent 10 }}
+        command:
+        - sh
+        - -c
+        - |
+         echo 'post heal for release: {{ .Release.Name }}'
+         echo 'Check whether all the pods are up and running after healing'
+         kubectl get pods -l app={{ .Chart.Name }},release={{ .Release.Name }} -n={{ .Release.Namespace }}
+{{ end }}

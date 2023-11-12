@@ -1,0 +1,4 @@
+persistence:
+  data:
+    storageClass: nfs-client
+    enabled: true

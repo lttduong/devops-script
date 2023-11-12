@@ -1,0 +1,97 @@
+{{- if and .Values.rbac.enabled }}
+{{- if .Values.rabbitmq.clog.bcmt.enabled }}
+apiVersion: {{ template "rbac.apiVersion" . }}
+kind: Role
+metadata:
+  labels:
+    app: {{ template "rabbitmq.fullname" . }}
+    chart: {{ template "rabbitmq.chart" .  }}
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+  name: {{ template "rabbitmq.fullname" . }}
+rules:
+  - apiGroups: ['policy']
+    resources: ['podsecuritypolicies']
+    verbs: ['use']
+    resourceNames: ['bcmt']
+---
+{{- end }}
+kind: Role
+apiVersion: {{ template "rbac.apiVersion" . }}
+metadata:
+  name: {{ template "rabbitmq.fullname" . }}-endpoint-reader
+  labels:
+    app: {{ template "rabbitmq.name" . }}
+    chart: {{ template "rabbitmq.chart" .  }}
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+rules:
+- apiGroups: [""]
+  resources: ["endpoints"]
+  verbs: ["get"]
+---
+kind: Role
+apiVersion: {{ template "rbac.apiVersion" . }}
+metadata:
+  name: {{ template "rabbitmq.fullname" . }}-cluster-role
+  namespace: "{{.Release.Namespace}}"
+  labels:
+    app: {{ template "rabbitmq.name" . }}
+    chart: {{ template "rabbitmq.chart" .  }}
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+  annotations:
+    # This is what defines this resource as a hook. Without this line, the
+    # job is considered part of the release.
+    # If there're multiple hooks, may define differnent hook-weight value.
+    "helm.sh/hook": post-delete, pre-install
+    "helm.sh/hook-weight": "-8"
+    "helm.sh/hook-delete-policy": hook-succeeded, hook-failed
+rules:
+- apiGroups: [""]
+{{- if and .Values.persistence.data.enabled (not .Values.persistence.reservePvc) }}
+  resources: ["persistentvolumeclaims", "serviceaccounts", "secrets"]
+{{- else }}
+  resources: ["serviceaccounts", "secrets"]
+{{- end }}
+  verbs: ["get", "list", "delete"]
+{{- if and .Values.persistence.data.enabled (not .Values.persistence.reservePvcForScalein) }}
+---
+kind: Role
+apiVersion: {{ template "rbac.apiVersion" . }}
+metadata:
+  name: {{ template "rabbitmq.fullname" . }}-cluster-role
+  namespace: "{{.Release.Namespace}}"
+  labels:
+    app: {{ template "rabbitmq.name" . }}
+    chart: {{ template "rabbitmq.chart" .  }}
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+rules:
+- apiGroups: [""]
+  resources: ["persistentvolumeclaims"]
+  verbs: ["get", "list", "delete"]
+- apiGroups: [""]
+  resources: [ "pods", "pods/exec"]
+  verbs: ["get", "create"]
+{{- else }}
+---
+kind: Role
+apiVersion: {{ template "rbac.apiVersion" . }}
+metadata:
+  name: {{ template "rabbitmq.fullname" . }}-cluster-role-forgetnode
+  namespace: "{{.Release.Namespace}}"
+  labels:
+    app: {{ template "rabbitmq.name" . }}
+    chart: {{ template "rabbitmq.chart" .  }}
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+rules:
+- apiGroups: [""]
+  resources: ["persistentvolumeclaims"]
+  verbs: ["get", "list"]
+- apiGroups: [""]
+  resources: [ "pods", "pods/exec"]
+  verbs: ["get", "create"]
+{{- end }}
+{{- end }}

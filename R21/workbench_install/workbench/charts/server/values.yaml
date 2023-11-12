@@ -1,0 +1,192 @@
+image: "epsec/products/framework/nrs/nrs-dist/epsec-netaccess"
+imageTag: "{{ index .Values.global.imageTags \"epsec/products/framework/nrs/nrs-dist/epsec-netaccess\" }}"
+imagePullPolicy: "IfNotPresent"
+
+useDbConfigurator: false
+
+name: "{{ tpl .Values.global.serverClusterServiceName . }}"
+
+replicaCount: 1
+# Pod Management Policies: one of OrderedReady or Parallel
+podManagementPolicy: "Parallel"
+# Note: also defines a YAML anchor, used in the cluster config below:
+clusterServiceName: &cluster-service-name "{{ tpl .Values.global.serverClusterServiceName . }}"
+
+belkCName: iam-fluentd
+
+httpsPort: 8443
+jgroupsPort: 7600
+
+standaloneconfiguration:
+  ha: "standalone-full-ha.xml"
+  nonHa: "standalone-full.xml"
+
+extraargs: "-Depsec.jboss.server.name=$MY_POD_NAME"
+
+logtostdout: "true"
+syslog: "false"
+customcliDir: "/opt/nokia/config/customcli-bcmt"
+configOverrideDir: "/opt/nokia/config/override"
+
+statisticsEnabled: "true"
+
+certificatesSecretName: "server-tls-secret"
+
+encryptionKey:
+  enabled: false
+  secretName: "encryptkey-secret"
+  version: "20200000-1"
+  # this default is overwritten by the generated password:
+  password: "InvalidDefaultPassword!"
+  # The 'previous' values are used for special cases, where we need to change or migrate the encryption keys
+  # These values are purposefully not exposed by any config vars file, but you can set the following extra values
+  # in the config_vars file in order to override the values here:
+  #   ENCRYPTION_VERSION:             (overrides above 'version' value)
+  #   ENCRYPTION_VERSION_PREVIOUS:    (overrides previous.version below)
+  #   ENCRYPTION_PASSWORD_PREVIOUS:   (overrides previous.password below)
+  previous:
+    secretName: "encryptkey-previous-secret"
+    # If migrating, the previous version is set to the original version (as set below), and the 
+    # encryptionKey.version value above must be manually changed to '20200000-2'
+    version: "20200000-1"
+    # A non-empty password here will trigger an encryption upgrade from the previous version. Only
+    # set this if you know what you're doing. If setting this then it should be set to the password
+    # of the previous encryption password. When the dbschematool runs it will have an additional
+    # properties file named by enc-{{ .Values.encryptionKey.previous.version }}.properties. 
+    # The previous and current version are used to upgrade the encryption version by the dbschematool.
+    password:
+
+encryptedProperties:
+  secrets:
+    ckeyListener:
+      secretName: "{{ .Values.global.releaseNamePrefix }}ckey-listener-user-secret"
+      path: "messagebroker"
+    ckeyFrameworkSecret:
+      secretName: "{{ .Values.global.releaseNamePrefix }}ckey-netguard-framework-client-secret"
+      path: "ckey.client.secret.framework"
+    ckeyNetworkAccessSecret:
+      secretName: "{{ .Values.global.releaseNamePrefix }}ckey-netguard-network-access-client-secret"
+      path: "ckey.client.secret.networkAccess"
+      enabled: "{{ .Values.enableNA }}"
+    ckeyAgentSecret:
+      secretName: "{{ .Values.global.releaseNamePrefix }}ckey-netguard-network-access-agent-client-secret"
+      path: "ckey.client.secret.networkAccessAgent"
+      enabled: "{{ .Values.enableNA }}"
+
+mail:
+  host: "mailrelay.int.nokia.com"
+  port: 25
+  from: "noreply@nokia.com"
+
+# A value of '0' disables this store (just '0', not '0Gi').
+# If disabled then the internal /opt/nokia/storage directory is used, and will not survive restarts:
+diagnosticVolume:
+  size: 32Gi
+  # path default is /opt/nokia/storage. MUST leave as default if disabled:
+  path: /opt/nokia/storage
+
+rbac:
+  useMinimalRole: true
+
+securityContext:
+  group: 7777
+  user: 7777
+
+readinessProbe:
+  port: 8443
+  initialDelaySeconds: 10
+  periodSeconds: 1
+  successThreshold: 1 
+  failureThreshold: 180
+  timeoutSeconds: 5
+
+livenessProbe:
+  initialDelaySeconds: 240
+  periodSeconds: 10
+  successThreshold: 1 
+  failureThreshold: 10
+  timeoutSeconds: 10
+
+dbschematool:
+  operation: "schema"
+  image: "epsec/products/framework/nos-dist/epsec-nos-dbschematool"
+  imageTag: "{{ index .Values.global.imageTags \"epsec/products/framework/nos-dist/epsec-nos-dbschematool\" }}"
+  imagePullPolicy: "IfNotPresent"
+  requests:
+    memory: "1024Mi"
+    cpu: "1000m"
+  limits:
+    memory: "4096Mi"
+    cpu: "1500m"
+
+dbAccounts:
+  - name: "nosdb"
+    secretName: "nosdb-secret"
+
+dbConfig:
+  transactionTimeoutSeconds: "600"
+
+ingress:
+  networkAccess:
+    ui:
+      enabled: "true"
+      maxBodySize: "100m"
+      limitConnections: "35"
+      limitRps: "35"
+      proxyReadTimeout: "600"
+      externalPath: "/netguard_framework/"
+      internalPath: "/netguard_framework/"
+    rest:
+      enabled: "true"
+      maxBodySize: "100m"
+      limitConnections: "35"
+      limitRps: "35"
+      proxyReadTimeout: "600"
+      externalPath: "/netguard-na-rest/v1/"
+      internalPath: "/framework-restservice/v1/"
+    legacyrest:
+      enabled: "true"
+      maxBodySize: "100m"
+      limitConnections: "35"
+      limitRps: "35"
+      proxyReadTimeout: "600"
+      externalPath: "/framework-restservice/"
+      internalPath: "/framework-restservice/"
+      authRedirectEnabled: "false"
+      
+
+# service and cluster: taken from CSF-CHARTS/cjee-wildfly/values.yaml
+service:
+  name: wildfly
+  # Kubernetes service type ClusterIP|NodePort
+  type: ClusterIP
+  #nodePort: 31080
+  #nodePortSecure: 31443
+  #nodePortAdmin: 31990
+
+cluster:
+  # activate wildfly HA clustering (standalone-full-ha.xml config)
+  ha: true
+  # by default: "{{ .Release.Name }}-{{ .Values.service.name }}"
+  # Note: this uses a YAML anchor, defined above at clusterServiceName
+  name: *cluster-service-name
+  api:
+    # k8s api server ip
+    ip: "kubernetes.default.svc"
+    # k8s api server port
+    port: "443"
+    # k8s api version
+    version: "v1"
+    # See https://kubernetes.io/docs/tasks/administer-cluster/access-cluster-api/
+    cert: "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+    token: "/var/run/secrets/kubernetes.io/serviceaccount/token"
+    # debug discovery request
+    # TODO turn this to false
+    # debug: false
+    debug: true
+    # protocol to be used for accessing k8s api
+    protocol: https
+    
+keycloak:
+  realm: netguard
+  frameworkClient: netguard-framework

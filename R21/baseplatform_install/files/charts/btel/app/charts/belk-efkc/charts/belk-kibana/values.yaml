@@ -1,0 +1,282 @@
+## ref: https://confluence.app.alcatel-lucent.com/display/plateng/HELM+Application+Deployment+-+LIFECYCLE#HELMApplicationDeployment-LIFECYCLE-RelocatableChart
+### global registry
+global:
+  registry: csf-docker-delivered.repo.lab.pl.alcatel-lucent.com
+  seccompAllowedProfileNames: docker/default
+  seccompDefaultProfileName: docker/default
+
+  #you can add prefixes to pod and container names by providing values for below parameters
+  #Provide lowercase alphanumeric characters, '-' or '.'
+  #Consider suffixing the podNamePrefix and containerNamePrefix with either . or - for convenience
+  podNamePrefix:
+  containerNamePrefix:
+   
+  #If rbac.enabled is set to false, then it is mandatory to provide precreated Service account either at global level or at individual chart level.  
+  rbac:
+    enabled: true
+  #User can specify the precreated global SA here
+  serviceAccountName: ""
+  #Istio version defined at global level. Accepts version in numeric X.Y format. Ex. 1.4/1.5
+  istio:
+    version: 1.4
+
+customResourceNames:
+  #Provide lowercase alphanumeric characters, '-' or '.'
+  resourceNameLimit: 63
+  kibanaPod:
+    #when kibanaContainerName is not provided,<containerprefix>-(fullname) would be used.
+    #Fullname will be set to <ReleaseName>-<ChartName> by default.
+    kibanaContainerName: ""
+
+#This section allows to configure user defined name for pods and containers(For container this will take effect only when customResourceName is not provided for container)
+#Options include:
+#nameOverride: fullname would become ReleaseName + nameOverride
+#fullnameOverride: fullname would become fullnameOverride.
+##If specified both, fullnameOverride would take the precedence.
+nameOverride:
+fullnameOverride:
+
+service:
+  type: "ClusterIP"
+  # optional
+  # name: kibana
+kibana:
+  replicas: 1
+  image: 
+    #please update the below repo to elk_k if you wish to use kibana centos8 based image. default is centos7 image.
+    repo: elk_k_cos7
+    tag: 7.8.0-20.09.02
+  resources:
+    limits:
+      cpu: "1000m"
+      memory: "2Gi"
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+
+  #User can configure the precreated SA specifically for this chart here. SA specified here takes precedence over the SA specified in global.
+  #If precreated SA is not provided at global and individual chart level and rbac.enabled is set to true, then rbac objects will be created by the chart.
+  serviceAccountName: ""
+
+  securityContext:
+    # Kibana chart runs as Kibana user with UID:1000
+    # fsGroup is the gid that is assigned for the volumemounts mounted to the pod(fsGroup ID is used for block storage)
+    fsGroup: 1000
+    # The supplementalGroups ID applies to shared storage volumes. Uncomment below line to set supplemetary group.
+    #supplementalGroups: [1000]
+    # Uncomment below lines to configure SELinux label to a container.
+    # For more refer to https://kubernetes.io/docs/tasks/configure-pod-container/security-context/
+    #seLinuxOptions:
+    #  level: "s1:c43,c250"
+
+  # Uncomment below lines to configure Kibana pod specific annotation. Use 6 indent space
+  #custom:
+    #annotations: 
+ 
+  port: 5601
+  node_port: 30601
+  ImagePullPolicy: "IfNotPresent"
+  livenessProbe:
+    initialDelaySeconds: 120
+    periodSeconds: 30
+    timeoutSeconds: 1
+    successThreshold: 1
+    failureThreshold: 3
+  readinessProbe:
+    initialDelaySeconds: 120
+    periodSeconds: 15
+    timeoutSeconds: 1
+    successThreshold: 1
+    failureThreshold: 3
+
+  #To configure cutomized labels to pods. Uncomment the below line and give labels after 4 space indentation 
+  #podLabels:
+    #resourcetype: pod
+ 
+  configMaps:
+    kibana_configmap_yml: |-
+      ---
+      # Donot change sever name and host. This is default configuration.
+      server.name: kibana
+      server.customResponseHeaders: { "X-Frame-Options": "DENY" }
+      #Enable server.ssl.supportedProtocols when SG is enabled. 
+      #server.ssl.supportedProtocols: ["TLSv1.2"]
+      # Whitelist basic headers and multi tenancy header
+      #elasticsearch.requestHeadersWhitelist: [ "Authorization", "sgtenant", "x-forwarded-for", "x-proxy-user", "x-proxy-roles" ] 
+
+        # uncomment below section for keycloak authentication and provide required correct parameters
+      #searchguard.auth.type: "openid"
+      #searchguard.openid.connect_url: "https://<keyclaok-ip>:<port>/auth/realms/<realm-name>/.well-known/openid-configuration"
+      #searchguard.openid.client_id: "<client-id>"
+      #searchguard.openid.client_secret: "<client-secret>"
+      #searchguard.openid.header: "Authorization"
+        ### for kibana service on ingress port is not required
+      #searchguard.openid.base_redirect_url: "https://<kibana-ip>:<port>"
+        ### Do not change root_ca file path as this is the default mount path.
+      #searchguard.openid.root_ca: "/etc/kibana/certs/keycloak-root-ca.pem"
+
+        # Uncomment below section for sane sso and provide required correct parameters
+      #csan.enabled: "true"
+      #csan.ssoproxy.url: https://<csan-ssoproxy-service-hostname>:<port>
+      #searchguard.auth.unauthenticated_routes: ["/api/status", "/csan/v1/sso"]
+      #csan.sco.url: http://system-credential-orchestrator-svc.credential.svc.cluster.local
+      #csan.sco.keycloak_entity: "ckey"
+      #csan.sco.keycloak_classifier: "realm-admin"
+      #csan.sco.sane_entity: "sane"
+      #csan.sco.sane_plugin_name: "sane-credential-plugin"
+      #csan.auth_type: 4
+      csp.strict: true
+ 
+  env:
+   # if searchguard is enabled (without istio) use https instead of http. Also, uncomment SSl and certificate parameters. Please provide proper elasticsearch url to connect elasticsearch
+   # if you have elasticsearch service in paas namespace, you can access it using 'elasticsearch.paas'
+   # When istio is enabled, elasticsearch url should be http://elasticsearch:9200 and SERVER_SSL_ENABLED set to false.
+   - name: "ELASTICSEARCH_HOSTS"
+     value: "http://elasticsearch:9200"
+   - name: "LOG_INDICES"
+     value: '["log-*", journal]'
+   - name: "DEFAULT_FIELDS"
+     value: "log,message"
+   - name: "EXPORT_CHUNK_SIZE"
+     value: "500"
+   - name: "SCROLL_TIME"
+     value: "10m"
+   - name: "EXPORT_TIMEOUT"
+     value: "40s"
+   - name: "TIMESTAMP_FIELD"
+     value: "@timestamp"
+   #- name: "SERVER_SSL_ENABLED"
+   #  value: "true"
+   #- name: "SERVER_SSL_CERTIFICATE"
+   #  value: "/etc/kibana/certs/kibana.crt.pem"
+   #- name: "SERVER_SSL_KEY"
+   #  value: "/etc/kibana/certs/kibana.key.pem"
+  ## Uncomment sslsecretvolume if additional certificates are required to be mounted in kibana pod. Configure certificate name as the key and base64-encoded certitificate as its value.
+  # Do not configure the certificate names(keys) in sslsecretvolume as kibana.crt.pem, kibana.key.pem, root-ca.pem and keycloak-root-ca.pem as these filenames are already used internally.
+  # The files configured here are mounted at /etc/kibana/certs into the pod with filenames as specified in the keys in sslsecretvolume. For ex. if configured as per below example, filepaths are /etc/kibana/certs/tls.crt.pem and /etc/kibana/certs/tls.key.pem.
+  #sslsecretvolume:
+    #tls.crt.pem: <base64-tls-crt>
+    #tls.key.pem: <base64-tls-key>
+  
+  ## Node labels for pod assignment
+  #### ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#nodeselector
+  nodeSelector: {}
+
+  ## Toleration is asking the K8S schedule to ignore a taint
+  #### ref: https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
+  tolerations: []
+
+  ## Pod scheduling preferences.
+  ### ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
+  affinity: {}
+  
+kibanabaseurl:
+  url: "/logviewer"
+  #Do not change cg(capture group) parameter below unless you want to change/modify nginx rewrite-target for kibana ingress
+  cg: "/?(.*)"
+
+cbur:
+  enabled: false
+  #the maximum copy you want to saved.
+  maxCopy: 5
+  #Modes supported now: "local","NETBKUP","AVAMAR","CEPHS3","AWSS3", case insensitive
+  backendMode: "local"
+  #It is used for scheduled backup task
+  cronJob: "0 23 * * *"
+  #Set below parameters to true for auto enabling cron job
+  autoEnableCron: false
+  #Set below parameter to true in case you want cronjob to be automatically deleted when autoEnableCron is set back to false from true
+  autoUpdateCron: false
+ 
+ingress:
+  enabled: true
+  # If SG is enabled without istio i.e. SERVER_SSL_ENABLED is true, then uncomment 3 annotations. i.e ingress.class, ssl-passthrough, secure-backends.
+  annotations:
+    ingress.citm.nokia.com/sticky-route-services: $cookie_JSESSIONID|JSESSIONID ip_cookie
+    nginx.ingress.kubernetes.io/rewrite-target: /$1
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    #kubernetes.io/ingress.class: nginx
+    #nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+    #nginx.ingress.kubernetes.io/secure-backends: "true"
+  ## Kibana Ingress hostnames
+  ## May be provided if Ingress is enabled
+  #host: "*"
+  tls: []
+  #  - secretName: chart-example-tls
+  #    hosts:
+  #      - chart-example.local
+
+# Set to true to enable istio for kibana
+istio:
+  enabled: false
+  #Istio version specified at chart level takes precedence over global level.
+  #Accepts istio version in numeric X.Y format. Ex. 1.4/1.5
+  version:
+  virtual_svc:
+    hosts:
+    - "*"
+    #prefix will be same as kibanabaseurl configured.
+  gateway:
+    # if the virtual svc should bind to existing gateway, configure gateway name below
+    existing_gw_name: ""
+    # if gw doesnt exist, configure below parameters for gateway created with this chart
+    selector:
+      istio: ingressgateway
+    port:
+      number: 80
+      protocol: HTTP
+      name: http
+    hosts:
+    - "*"
+    tls: []
+
+searchguard:
+  image:
+    #please update the below repo to elk_k_sg if you wish to use kibana centos8 based image. default is centos7 image.
+    repo: elk_k_sg_cos7
+    tag: 7.8.0-20.09.03
+  enable: false
+
+  # base64 encoding for passwords use below command
+  # echo -n <string in double quotes> | base64
+  base64_kib_es_username: <base64_kibana_username>
+  base64_kib_es_password: <base64_kibana_pwd>
+
+  # if authentication is required via keycloak, then set keycloak_auth to true
+  # Provide base64 format of keycloak rootCA under base64_keycloak_rootca_pem when istio is not enabled
+  keycloak_auth: false
+  base64_keycloak_rootca_pem: <base64_keycloak_rootCA_pem>
+
+  # when istio is enabled for belk and keycloak_auth is enabled, provide keycloak server details as explained below
+  istio:
+    # FQDN of ckey hostname that is externally accessible from browser
+    extCkeyHostname: ""     # Ex. extCkeyHostname: "ckey.io"
+    # Location of ckey internal/external to the istio mesh. Default value is MESH_INTERNAL
+    extCkeyLocation: "MESH_INTERNAL"   # Accepted values: MESH_INTERNAL, MESH_EXTERNAL
+    extCkeyIP: ""         #IP to be used for DNS resolution of ckey hostname from the cluster (required only when ckey is external to the mesh and ckey hostname is not resolvable from the cluster)
+
+    # Port on which ckey is externally accessible
+    extCkeyPort: ""         # Ex. extCkeyPort: 31390
+    # Protocol on which ckey is externally accessible
+    extCkeyProtocol: ""     # accepted values: HTTP, HTTPS
+    ## FQDN of ckey k8s service name internally accessible within k8s cluster
+    ckeyK8sSvcName: ""     # Ex. keycloak-ckey.default.svc.cluster.local
+    # Port on which ckey k8s service is accessible
+    ckeyK8sSvcPort: ""    # Ex. ckeyK8sSvcPort: 8443
+
+
+  # When searchguard is enabled without istio, ssl certificates should be configured below as directed.
+  # Create base64 encoding for keystore, keystorepasswd, truststore, truststorepasswd file and provide to below variables.
+  # base64 encoding for files  use below command
+  # base64 <filename>  | tr -d '\n'
+  base64_ES_RootCA: <base64-elasticsearch_root-ca.pem>
+  base64ServerCrt: <base64-kibana-crt>
+  base64ServerKey: <base64-kibana-key>
+  kibana:
+    es_ssl_verification_mode: certificate
+
+## in case of sane with keycloak uncomment below section and provide required correct parameters
+#sane:
+  #keycloak_admin_user_name: <base64_keycloak_admin_username>
+  #keycloak_admin_password: <base64_keycloak_admin_password>
+  #keycloak_sane_user_password: <base64_default_password_for_saneuser>

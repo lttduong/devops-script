@@ -1,0 +1,88 @@
+apiVersion: {{ template "df404.getDeploymentAPI" . }}
+kind: Deployment
+metadata:
+  labels:
+    app: {{ template "df404.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    component: "{{ .Values.backend.name }}"
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+  name: {{ default "" .Values.global.podNamePrefix }}{{ template "df404.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ template "df404.name" . }}
+      component: "{{ .Values.backend.name }}"
+      release: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ template "df404.name" . }}
+        component: "{{ .Values.backend.name }}"
+        release: {{ .Release.Name }}
+      annotations:
+        sidecar.istio.io/inject: "{{ .Values.istio.enabled }}"
+    spec:
+      containers:
+        - name: {{ default "" .Values.global.containerNamePrefix }}{{ template "df404.name" . }}-{{ .Values.backend.name }}
+          image: "{{ .Values.global.registry }}/{{ .Values.imageRepo }}:{{ .Values.imageTag }}"
+          imagePullPolicy: "{{ .Values.imagePullPolicy }}"
+          env:
+            - name: DEFAULT_BACKEND_TITLE
+              value: "{{ .Values.backend.page.title }}"
+            - name: DEFAULT_BACKEND_BODY
+              value: "{{ .Values.backend.page.body }}"
+            - name: DEFAULT_BACKEND_COPYRIGHT
+              value: "{{ .Values.backend.page.copyright }}"
+            - name: DEFAULT_BACKEND_PRODUCT_FAMILY_NAME
+              value: "{{ .Values.backend.page.productFamilyName }}"
+            - name: DEFAULT_BACKEND_PRODUCT_NAME
+              value: "{{ .Values.backend.page.productName }}"
+            - name: DEFAULT_BACKEND_RELEASE
+              value: "{{ .Values.backend.page.productRelease }}"
+            - name: DEFAULT_BACKEND_TOOLBAR_TITLE
+              value: "{{ .Values.backend.page.toolbarTitle }}"
+            - name: DEFAULT_BACKEND_IMAGE_BANNER
+              value: "{{ .Values.backend.page.imageBanner }}"
+            - name: DEFAULT_BACKEND_DEBUG
+              value: "{{ .Values.backend.debug }}"
+            - name: DEFAULT_BACKEND_PORT
+              value: "{{ .Values.backend.port }}"
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: {{ .Values.backend.port }}
+              scheme: HTTP
+            initialDelaySeconds: 5
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: {{ .Values.backend.port }}
+              scheme: HTTP
+            initialDelaySeconds: 3
+            timeoutSeconds: 5
+          ports:
+            - containerPort: {{ .Values.backend.port }}
+              protocol: TCP
+          resources:
+{{ toYaml .Values.resources | indent 12 }}
+      serviceAccountName: {{ if and .Values.istio.enabled (eq .Values.istio.cni.enabled false) .Values.rbac.enabled }}{{ template "df404.fullname" . }}{{ else }}"{{ tpl .Values.rbac.serviceAccountName . }}"{{ end }}
+      nodeSelector:
+{{- if .Values.runOnEdge }}
+        is_edge: 'true'
+{{- end }}
+    {{- if .Values.nodeSelector }}
+{{ toYaml .Values.nodeSelector | indent 8 }}
+    {{- end }}
+    {{- if .Values.tolerations }}
+      tolerations:
+{{ toYaml .Values.tolerations | indent 8 }}
+    {{- end }}
+    {{- with .Values.affinity }}
+      affinity:
+{{ toYaml . | indent 8 }}
+    {{- end }}
+      terminationGracePeriodSeconds: 2

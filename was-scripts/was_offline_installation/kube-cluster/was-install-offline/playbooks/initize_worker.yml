@@ -1,0 +1,97 @@
+- hosts: kubernetes_worker_nodes
+  become: yes
+  vars_files:
+    - env_variables
+  
+  tasks:
+    - name: Disable firewall for all nodes
+      shell: service firewalld stop
+
+    - name: create helm2 directory
+      file:
+        path: "{{ dir_worker[0] }}/helm2"
+        state: directory
+        mode: 0755  
+
+    - name: Copy Helm2 Packages to Master
+      copy: 
+       src: ./was-packages/helm-v2.16.9-linux-amd64.tar.gz
+       dest: "{{ dir_worker[0] }}/helm2"
+
+    - name: extract helm2 package & copy helm2 to bin directory
+      shell: cd "{{ dir_worker[0] }}"/helm2 &&  tar -xzvf helm-v2.16.9-linux-amd64.tar.gz && cp linux-amd64/helm /usr/local/bin/helm && chmod 755 /usr/local/bin/helm && cp linux-amd64/helm /usr/bin/helm
+
+    - name: create helm3 directory
+      file:
+        path: "{{ dir_worker[0] }}/helm3"
+        state: directory
+        mode: 0755
+
+    - name: Copy Helm3 Packages to Master
+      copy:
+       src: ./was-packages/helm-v3.4.0-linux-amd64.tar.gz
+       dest: "{{ dir_worker[0] }}/helm3"
+
+    - name: extract helm3 package & copy helm3 to bin directory
+      shell: cd "{{ dir_worker[0] }}"/helm3 &&  tar -xzvf helm-v3.4.0-linux-amd64.tar.gz && cp linux-amd64/helm /usr/local/bin/helm3 && chmod 755 /usr/local/bin/helm3 && cp linux-amd64/helm /usr/bin/helm3
+
+    - name: Copy helm-chart.tar.gz to node
+      copy:
+        src: bp-packages/helm-chart.tar.gz
+        dest: $HOME
+
+    - name: Extract helm-chart.tar.gz
+      shell: tar -xzvf helm-chart.tar.gz
+      args:
+        chdir: $HOME
+    
+    - name: copy docker config file to all hosts
+      copy:
+        src: config.json
+        dest: /var/lib/kubelet/config.json
+
+    - name: Copy nfs-package to Nodes
+      copy:
+       src: ./was-packages/nfs-utils.tar.gz
+       dest: "{{ dir_worker[0] }}"
+
+    - name: unzip the nfs-utils package
+      shell: tar -xzvf nfs-utils.tar.gz
+      args:
+       chdir: "{{ dir_worker[0] }}"
+
+    - name: Reset yum run binary 
+      shell: rm -rf /var/run/yum.pid
+
+    - name: Installing NFS-utils
+      shell: |
+        yum install -y --cacheonly --disablerepo=* ./*.rpm 
+      args:
+       chdir: "{{ dir_worker[0] }}/nfs-utils"
+      ignore_errors: yes
+
+    - name: unzip the ncms images package
+      shell: tar -xzvf ncms.tar.gz
+      args:
+       chdir: "{{ dir_worker[0] }}"
+
+    - name: Pulling images 
+      shell: |
+        docker load < ./ncms/bcmt-controller:v0.1.0.4.tar
+        docker load < ./ncms/ncm:1.13.5.tar
+        docker load < ./ncms/nfs-subdir-external-provisioner:v4.0.2.tar
+        docker load < ./ncms/cert-manager-cainjector:v0.15.2.tar
+        docker load < ./ncms/cert-manager-controller:v0.15.2.tar
+        docker load < ./ncms/cert-manager-webhook:v0.15.2.tar 
+      args:
+        chdir: "{{ dir_master[0] }}"
+      ignore_errors: yes
+
+    - name: Pulling images was
+      shell: |
+        docker load < ./allimageWAS22.tar
+      args:
+       chdir: "{{ dir_worker[0] }}"
+      ignore_errors: yes
+
+

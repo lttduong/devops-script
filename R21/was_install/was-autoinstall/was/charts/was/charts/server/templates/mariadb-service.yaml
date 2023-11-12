@@ -1,0 +1,7 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: mariadb
+spec:
+  type: ExternalName
+  externalName: {{ tpl .Values.global.mariadbExternalName . }}

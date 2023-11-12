@@ -1,0 +1,4 @@
+edge_node: master-node
+worker_node:
+  worker-node
+  master-node

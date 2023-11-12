@@ -1,0 +1,44 @@
+---
+- name: Collect BTEL override stats
+  stat:
+      path: "{{ chartsPath }}/btel/app/override.yaml"
+  register: btelOverrideFile
+  no_log: true
+
+- name: Collect BTEL override IPv6 stats
+  stat:
+      path: "{{ chartsPath }}/btel/app/override-IPv6.yaml"
+  register: btelOverrideIPv6File
+  no_log: true
+
+- name: Collect BTEL override upgrade stats
+  stat:
+      path: "{{ chartsPath }}/btel/app/upgrade-override.yaml"
+  register: btelOverrideUpgradeFile
+  no_log: true
+
+- name: Check if BTEL override file exists
+  fail:
+    msg: "BTEL override file not found: '{{ chartsPath }}/btel/app/override.yaml'"
+  when: not btelOverrideFile.stat.exists
+
+- name: Check if BTEL override IPv6 file exists
+  fail:
+    msg: "BTEL storage profile not found: '{{ chartsPath }}/btel/app/override-IPv6.yaml'"
+  when: not btelOverrideIPv6File.stat.exists
+
+- name: Check if BTEL override upgrade file exists
+  fail:
+    msg: "BTEL storage profile not found: '{{ chartsPath }}/btel/app/upgrade-override.yaml'"
+  when: not btelOverrideUpgradeFile.stat.exists
+
+- name: Collect CRMQ override stats
+  stat:
+      path: "{{ chartsPath }}/crmq/app/override.yaml"
+  register: crmqOverrideFile
+  no_log: true
+
+- name: Check if CRMQ override file exists
+  fail:
+    msg: "CRMQ override file not found: '{{ chartsPath }}/crmq/app/override.yaml'"
+  when: not crmqOverrideFile.stat.exists

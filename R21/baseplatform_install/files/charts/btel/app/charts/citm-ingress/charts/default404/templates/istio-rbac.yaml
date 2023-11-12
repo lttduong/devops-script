@@ -1,0 +1,106 @@
+{{- if .Values.istio.enabled }}
+{{- if .Values.istio.permissive }}
+{{- if eq .Values.istio.version 1.4 }}
+apiVersion: "authentication.istio.io/v1alpha1"
+kind: "Policy"
+metadata:
+  name: {{ template "df404.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  targets:
+  - name: {{ template "df404.fullname" . }}
+  peers:
+  - mtls:
+      mode: PERMISSIVE
+{{- else }}
+apiVersion: "security.istio.io/v1beta1"
+kind: "PeerAuthentication"
+metadata:
+  name: {{ template "df404.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ template "df404.name" . }}
+      release: {{ .Release.Name }}
+  mtls:
+    mode: PERMISSIVE
+{{- end }}
+---
+{{- end }}
+{{- if and (eq .Values.istio.cni.enabled false) (eq .Values.rbac.enabled true) }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app: {{ template "df404.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+  name: {{ template "df404.fullname" . }}
+---
+apiVersion: {{ template "df404.getPodSecurityPolicyAPI" . }}
+kind: PodSecurityPolicy
+metadata:
+  labels:
+    app: {{ template "df404.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+  name: {{ template "df404.fullname" . }}
+spec:
+  seLinux:
+    rule: RunAsAny
+  runAsUser:
+    rule: RunAsAny
+  supplementalGroups:
+    rule: RunAsAny
+  fsGroup:
+    rule: RunAsAny
+  allowedCapabilities:
+  - 'NET_ADMIN'
+  - 'NET_RAW'
+  volumes:
+  - '*'
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  labels:
+    app: {{ template "df404.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+  name: {{ template "df404.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+rules:
+- apiGroups:
+  - extensions
+  resourceNames:
+  - {{ template "df404.fullname" . }}
+  resources:
+  - podsecuritypolicies
+  verbs:
+  - use
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  labels:
+    app: {{ template "df404.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+  name: {{ template "df404.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ template "df404.fullname" . }}
+subjects:
+- kind: ServiceAccount
+  name: {{ template "df404.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+{{- end }}
+{{- end }}
+

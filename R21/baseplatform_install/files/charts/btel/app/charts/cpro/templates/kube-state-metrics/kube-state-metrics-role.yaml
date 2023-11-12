@@ -1,0 +1,78 @@
+{{- if and .Values.rbac.enabled .Values.restrictedToNamespace .Values.kubeStateMetrics.enabled }}
+{{- if not .Values.deployOnComPaaS }}
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: Role
+metadata:
+  labels:
+    app: {{ template "prometheus.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    component: "{{ .Values.kubeStateMetrics.name }}"
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+{{- include "prometheus-labels" (tuple .Values.global.labels) | indent 4}}
+  name: {{ template "prometheus.kubeStateMetrics.fullname" . }}-role
+  namespace: "{{.Release.Namespace}}"
+{{- if .Values.global.annotations }}
+  annotations:
+{{- include "prometheus-annotations" (tuple .Values.global.annotations) | indent 4}}
+{{- end }}
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+      - services
+      - resourcequotas
+      - replicationcontrollers
+      - limitranges
+      - endpoints
+      - secrets
+      - configmaps
+    verbs:
+      - list
+      - watch
+  - apiGroups:
+      - extensions
+    resources:
+      - daemonsets
+      - deployments
+      - replicasets
+    verbs:
+      - list
+      - watch
+  - apiGroups:
+      - apps
+    resources:
+      - statefulsets
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - batch
+    resources:
+      - cronjobs
+      - jobs
+    verbs:
+      - list
+      - watch
+  - apiGroups:
+      - autoscaling
+    resources:
+      - horizontalpodautoscalers
+    verbs:
+      - list
+      - watch
+  {{- if and (.Values.istio.enable) (not .Values.istio.cni_enable) }}
+  - apiGroups:
+      - extensions
+    resourceNames:
+      - {{ template "prometheus.kubeStateMetrics.fullname" . }}-psp
+    resources:
+      - podsecuritypolicies
+    verbs:
+      - use
+  {{- end }}
+{{- end }}
+{{- end }}
+

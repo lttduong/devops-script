@@ -1,0 +1,27 @@
+{{- if .Values.rbac.enabled }}
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  labels:
+    app: {{ template "grafana.name" . }}
+    chart: {{ template "grafana.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+    {{- if .Values.global.labels }}
+{{ toYaml .Values.global.labels | indent 4}}
+    {{- end }}
+{{- if  or .Values.global.annotations .Values.annotations }} 
+ annotations:
+{{- include "grafana-annotations" (tuple .Values.global.annotations) | indent 4}}
+{{- include "grafana-annotations" (tuple .Values.annotations) | indent 4}}
+{{- end }}
+  name: {{ template "grafana.fullname" . }}-role
+{{- if or .Values.sidecar.dashboards.enabled .Values.sidecar.datasources.enabled }}
+rules:
+- apiGroups: [""] # "" indicates the core API group
+  resources: ["configmaps"]
+  verbs: ["get", "watch", "list"]
+{{- else }}
+rules: []
+{{- end}}
+{{- end}}

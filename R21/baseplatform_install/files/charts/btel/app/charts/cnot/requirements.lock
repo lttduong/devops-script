@@ -1,0 +1,6 @@
+dependencies:
+- name: cnot-configmap
+  repository: https://repo.lab.pl.alcatel-lucent.com/csf-helm-stable/
+  version: 1.2.3
+digest: sha256:79a2cddde540fb66eec5782c782dbfd2d251b35eb6c890219d2b07b2637f4cb3
+generated: "2020-09-11T19:22:48.282814527Z"

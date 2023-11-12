@@ -1,0 +1,79 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Chart.Name }}-cpro
+  annotations:
+    "helm.sh/hook": post-install, post-upgrade
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": hook-succeeded
+spec:
+  template:
+    metadata:
+      labels:
+        name: {{ .Chart.Name }}-cpro
+    spec:
+      dnsPolicy: {{ .Values.dns.policy }}
+      restartPolicy: Never
+      securityContext:
+        runAsUser: 1000
+      containers:
+      - name: {{ .Chart.Name }}
+        image: {{ .Values.image.registry }}/{{ .Values.centos.image.name }}:{{ .Values.image.tag }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        resources:
+{{ toYaml .Values.cpro_configurator.resources | indent 10 }}
+        command: ["/bin/sh", "-c"]
+        workingDir: /opt/cpro-import-alerts
+        args:
+          - >
+            set -e
+
+            function log {
+                level=$1
+                message=$2
+                echo "{\"version\": \"1.0\", \"type\": \"log\", \"systemid\": \"{{ .Chart.Name }}\",\
+             \"system\": \"{{ .Chart.Name }}\", \"log\": {\"message\": \"${message}\"},\
+             \"level\": \"${level}\", \"time\": \"$(date)\"}"
+            }
+
+            log INFO "Importing alerts started"
+
+            for file in *.json ; do
+                if [ -e "${file}" ] ; then
+                    alert_name=$(jq -r ".alert" ${file})
+                    log INFO "Importing alert ${alert_name} from ${file}"
+
+                    temp_file_out=$(mktemp)
+                    result=$(curl --silent \
+                        --output ${temp_file_out} \
+                        --write-out '%{http_code}' \
+                        "http://{{ .Values.cpro.name }}.{{ .Values.bpNamespace }}.\
+            {{ .Values.dns.domain }}:{{ .Values.cpro.port }}/cpro/v2/alertrules?namespace={{ .Values.bpNamespace }}&configmapName={{ .Values.cpro.configMap }}&fileName=/etc/config/alerts&groupName={{ .Values.groupName }}" \
+                        -H "Content-Type: application/json" \
+                        --max-time 30 --retry 3 \
+                        -d@"${file}")
+
+                    log INFO "Alerts ${file} import status: ${result}"
+                    response=$(cat ${temp_file_out})
+                    printf -v response_escaped "%q" "${response}"
+                    rm ${temp_file_out}
+                    if [[ -n "${response}" ]]; then
+                        log INFO "Response: ${response_escaped}"
+                    fi
+                    if [ ${result} -ne 200 ]; then
+                        if [ ${result} -eq 409 ]; then
+                            log ERROR "Alert already exists: ${file}. Skipping"
+                        else
+                            log ERROR "Alerts import ${file} failed"
+                            exit 1
+                        fi
+                    fi
+                fi
+            done
+        volumeMounts:
+          - name: alerts-volume
+            mountPath: /opt/cpro-import-alerts
+      volumes:
+        - name: alerts-volume
+          configMap:
+            name: {{ .Chart.Name }}-alerts

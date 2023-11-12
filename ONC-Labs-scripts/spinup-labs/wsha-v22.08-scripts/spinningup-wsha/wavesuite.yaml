@@ -1,0 +1,414 @@
+########################################################################################################################
+#
+# File: wavesuite.yaml
+#
+########################################################################################################################
+#
+# Nokia - Confidential
+# Do not use, distribute, or copy without consent of Nokia.
+# Copyright (c) 2019, 2022 Nokia. All rights reserved.
+#
+########################################################################################################################
+#
+# Description:
+#   Configuration file for the WSHA Installer.
+#
+########################################################################################################################
+
+---
+
+########################################################################################################################
+# Proxy Information.
+########################################################################################################################
+
+# Configures the WaveSuite services to use the following proxy for outgoing HTTP and HTTPS requests respectively.
+# If the proxy is not configured then certain services (such as weather service) may be unavailable.
+#
+# The configured value should always include the protocol (http:// or https://) and may include the the port if required.
+# For example, "http://my-internal-insecure-proxy.example.com:8080" or "https://my-internal-secure-proxy.example.com"
+#
+# Proxy servers which require authentication are not supported.
+# By default no proxy servers will be used.
+http_proxy_server:
+https_proxy_server:
+
+# When one or both of the above proxy servers are configured, the specified hosts will be excluded from proxy resolution.
+#
+# This should not include any protocols or ports but can include multiple hosts by using a comma separated list.
+# For example, "my-internal-host,my-internal-tile-server,my-internal-router"
+#
+# The internal services and all installation hosts will be automatically excluded from proxy resolution.
+no_proxy:
+
+# The externally-facing port to access the WaveSuite application.
+#
+# The application will be reachable at https://<host>:<wavesuite_portal_port>/wavesuite/ha/ui after the installation has
+# completed.
+#
+# The default value for this port is 8443.
+wavesuite_portal_port: "8443"
+
+
+########################################################################################################################
+# SSL Configuration
+########################################################################################################################
+# The WaveSuite installer will generate an external SSL certificate.
+#
+# The external certificate will be generated using an internal Nokia root CA unless a user-provided certificate is
+# specified via the ssl_external_certificate_path, ssl_external_certificate_key_path and ssl_key_password_path variables.
+#
+# The external certificate will be generated with a Subject set from the ssl_certificate_* parameters below, and an
+# expiry set from the ssl_certificate_expiry_length parameter below.
+#
+# The Common Name (CN) and Subject Alternative Names (SAN) list of the generated external SSL certificate will be the
+# client facing IP(s) specified by the client_zone parameter.
+
+# If 'ca_certificates_path' is specified, then the installer will import any CA certificates located at the specified
+# absolute path into the WaveSuite trust store. The root base names of the CA files will be used as certificate aliases
+# in the trust store. Therefore, the CA certificate root base names must be unique.
+#
+# By default, no additional CA certificates will be imported.
+ca_certificates_path: 
+
+# The 2-letter country code that will be added to the Subject Name of the installer-generated certificate.
+#
+# The default country name will be set to 'CA' (Canada).
+ssl_certificate_country_name: "CA"
+
+# The installer-generated certificate will be valid for the provided number of days.
+#
+# The default expiry length (in days) is set to '730'.
+ssl_certificate_expiry_length: 730
+
+# The city/locality name that will be added to the Subject Name of the installer-generated certificate.
+#
+# The default locality name will be set to 'Ottawa'.
+ssl_certificate_locality_name: "Ottawa"
+
+# The organization name that will be added to the Subject Name of the installer-generated certificate.
+#
+# The default organization name will be set to 'Nokia'.
+ssl_certificate_organization_name: "Nokia"
+
+# The organizational unit name that will be added to the Subject Name of the installer-generated certificate.
+#
+# The default organizational unit name will be set to 'WaveSuite'.
+ssl_certificate_organizational_unit_name: "WaveSuite"
+
+# The state name that will be added to the Subject Name of the installer-generated certificate.
+#
+# The default state name will be set to 'Ontario'.
+ssl_certificate_state_name: "Ontario"
+
+# SSL parameter to ignore the user-provided certificate warning-level validation issues.
+# Valid values are "true" or "false".
+#
+# By default, this value is true.
+ssl_external_certificate_ignore_warnings:
+
+# 'ssl_external_certificate_path' is the absolute path to a file containing a user-provided external public certificate. This
+# MUST be provided in the PEM format.
+#
+#  In a standalone setup, this value represents a single absolute path to the external public certificate to be used.
+#
+#  In a redundant setup, this value is dictionary consisting of all target installation hosts defined in
+#  'wavesuite_target_installation_hosts' each with the value of the absolute path to the user-provided external public
+#  certificate file for that host.
+#
+#  Examples:
+#  --------
+#    standalone setup
+#    --------------------------------------------------------------
+#    ssl_external_certificate_path: /opt/WaveSuite_Host.crt
+#
+#    redundant setup
+#    --------------------------------------------------------------
+#    ssl_external_certificate_path:
+#       target_host_1:
+#           - /opt/WaveSuite_Host_A.crt
+#       target_host_2:
+#           - /opt/WaveSuite_Host_B.crt
+#
+# If this value is left blank the installer will generate a self-signed external public SSL certificate.
+ssl_external_certificate_path:
+
+# `ssl_external_certificate_key_path` is the absolute path to a file containing the private key for the certificate provided
+# through `ssl_external_certificate_path`. This MUST be provided in the PEM format.
+#
+# In a standalone setup this will refer to a single file by an absolute path
+#
+# In a redundant setup, this value is a dictionary associating the absolute path to the private key file to each host
+#
+#  Examples:
+#  --------
+#    standalone setup
+#    --------------------------------------------------------------
+#    ssl_external_certificate_path: /opt/WaveSuite_Host.key
+#
+#    redundant setup
+#    --------------------------------------------------------------
+#    ssl_external_certificate_path:
+#       target_host_1:
+#           - /opt/WaveSuite_Host_A.key
+#       target_host_2:
+#           - /opt/WaveSuite_Host_B.key
+#
+# If this value is left blank the installer will generate an external private SSL key.
+ssl_external_certificate_key_path:
+
+
+########################################################################################################################
+# Data retention policy configuration.
+########################################################################################################################
+# The purge_time value is in days.
+#
+# For the schedule, the format is: minute hour dayOfMonth month dayOfWeek.
+# Valid values for minute: 0-59, for hour: 0-23, for dayOfMonth: 1-31, for month: 1-12, and for dayOfWeek: 0-6.
+# An asterisk (*) indicates any value for this field will match the schedule.
+#
+#  Default retention policy for audit logging (run daily at 12:15AM):
+#  ------------------------------------------------------------------
+#    - {
+#         name: "AUDIT_LOGGING",
+#         purge_time: "90",
+#         schedule: "15 0 * * *"
+#      }
+#
+# It is expected that name, purge_time and schedule values are provided if a default policy is overridden.
+data_retention:
+
+# This parameter defines retention period for time series data. It should only be modified after fully reviewing the
+# WSHA Installation and System Level Administration Guide. The value range is between 45 and 360. All given values for
+# the retention period is in days. This parameter has  default value of 90.
+#
+#  Examples:
+#  --------
+#    time_series_db_retention_period: "100"
+#
+#    time_series_db_retention_period: "300"
+#
+time_series_db_retention_period:
+
+
+########################################################################################################################
+# Server configuration.
+########################################################################################################################
+# The location to map the internal backups directory
+# This should map to an external filesystem to ensure backups are accessible outside of the host OS
+#
+# By default, the volume will be mapped to: '/opt/wavesuite/docker_data/volumes'
+backup_and_restore_volume_path:
+
+# Defines if the Swagger generated API documentation can be accessed from the WSHA UI and as an API endpoint.
+#
+#  Examples:
+#  --------
+#    enable_swagger_docs: "true"
+#
+#    enable_swagger_docs: "false"
+#
+# This parameter's default value is false if omitted or set wrong.
+enable_swagger_docs: "true"
+
+# If the system is expected to be reachable through an external address not configured by the system (i.e., via a proxy
+# that is sitting in front of the WaveSuite system), then the following property must be set. The external access
+# address is expected to be either a FQDN, or IPv4:PORT pair.
+#
+# The external access address will be configured as the Common Name on the installer-generated SSL certificate. All
+# authentication requests will be redirected via the configured external access address.
+#
+# The external access address is assumed to be configured with HTTPS. The address configured should not be prepended
+# with 'https://'.
+#
+#  Examples:
+#  --------
+#    external_access_address: "some-fqdn.domain.com"
+#
+#    external_access_address: "173.12.5.1"
+#
+#    external_access_address: "192.168.0.1:8443"
+#
+# By default, the installer will use the default IP address along with the wavesuite portal port.
+external_access_address: "172.16.0.9:8443"
+
+# Defines the installation status of the Health & Analytics tools which is designed for debugging and simulating.
+# Health & Analytics tools is an optional container and can be omitted if not necessary.
+# Health & Analytics tools container listens port 161 and 9339 by default.
+#
+#  Examples:
+#  --------
+#    include_wsha_tools: "true"
+#
+#    include_wsha_tools: "false"
+#
+# This parameter's default value is false if omitted or set wrong.
+include_wsha_tools:
+
+########################################################################################################################
+# Traffic Zone Addresses
+########################################################################################################################
+# Traffic zones define which IP address an application should bind its port to.
+#
+# Each zone is intended to be populated with key/value pairs.
+#   - The keys must be a valid host key from the wavesuite_target_installations_hosts configuration.
+#
+#   - The values must be a list of ip addresses from a valid network interface on the designated target installation
+#     host. The exception to this rule is if the "-" character is provided. Then, the installer will not bind any ports
+#     from services belonging to that zone when installing on the corresponding target installation host.
+#
+# Traffic zones can be added and removed from this file as needed. This means that the client_zone, internal_zone,
+# and localhost_zone can be renamed or removed as desired. The client, internal, and localhost zones will be used as the
+# default configuration if the installer has not been configured.
+#
+# All zone IP addresses will show up in the SAN of the generated SSL certificate.
+#
+# Example:
+# --------
+#   sftp_zone:
+#       target_host_1:
+#           - 10.10.10.1
+#
+#   sftp_zone:
+#       target_host_1:
+#           - 10.10.10.1
+#
+# In the above example, we are configuring the zones for the hosts from the wavesuite_target_installation_hosts example.
+#
+# Services configured to use the client zone will bind their ports to:
+#   - Both 10.10.10.1 and 10.10.10.2 when installed on host 10.255.1.1,
+#   - 10.200.1.1 when installed on host test-fqdn.domain.com,
+#   - and 10.100.1.1 when installed on host 10.0.0.1.
+#
+# Services configured to use the internal zone will not bind their ports to any IP address on either target installation
+# host.
+########################################################################################################################
+
+# The client_zone provides the user-facing IPs of the target host. The client_zone is expected to only have a single IP
+# address provided per target host, but multiple IP addresses are supported.
+#
+# The client zone IP address will show up in the CN and SAN of the generated external SSL certificate. If multiple IP
+# addresses are provided, then the first IP address will show up in the CN and all IP addresses will show up in the SAN
+# of the generated external SSL certificate. If a certificate is provided by ssl_pubic_certificate_path, that
+# certificate will be validated against the client_zone IP address(es).
+#
+# By default, the installer will map the 'target_host' host key to the IP of the default route for the client zone.
+client_zone:
+
+# The installer will bind the database's port (3306) to the IP address provided. Defaults to '127.0.0.1'.
+database_zone:
+
+# The internal zone is intended to contain services that should be available on an internal network interface.
+#
+# By default, the installer will map the 'target_host' host key to the IP of the default route for the internal zone.
+internal_zone:
+
+# The localhost zone is intended to contain services that should be hidden from user interaction, but should still
+# have their ports available on the host system.
+#
+# By default, the installer will map the 'target_host' host key to '127.0.0.1' for the localhost zone.
+localhost_zone:
+
+# If sftp_zone is specified, then the given IP address will be used to expose the sFTP port associated to the data
+# acquisition adapter to this specific interface.  If this variable is left unset then the sFTP port will not be exposed
+# to any interface and the sFTP service will not be enabled.
+sftp_zone:
+    target_host:
+        - 10.1.1.60
+
+########################################################################################################################
+# Service Deployment Configuration
+########################################################################################################################
+# This section maps services to the zones in which they will be deployed. Each service represents an application that
+# will be deployed as part of the installation process.
+#
+# The 'zones' key of each service expects to be given a list of zone names that have been configured in the
+# 'Traffic Zone Addresses' section.
+#
+# Example:
+# --------
+#   sftp_service:
+#       zones:
+#           - sftp_zone
+#
+#   mariadb_service:
+#       zones:
+#           - database_zone
+#
+# NOTE: In the example above, the administrative_zone does not exist by default as a traffic zone in this configuration
+#       file. It exists just to highlight the fact that adding/removing new zones is possible.
+########################################################################################################################
+# The WaveSuite Administration service will exist in the localhost zone by default and binds port 8090 to the specified
+# ip addresses.
+admin_service:
+    zones:
+        - localhost_zone
+
+# The container network service will exist in the internal zone by default and binds port 2377 to the specified ip
+# address. Only one IP address per host can be configured for the container network service.
+#
+# NOTE: The interfaces designated by the IP addresses used for the container network service must each be able to reach
+#       one another.
+container_network_service:
+    zones:
+        - internal_zone
+
+# The etcd service will exist in the localhost zone by default and binds port 2379 to the specified ip addresses.
+etcd_service:
+    zones:
+        - localhost_zone
+
+# The Kafka service will exist in the localhost zone by default and binds port 9092 to the specified ip addresses.
+#
+# WARNING: Access to Kafka is currently unencrypted. It is not recommended to configure this service to be available
+#          externally.
+kafka_service:
+    zones:
+        - localhost_zone
+
+# The Kafka schema resgistry service will exist in the localhost zone by default and binds port 8081 to the specified
+# ip addresses.
+#
+# WARNING: Access to Kafka schema registry is currently unencrypted. It is not recommended to configure this service
+#          to be available externally.
+kafka_schema_registry_service:
+    zones:
+        - localhost_zone
+
+# The KeyCloak service will exist in the localhost zone by default and binds port 8666 to the specified ip addresses.
+keycloak_service:
+    zones:
+        - localhost_zone
+
+# The Kong service will exist in the client zone by default and binds the port designated by the 'wavesuite_portal_port'
+# configurable property to the specified ip addresses.
+#
+# The Kong service is a reverse proxy that is expected to be available externally and handles all incoming requests.
+kong_service:
+    zones:
+        - internal_zone
+        - client_zone
+
+# The Logging service will exist in the localhost zone by default and binds port 514 to the specified ip addresses.
+logging_service:
+    zones:
+        - localhost_zone
+
+# The MariaDB service will exist in the localhost zone by default and binds port 3306 to the specified ip addresses.
+#
+# WARNING: Access to MariaDB is currently unencrypted. It is not recommended to configure this service to be available
+#          externally.
+mariadb_service:
+    zones:
+        - localhost_zone
+
+# The sftp service will exists in sftp_zone and binds port 22 to the specified ip address.
+sftp_service:
+    zones:
+
+# The SSH service will exist in the client zone by default. This will limit the SSH daemon to listen only to those
+# interfaces associated to the client zone.  The list of interfaces associated to this service cannot overlap
+# with those associated to the sFTP service.
+ssh_service:
+    zones:
+
+...

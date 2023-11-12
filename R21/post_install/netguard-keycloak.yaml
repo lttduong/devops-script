@@ -1,0 +1,390 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  annotations:
+    meta.helm.sh/release-name: ckey
+    meta.helm.sh/release-namespace: netguard-base
+  generation: 1
+  labels:
+    app: ckey
+    app.kubernetes.io/managed-by: Helm
+    backup: "true"
+    csf-component: ckey
+    csf-subcomponent: keycloak
+    heritage: Helm
+    release: ckey
+  name: ckey-ckey
+  namespace: netguard-base
+spec:
+  podManagementPolicy: Parallel
+  replicas: 2
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: ckey
+      release: ckey
+  serviceName: ckey-ckey-headless
+  template:
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "false"
+      creationTimestamp: null
+      labels:
+        app: ckey
+        release: ckey
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - ckey-ckey
+              topologyKey: kubernetes.io/hostname
+            weight: 100
+          - podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - ckey-ckey
+              topologyKey: failure-domain.beta.kubernetes.io/zone
+            weight: 50
+      containers:
+      - env:
+        - name: KEYCLOAK_USER
+          valueFrom:
+            secretKeyRef:
+              key: keycloak-admin-user
+              name: ckey-ckey
+        - name: CUSTOM_ATTRIBUTE
+          value: "true"
+        - name: DB_TYPE
+          value: "1"
+        - name: DB_IP
+          value: cmdb-mysql.netguard-base.svc.cluster.local
+        - name: DB_PORT
+          value: "3306"
+        - name: DB_NAME
+          value: db4keycloak
+        - name: DB_USER
+          value: keycloak
+        - name: JDBC_PARAMS
+          value: ?autoReconnect=true&useSsl=true&enabledSslProtocolSuites=TLSv1.2&trustStore=/opt/keycloak/security/ssl/client_keystore.jks
+        - name: MANAGEMENT_HTTP_PORT
+          value: "9990"
+        - name: MANAGEMENT_HTTPS_PORT
+          value: "9993"
+        - name: HTTP_PORT
+          value: "8080"
+        - name: HTTPS_PORT
+          value: "8443"
+        - name: HEALTH_CHECK_PORT
+          value: "8668"
+        - name: DB_ALARM_CHECK_PERIOD
+          value: "30000"
+        - name: CERT_EXPIRY_ALARM_PERIOD
+          value: "10"
+        - name: SERVICE_ID
+          value: ckey-ckey
+        - name: TRACE_LEVEL
+          value: INFO
+        - name: SYSLOG_SERVER_HOST
+          value: 127.0.0.1
+        - name: SYSLOG_SERVER_PORT
+          value: "514"
+        - name: TLS_VERSION_LIST
+          value: TLSv1.2
+        - name: PERIODIC_SIZE_LOGGER_FLAG
+          value: "0"
+        - name: PERIODIC_SIZE_LOGGER_FILESIZE
+          value: 10k
+        - name: PERIODIC_SIZE_LOGGER_ROTATIONTIME
+          value: .yyyy-MM-dd
+        - name: CORS_HEADER_DOMAIN
+          value: "0"
+        - name: KEYCLOAK_INGRESS_CUSTOM_PATH
+          value: /auth
+        - name: IMPORT_JAVA_CLIENT_TRUSTSTORE_FLAG
+          value: "1"
+        - name: IMPORT_CERT_FLAG
+          value: "1"
+        - name: IMPORT_LDAPS_CERT_FLAG
+          value: "0"
+        - name: IMPORT_TWO_WAY_CMDB_CERT
+          value: "0"
+        - name: IMPORT_ONE_WAY_CMDB_CERT
+          value: "1"
+        - name: KEYCLOAK_BIND_IP
+          value: "0"
+        - name: IP_TYPE
+          value: IPv4
+        - name: PROXY_ADDRESS_FORWARDING
+          value: "true"
+        - name: LB_BANNER_TITLE
+          value: Login Banner
+        - name: LB_WELCOME_FIRST_NAME_MSG
+          value: Welcome, {0}.
+        - name: LB_WELCOME_USERNAME_MSG
+          value: Welcome, {0}.
+        - name: LB_PREVIOUS_SUCCESS_MSG
+          value: Your last successful login was on {0}.
+        - name: LB_MAIN_MSG
+          value: You are about to access a private system. This system is for the
+            use of authorized users only. All connections are logged. Any unauthorized
+            access or access attempts may be punished to the fullest extent possible
+            under the applicable local legislation.
+        - name: LB_ACCEPT_MSG
+          value: OK
+        image: wasr21containerregistry.azurecr.io/keycloak/4489/keycloak-ha:11.0.0-1
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /auth
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 600
+          periodSeconds: 15
+          successThreshold: 1
+          timeoutSeconds: 5
+        name: ckey-ckey
+        ports:
+        - containerPort: 8443
+          name: https-keycloak
+          protocol: TCP
+        - containerPort: 8080
+          name: http-keycloak
+          protocol: TCP
+        - containerPort: 9993
+          name: https-mgmt
+          protocol: TCP
+        - containerPort: 9990
+          name: http-mgmt
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /auth
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 240
+          periodSeconds: 15
+          successThreshold: 1
+          timeoutSeconds: 10
+        resources:
+          limits:
+            cpu: "2"
+            memory: 2Gi
+          requests:
+            cpu: 500m
+            memory: 2Gi
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /customProviders
+          name: ckey-ckey-custom-providers
+        - mountPath: /ckey/custom-scripts
+          name: custom-ckey-scripts
+          readOnly: true
+        - mountPath: /opt/etc/keycloak/keycloak_java_client_truststore/
+          name: keycloak-java-client-truststore
+          readOnly: true
+        - mountPath: /opt/keycloak/standalone/configuration/profile.properties
+          name: profile-properties
+          subPath: profile.properties
+        - mountPath: /opt/keycloak/security/ssl/client_keystore.jks
+          name: keystore-config
+          subPath: client_keystore.jks
+        - mountPath: /opt/etc/keycloak/server_ssl_certificates
+          name: server-certificates
+        - mountPath: /opt/etc/keycloak/push-listener-registry.json
+          name: push-listener-config-json
+          subPath: push-listener-registry.json
+        - mountPath: /opt/etc/keycloak/custom-attributes-config.conf
+          name: custom-attribute-config
+          subPath: custom-attributes-config.conf
+        - mountPath: /opt/etc/keycloak/notification-listener-registry.json
+          name: notification-listener-config-json
+          subPath: notification-listener-registry.json
+        - mountPath: /opt/keycloak/security/mariadb_ssl/
+          name: cmdb-certificates
+        - mountPath: /opt/keycloak/security/keycloak-secret/
+          name: keycloak-secret
+      dnsPolicy: ClusterFirst
+      initContainers:
+      - args:
+        - |2
+
+          ## Start of custom modification of original chart
+          ## Add wait for certificate to be available - BASE-390
+          ## Behaviour of certs generation will be changed in cert-manager 0.16.0
+          wait_file () {
+              pathname=${1}
+              timeout=${2:-60}
+
+              # wait up to timeout iterations for file to exist and have size
+              for i in $(seq ${timeout}); do
+                  [[ -s ${pathname} ]] && return 0
+                  sleep 1
+              done
+
+              echo "${pathname}: file not found"
+              return 1
+          }
+          wait_file /mariadb-ssl/server-cert.pem 15 || exit 1
+          chmod 770 /writable-mariadb-ssl;
+          cp /mariadb-ssl/* /writable-mariadb-ssl;
+
+
+          chmod 770 /writable-server-certificates;
+
+          wait_file /server-certificates/ca.crt 15 || exit 1
+          wait_file /server-certificates/tls.crt 15 || exit 1
+          ## End of custom modification of original chart
+          cp /server-certificates/* /writable-server-certificates;
+
+
+          chmod 770 /writable-keycloak-secret;
+          cp /keycloak-secret/* /writable-keycloak-secret;
+          echo "Finish security hardening init procedures";
+        command:
+        - /bin/sh
+        - -c
+        image: wasr21containerregistry.azurecr.io/busybox
+        imagePullPolicy: IfNotPresent
+        name: security-hardening
+        resources:
+          limits:
+            cpu: 250m
+            memory: 256Mi
+          requests:
+            cpu: 250m
+            memory: 256Mi
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /writable-mariadb-ssl
+          name: writable-cmdb-certificates
+        - mountPath: /mariadb-ssl
+          name: cmdb-certificates
+        - mountPath: /writable-server-certificates
+          name: writable-server-certificates
+        - mountPath: /server-certificates
+          name: server-certificates
+        - mountPath: /keycloak-secret
+          name: keycloak-secret
+        - mountPath: /writable-keycloak-secret
+          name: writable-keycloak-secret
+      - args:
+        - --certs-dir=/input
+        - --output=/output
+        - --format=JKS
+        - --ks-pass=keycloak
+        - --ts-pass=keycloak
+        command:
+        - certs_converter
+        image: wasr21containerregistry.azurecr.io/certs-converter:21.0.2
+        imagePullPolicy: IfNotPresent
+        name: convert-cmdb-client-certs-to-jks
+        resources: {}
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: FallbackToLogsOnError
+        volumeMounts:
+        - mountPath: /input
+          name: cmdb-client-certs
+          readOnly: true
+        - mountPath: /output
+          name: keycloak-java-client-truststore
+      - args:
+        - /certs/truststore.jks
+        - /certs/client_keystore.jks
+        command:
+        - mv
+        image: wasr21containerregistry.azurecr.io/certs-converter:21.0.2
+        imagePullPolicy: IfNotPresent
+        name: rename-crmq-truststore
+        resources: {}
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /certs
+          name: keycloak-java-client-truststore
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext:
+        fsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+      serviceAccount: ckey-ckey-sa
+      serviceAccountName: ckey-ckey-sa
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - emptyDir: {}
+        name: ckey-ckey-custom-providers
+      - configMap:
+          defaultMode: 365
+          name: ckey-ckey-custom-ckey-scripts
+        name: custom-ckey-scripts
+      - emptyDir: {}
+        name: keycloak-java-client-truststore
+      - name: cmdb-client-certs
+        secret:
+          defaultMode: 420
+          secretName: cmdb-client-cert
+      - configMap:
+          defaultMode: 420
+          name: ckey-ckey-profile-properties
+        name: profile-properties
+      - configMap:
+          defaultMode: 420
+          name: ckey-keystore-config
+        name: keystore-config
+      - name: server-certificates
+        secret:
+          defaultMode: 420
+          secretName: keycloak-server-cert
+      - emptyDir: {}
+        name: writable-server-certificates
+      - name: cmdb-certificates
+        secret:
+          defaultMode: 420
+          items:
+          - key: ca.crt
+            path: server-cert.pem
+          secretName: keycloak-server-cert
+      - emptyDir: {}
+        name: writable-cmdb-certificates
+      - name: push-listener-config-json
+        secret:
+          defaultMode: 420
+          items:
+          - key: push-listener-registry.json
+            path: push-listener-registry.json
+          secretName: ckey-ckey-push-listener
+      - configMap:
+          defaultMode: 420
+          items:
+          - key: custom-attributes-config.conf
+            path: custom-attributes-config.conf
+          name: ckey-ckey-custom-attributes
+        name: custom-attribute-config
+      - configMap:
+          defaultMode: 420
+          items:
+          - key: notification-listener-registry.json
+            path: notification-listener-registry.json
+          name: ckey-ckey-notification-listener
+        name: notification-listener-config-json
+      - name: keycloak-secret
+        secret:
+          defaultMode: 420
+          secretName: ckey-ckey
+      - emptyDir: {}
+        name: writable-keycloak-secret
+  updateStrategy:
+    type: RollingUpdate

@@ -1,0 +1,6 @@
+dependencies:
+- name: cmdb
+  repository: https://repo.lab.pl.alcatel-lucent.com/csf-helm-stable/
+  version: 7.10.3
+digest: sha256:a1933a17a3947fb0c08bdd816a9991c86346c8256bf0f2b1e877d67a5f050bd7
+generated: "2020-08-14T14:50:47.192442548Z"

@@ -1,0 +1,56 @@
+---
+- name: Pre setup to install NFM-T 21.12 No-sims
+  hosts: localhost
+  connection: local
+  collections:
+   - azure.collection
+
+  vars:
+    resource_group: open-wavehub-dev
+    newRG: "{{ lookup('env', 'rg') }}"
+    vmName: "{{ lookup('env', 'nfmtname') }}"
+    location: "{{ lookup('env', 'region') }}"
+    ssh_key: "{{ lookup('env', 'ssh_key') }}"
+
+  tasks:
+    - name: Get NIC name
+      shell: sudo az vm nic list --vm-name "{{ vmName }}" -g "{{ newRG }}" --query [0].id | awk -F '[/]' '{print $9}' | sed 's/"//'
+      register: nic
+
+    - name: Creating new public ip
+      shell: az network public-ip create --resource-group "{{ newRG }}" --name "{{ vmName }}" --version IPv4 -l "{{ location }}"
+
+    - name: Get name ip configuration of NIC
+      shell: sudo az network nic ip-config list -g "{{ newRG }}" --nic-name "{{ nic.stdout }}" --query [0].name
+      register: ipconf
+
+    - name: Updating public IP for VM
+      shell: sudo az network nic ip-config update --name "{{ ipconf.stdout }}" --nic-name {{ nic.stdout }} --public-ip-address "{{ vmName }}" --resource-group "{{ newRG }}"
+    
+    - name: Get publicIP new restore vm
+      shell: sudo az vm show -g "{{ newRG }}" -n "{{ vmName }}"  --query publicIps -d --out tsv > componentIP.txt
+
+    - name: Register publicip from componentIP.txt file
+      shell: awk '{if(NR==1) print$1}' ./componentIP.txt
+      register: publicip
+    
+    - name: Get private IP new restore vm
+      shell: sudo az vm show -g "{{ newRG }}" -n "{{ vmName }}"  --query privateIps -d --out tsv > componentIP.txt
+      
+    - name: Register publicip from componentIP.txt file
+      shell: awk '{if(NR==2) print$1}' ./componentIP.txt
+      register: privateip
+
+    - name: Replace public ip of wsha hosts
+      shell: sudo sed -i "s/172.17.0.6/"{{ publicip.stdout }}"/g" ../hosts
+
+    - name: Set SSH for new LRA
+      shell: |
+        sudo az vm extension set --name VMAccessForLinux --publisher Microsoft.OSTCExtensions --version 1.4 --vm-name "{{ vmName }}" --resource-group "{{ newRG }}" --protected-settings '{"username":"LRA_Admin", "ssh_key":"{{ ssh_key }}", "reset_ssh": true}'
+
+    - name: Refresh inventory to ensure new instances exist in inventory
+      meta: refresh_inventory
+
+    - name: Pause 2 minutes for sync hosts file
+      pause:
+      minutes: 2

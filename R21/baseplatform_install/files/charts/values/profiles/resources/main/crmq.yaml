@@ -1,0 +1,38 @@
+persistence:
+  data:
+    size: 18Gi
+
+replicas: 3
+
+resources:
+  requests:
+    memory: 6Gi
+    cpu: 2000m
+  limits:
+    memory: 6Gi
+    cpu: 6000m
+
+memory:
+  vm_memory_high_watermark_absolute: 2560MiB
+  vm_memory_high_watermark_paging_ratio: 0.75
+  disk_free_limit_absolute: 2560MiB
+
+webhook:
+  webhook:
+    resources:
+      requests:
+        memory: 96Mi
+        cpu: 10m
+      limits:
+        memory: 96Mi
+        cpu: 300m
+
+cainjector:
+  cainjector:
+    resources:
+      requests:
+        memory: 96Mi
+        cpu: 10m
+      limits:
+        memory: 96Mi
+        cpu: 300m

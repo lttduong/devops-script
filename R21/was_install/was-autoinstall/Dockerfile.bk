@@ -1,0 +1,34 @@
+FROM centos:7
+
+WORKDIR /install
+
+RUN mkdir -p /exec \
+    && cd /exec \
+    && curl -O https://get.helm.sh/helm-v3.4.0-linux-amd64.tar.gz \
+    && tar xvf helm-v3.4.0-linux-amd64.tar.gz \
+    && mv linux-amd64/helm /exec/helm3 \
+    && curl -LO https://storage.googleapis.com/kubernetes-release/release/v1.20.0/bin/linux/amd64/kubectl \
+    && chmod +x ./kubectl \
+    && cp ./kubectl /usr/local/bin/kubectl
+
+RUN yum install epel-release -y
+
+RUN yum install -y \
+    python \
+    python-pip \
+    python-setuptools
+
+RUN pip install cryptography==3.3.1 \
+    && pip install wheel \
+    && pip install ansible==2.9.13 \
+    && pip install jinja2==2.11.1
+
+RUN yum install -y jq libicu-devel
+
+WORKDIR /install/ansible
+
+COPY was ./
+
+COPY was_config_vars.yml ./
+
+ENTRYPOINT ["ansible-playbook","--extra-vars=@/install/ansible/was_config_vars.yml","-e","helm=/exec/helm3","-e","HELM_PATH=/exec/helm3","/install/ansible/install-local.yml"]

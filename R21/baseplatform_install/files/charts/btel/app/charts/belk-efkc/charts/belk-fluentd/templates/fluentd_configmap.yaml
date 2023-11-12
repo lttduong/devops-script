@@ -1,0 +1,19 @@
+kind: ConfigMap
+apiVersion: v1
+data:
+{{ if eq .Values.fluentd.fluentd_config "belk" }}
+  td-agent.conf: |
+{{ .Files.Get "fluentd-config/belk.conf" | indent 4 }} 
+{{ else if eq .Values.fluentd.fluentd_config "clog-json" }}
+  td-agent.conf: |
+{{ .Files.Get "fluentd-config/clog-json.conf" | indent 4 }} 
+{{ else if eq .Values.fluentd.fluentd_config "clog-journal" }}
+  td-agent.conf: |
+{{ .Files.Get "fluentd-config/clog-journal.conf" | indent 4 }}
+{{ else if eq .Values.fluentd.fluentd_config "custom-value" }}
+  td-agent.conf: {{- toYaml .Values.fluentd.configFile | indent 2 }}
+{{ end }}
+metadata:
+  name: {{ template "fluentd.fullname" .  }}-config
+  labels:
+    addonmanager.kubernetes.io/mode: Reconcile

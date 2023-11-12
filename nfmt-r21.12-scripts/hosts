@@ -1,0 +1,7 @@
+[restore_nfmt_vm]
+nfmtforreplicatevm ansible_host=172.17.0.6 ansible_user=NFMT_Admin 
+
+[kubernetes:children]
+restore_nfmt_vm
+
+

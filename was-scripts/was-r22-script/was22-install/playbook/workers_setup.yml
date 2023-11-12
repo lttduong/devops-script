@@ -1,0 +1,32 @@
+- hosts: kubernetes_master_nodes
+  become: yes
+  gather_facts: false
+  tasks:
+    - name: get kube config content
+      shell: cat $HOME/.kube/config
+      register: kube_config_content
+
+    - name: set kube config content
+      set_fact:
+        kube_config: "{{ kube_config_content.stdout }}"
+
+
+- hosts: kubernetes_worker_nodes
+  become: yes
+  tasks:
+
+    - name: create .kube directory
+      become: yes
+      file:
+        path: $HOME/.kube
+        state: directory
+        mode: 0755
+
+    - name: copy kube config content to .kube directory
+      become: yes
+      shell: echo "{{ hostvars['kubernetes-master'].kube_config }}" > $HOME/.kube/config
+
+    - name: Initialize helm
+      become: yes
+      shell: PATH=$PATH:/usr/local/bin && helm init --client-only --stable-repo-url https://charts.helm.sh/stable
+      ignore_errors: yes

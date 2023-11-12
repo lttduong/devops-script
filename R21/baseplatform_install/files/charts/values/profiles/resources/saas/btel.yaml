@@ -1,0 +1,134 @@
+belk:
+  belk-elasticsearch:
+    elasticsearch_master:
+      replicas: 1
+      # no_of_masters is the minimum no of masters to be avaialble to form a cluster and service to be up, use (n/2)+1 as no_of_masters value where n in the number of master replicas
+      no_of_masters: 1
+      resources:
+        requests:
+          cpu: "200m"
+    elasticsearch_client:
+      replicas: 1
+      resources:
+        limits:
+          cpu: "700m"
+        requests:
+          cpu: "100m"
+          memory: "2Gi"
+    esdata:
+      replicas: 1
+      resources:
+        requests:
+          cpu: "100m"
+  belk-fluentd:
+    fluentd:
+      securityContext:
+        privileged: False
+      volumes:
+      - name: varlog
+        hostPath:
+          path: /var/log
+      - name: dockercontainers
+        hostPath:
+          path: /var/lib/docker/containers/
+
+      # volume mounts
+      volumeMounts:
+      - name: varlog
+        mountPath: /var/log
+      - name: dockercontainers
+        mountPath: /var/lib/docker/containers
+      resources:
+        limits:
+          cpu: "500m"
+          memory: "500Mi"
+        requests:
+          cpu: "50m"
+          memory: "300Mi"
+  belk-kibana:
+    kibana:
+      resources:
+        requests:
+          cpu: "100m"
+calm:
+  ha: false
+  servers: 1
+  kubectl:
+    jobResources:
+      requests:
+        cpu: 200m
+        memory: 500Mi
+      limits:
+        cpu: 1
+        memory: 1Gi
+grafana:
+  replicas: 1
+  HA:
+    enabled: false
+  SetDatasource:
+    datasource:
+      url: "http://cpro-server.<BP_NAMESPACE_PLACEHOLDER>.<DNS_DOMAIN_PLACEHOLDER>"
+gen3gppxml:
+  antiAffinityMode: "soft"
+  configOverride: |+
+    OVERRIDE_prometheus_url = http://cpro-server.<BP_NAMESPACE_PLACEHOLDER>.<DNS_DOMAIN_PLACEHOLDER>/api/v1
+cnot:
+  cnot:
+    resources:
+      requests:
+        cpu: "50m"
+cpro:
+  pushgateway:
+    antiAffinityMode: "soft"
+  server:
+    antiAffinityMode: "soft"
+    resources:
+      requests:
+        cpu: "100m"
+  nodeExporter:
+    resources:
+      requests:
+        cpu: "50m"
+  restserver:
+    antiAffinityMode: "soft"
+    resources:
+      requests:
+        cpu: "50m"
+  ha:
+    enabled: false
+
+db_configurator:
+  resources:
+    requests:
+      cpu: "10m"
+      memory: "50Mi"
+    limits:
+      cpu: "200m"
+      memory: "300Mi"
+
+crmq_configurator:
+  resources:
+    requests:
+      cpu: "10m"
+      memory: "50Mi"
+    limits:
+      cpu: "200m"
+      memory: "300Mi"
+
+grafana_configurator:
+  resources:
+    requests:
+      cpu: "10m"
+      memory: "50Mi"
+    limits:
+      cpu: "200m"
+      memory: "300Mi"
+
+cpro_configurator:
+  resources:
+    requests:
+      cpu: "10m"
+      memory: "50Mi"
+    limits:
+      cpu: "200m"
+      memory: "300Mi"

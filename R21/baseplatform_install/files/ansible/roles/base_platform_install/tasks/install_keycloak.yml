@@ -1,0 +1,115 @@
+---
+- name: "Read CKEY chart values"
+  include_vars:
+    file: "{{ files_path }}/charts/ckey/app/values.yaml"
+    name: ckey_values
+
+- name: "Read configuration profile if exists"
+  include_vars:
+    file: "{{ files_path }}/charts/values/profiles/resources/{{ BP_DEPLOYMENT_PROFILE.RESOURCES }}/ckey.yaml"
+    name: ckeyConfigurationProfileValues
+  when: ckeyConfigurationProfile.stat.exists
+  no_log: true
+
+- name: Override generated CRMQ user password if profile exists
+  set_fact:
+    crmqCkeyPassword: "{{ ckeyConfigurationProfileValues.config.ckey.crmqCkeyPassword }}"
+  when: ckeyConfigurationProfile.stat.exists and ckeyConfigurationProfileValues.config.ckey.crmqCkeyPassword is defined and ckeyConfigurationProfileValues.config.ckey.crmqCkeyPassword
+  no_log: true
+
+#- name: "Encrypt dbKeycloak password"
+#  shell: >
+#    docker run --rm --name encrypt_keycloak_db_password --entrypoint "/bin/java"
+#    {{ bcmtRegistry }}/{{ ckey_values.imageRepo }}:{{ ckey_values.imageTag }}
+#    -cp /opt/keycloak/modules/system/layers/base/org/picketbox/main/picketbox-5.0.3.Final-redhat-00005.jar
+#    org.picketbox.datasource.security.SecureIdentityLoginModule {{ dbPassword }}
+#    | awk '{ printf $3 }'
+#  become_method: sudo
+#  register: picketbox_encrypted_db_password
+#  failed_when: picketbox_encrypted_db_password.stdout == ""
+#  no_log: "{{ no_log }}"
+
+- name: "Delete previous container"
+  shell: >
+    kubectl delete pod encrypt-keycloak-db-password || true
+
+- name: "Delete previous container"
+  shell: >
+    kubectl run --generator=run-pod/v1 encrypt-keycloak-db-password --image={{ bcmtRegistry }}/{{ ckey_values.imageRepo }}:{{ ckey_values.imageTag }} 
+    --command -- /bin/java -cp /opt/keycloak/modules/system/layers/base/org/picketbox/main/picketbox-5.0.3.Final-redhat-00005.jar 
+    org.picketbox.datasource.security.SecureIdentityLoginModule {{ dbPassword }} 
+
+- name: "Wait for container"
+  shell: sleep 60
+
+    
+- name: "Retrieve encypted pwd from container"
+  shell: >
+    kubectl logs encrypt-keycloak-db-password | awk '{ printf $3 }'
+  register: picketbox_encrypted_db_password
+  failed_when: picketbox_encrypted_db_password.stdout == ""
+
+- name: "Delete current container"
+  shell: kubectl delete pod encrypt-keycloak-db-password || true
+
+
+- name: "Configure CKEY database"
+  shell: >
+    {{ helm }} install {{ chartsPath }}/ckey/db-config
+    --name-template {{ ckeyDatabaseConfigHelmName }}
+    --namespace {{ BP_CONFIG_NAMESPACE }}
+    --values {{ chartsPath }}/values/global-values.yaml
+    {{ ckeyConfigurationOverride }}
+    {{ ckeyResourcesOverride }}
+    --set image.registry={{ bcmtRegistry }}
+    --set mariadb.keycloak_db_password={{ dbPassword }}
+    --set cmdbConfiguratorEnabled={{ dbPopulatingEnabled }}
+    --timeout {{ wait_timeout }}s
+    --wait
+  no_log: "{{ no_log }}"
+
+- name: "Set login security banner"
+  set_fact:
+    loginSecurityBanner: '{{ LOGIN_SECURITY_BANNER | regex_escape() | quote }}'
+
+- name: "Install CKEY"
+  shell: >
+    {{ helm }} install {{ chartsPath }}/ckey/app
+    --name-template {{ ckeyHelmName }}
+    --namespace {{ BP_NAMESPACE }}
+    --values {{ chartsPath }}/values/global-values.yaml
+    --set dbAddress={{ mariaDbService }}
+    --values {{ chartsPath }}/ckey/app/override.yaml
+    {{ ckeyConfigurationOverride }}
+    {{ ckeyResourcesOverride }}
+    {{ ckeyStorageOverride }}
+    --set bpNamespace={{ BP_NAMESPACE }}
+    --set global.registry={{ bcmtRegistry }}
+    --set global.registry1={{ bcmtRegistry }}
+    --set global.registry2={{ bcmtRegistry }}
+    --set dns.domain={{ svcDnsDomain }}
+    --set clusterDomain={{ DNS_DOMAIN }}
+    --set cmdb.clusterDomain={{ DNS_DOMAIN }}
+    --set keycloakPassword={{ keycloakPassword }}
+    --set mariadb.keycloak_db_password={{ dbPassword }}
+    --set picketBoxEncryptedDBPassword={{ picketbox_encrypted_db_password.stdout }}
+    --set crmqCkeyUsername={{ crmqCkeyUsername }}
+    --set crmqCkeyPassword="{{ crmqCkeyPassword }}"
+    --set loginBannerMainMessage={{ loginSecurityBanner }}
+    --set externalLDAPSCertificate.enabled={{ keycloakLdapsEnabled }}
+    --set externalLDAPSCertificate.ldapsCert={{ keycloakLdapsCert | quote }}
+    --set fineGrainedPermissionsEnabled={{ keycloakFineGrainedPermissionsEnabled }}
+    --set cbur.enabled={{ CBUR.CONFIG_SECRETS.ENABLED | default(false) }}
+    --set cbur.brCronSpec="{{ CBUR.CONFIG_SECRETS.SCHEDULE.CRONJOB | default('0 0 * * *')}}"
+    --set cbur.brMaxiCopy={{ CBUR.CONFIG_SECRETS.COPIES | default(1)}}
+    --set cbur.autoEnableCron={{ CBUR.CONFIG_SECRETS.SCHEDULE.ENABLED }}
+    --set cbur.backendMode={{ CBUR.BACKEND_MODE }}
+    --set ipType={{ "IPv6" if ipv6Only else "IPv4" }}
+    --set customAttributes.enabled=true
+    --set-string customAttributes.attributes={{ CKEY_CUSTOM_USER_ATTRIBUTES | replace(',', '\,') | quote }}
+    --set ingress.ingressClass={{ INGRESS_CLASS }}
+    --set ingress.annotations."kubernetes\.io\/ingress\.class"={{ INGRESS_CLASS }}
+    {{ ckeyGeoSettings | default('') }}
+    {{ ckeyGeoPassiveSettings | default('') }}
+    --timeout {{ wait_timeout }}s --wait
+  no_log: "{{ no_log }}"

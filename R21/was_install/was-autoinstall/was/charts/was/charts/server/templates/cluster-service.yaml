@@ -1,0 +1,26 @@
+# Service definition for the 'na-server' service,
+# This defines the cluster address.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.global.serverClusterServiceName }}
+  labels:
+    app: {{ template "name" . }}
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+spec:
+  type: ClusterIP
+  ports:
+    - name: jboss-cluster-https
+      port: {{ .Values.global.serverClusterServiceHttpsPort }}
+      protocol: TCP
+      targetPort: {{ .Values.httpsPort }}
+{{- if .Values.resources.jvm.debugPort }}
+    - name: jboss-debug
+      port: {{ .Values.resources.jvm.debugPort }}
+      protocol: TCP
+{{- end }}
+  selector:
+    app: {{ template "name" . }}
+  sessionAffinity: None

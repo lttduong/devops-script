@@ -1,0 +1,54 @@
+{{- if .Values.persistence.auto_delete }}
+{{ if gt (int .Values.postscalein ) 0 }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "es.postScaleInJob.name" . }}
+spec:
+  template:
+    {{- if .Values.istio.enabled }}
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "false"
+    {{- end }}
+    spec:
+      serviceAccountName: {{ default ( default (printf "%s-es-sa" ( include "elasticsearch.fullname" . )) .Values.global.serviceAccountName ) .Values.serviceAccountName }}
+      restartPolicy: Never
+      securityContext:
+        fsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+      containers:
+      - name: {{ template "es.postScaleInContainer.name" .}}
+        image: "{{ .Values.global.registry1 }}/{{ .Values.kubectl.image.repo }}:{{ .Values.kubectl.image.tag }}"
+        command:
+        - bash
+        - "-c"
+        - |
+          echo 'Deleting the pvc of the disconnected es-data pods'
+          ES_DATA_UPDATED_COUNT={{.Values.esdata.replicas}}
+          echo "ES-DATA_UPDATED_COUNT = ${ES_DATA_UPDATED_COUNT}"
+          ES_DATA_PVC_IN_CLUSTER=`kubectl get pvc -l release={{ .Release.Name }} -n={{ .Release.Namespace }}|awk '{print $1}'| grep data |grep -v NAME`
+          echo "ES-DATA_PVC_IN_CLUSTER = ${ES_DATA_PVC_IN_CLUSTER}"
+          for eachpvc in ${ES_DATA_PVC_IN_CLUSTER};do
+          ES_DATA_PVC_NUMBER=${eachpvc##*-}
+          if ((${ES_DATA_PVC_NUMBER} >= ${ES_DATA_UPDATED_COUNT}));then
+          kubectl delete pvc ${eachpvc} --namespace {{ .Release.Namespace }}
+          echo "PVC Deleted is : ${eachpvc}"
+          fi;
+          done;
+
+          echo 'Deleting the pvc of the disconnected es-master pods'
+          ES_MASTER_UPDATED_COUNT={{.Values.elasticsearch_master.replicas}}
+          echo "ES-MASTER_UPDATED_COUNT = ${ES_MASTER_UPDATED_COUNT}"
+          ES_MASTER_PVC_IN_CLUSTER=`kubectl get pvc -l release={{ .Release.Name }} -n={{ .Release.Namespace }}|awk '{print $1}'| grep master |grep -v NAME`
+          echo "ES_MASTER_PVC_IN_CLUSTER = ${ES_MASTER_PVC_IN_CLUSTER}"
+          for eachpvc in ${ES_MASTER_PVC_IN_CLUSTER};do
+          ES_MASTER_PVC_NUMBER=${eachpvc##*-}
+          if ((${ES_MASTER_PVC_NUMBER} >= ${ES_MASTER_UPDATED_COUNT}));then
+          kubectl delete pvc ${eachpvc} --namespace {{ .Release.Namespace }}
+          echo "PVC Deleted is : ${eachpvc}"
+          fi;
+          done;
+{{- end }}
+{{- end }}

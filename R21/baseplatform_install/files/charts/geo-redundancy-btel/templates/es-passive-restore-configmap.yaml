@@ -1,0 +1,8 @@
+{{- if and (.Values.cbur.enabled) (.Values.geo_redundancy.enabled) }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Chart.Name }}-passive-restore-scripts
+data:
+{{ (tpl (.Files.Glob "scripts/*").AsConfig . ) | indent 2 }}
+{{- end }}

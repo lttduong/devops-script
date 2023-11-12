@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: baseplatform-install-sa
+  annotations:
+    "helm.sh/hook": post-install
+    "helm.sh/hook-weight": "-8"
+    "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded, hook-failed
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: baseplatform-install-rb-netguard-baseplatform
+  namespace: default
+subjects:
+- kind: ServiceAccount
+  name: baseplatform-install-sa
+  namespace: default
+roleRef:
+  kind: ClusterRole
+  name: cluster-admin
+  apiGroup: "rbac.authorization.k8s.io"
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: install-baseplatform
+  annotations:
+    "helm.sh/hook": post-install
+    "helm.sh/hook-weight": "0"
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        name: install-baseplatform
+    spec:
+      restartPolicy: Never
+      serviceAccountName: baseplatform-install-sa
+      containers:
+      - name: install-baseplatform
+        image: wasr21containerregistry.azurecr.io/base_platform_install:0.4.3

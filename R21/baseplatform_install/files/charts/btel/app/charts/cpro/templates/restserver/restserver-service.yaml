@@ -1,0 +1,37 @@
+{{- if .Values.restserver.enabled -}}
+apiVersion: v1
+kind: Service
+metadata:
+{{- if or .Values.global.annotations .Values.restserver.service.annotations }}
+  annotations:
+{{- include "prometheus-annotations" (tuple .Values.global.annotations) | indent 4}}
+{{- with .Values.restserver.service.annotations }}
+{{ toYaml . | indent 4 }}
+{{- end }}
+{{- end }}
+  labels:
+    app: {{ template "prometheus.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    component: "{{ .Values.restserver.name }}"
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+{{- if .Values.restserver.service.labels }}
+{{ toYaml .Values.restserver.service.labels | indent 4 }}
+{{- end }}
+{{- include "prometheus-labels" (tuple .Values.global.labels) | indent 4}}
+  name: {{ template "prometheus.restserver.fullname" . }}
+spec:
+  type: {{ .Values.restserver.service.type }}
+  ports:
+  - name: tcp-http
+    port: {{ .Values.restserver.service.servicePort }}
+    protocol: TCP
+    targetPort: tcp-8880
+{{- if (and (eq .Values.restserver.service.type "NodePort") (not (empty .Values.restserver.service.nodePort))) }}
+    nodePort: {{ .Values.restserver.service.nodePort }}
+{{- end }}
+  selector:
+    app: {{ template "prometheus.name" . }}
+    component: "{{ .Values.restserver.name }}"
+    release: {{ .Release.Name }}
+{{- end -}}

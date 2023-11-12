@@ -1,0 +1,23 @@
+## Start of custom chart file
+apiVersion: {{ .Values.global.certManager.api }}
+kind: Certificate
+metadata:
+  name: {{ template "prometheus.server.fullname" . }}-es-certificate
+  namespace: {{ .Release.Namespace }}
+spec:
+  secretName: {{ template "prometheus.server.fullname" . }}-es-tls
+  issuerRef:
+    name: {{ .Values.global.certManager.issuerRef.name }}
+    kind: {{ .Values.global.certManager.issuerRef.kind }}
+  duration: {{ .Values.global.certManager.duration }}
+  renewBefore: {{ .Values.global.certManager.renewBefore }}
+  keySize: {{ .Values.global.certManager.keySize }}
+  usages:
+    - server auth
+    - client auth
+  commonName: {{ template "prometheus.server.fullname" . }}
+  dnsNames:
+    - {{ template "prometheus.server.fullname" . }}
+#  organization:
+#    - Nokia
+## End of custom chart file

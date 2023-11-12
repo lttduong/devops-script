@@ -1,0 +1,16 @@
+---
+- name: "Set egress overrides"
+  replace:
+    dest: "{{ egressConfigurationProfile.stat.path }}"
+    regexp: '{{ item.regexp }}'
+    replace: '{{ item.replace }}'
+  with_items:
+  - { regexp: '<IPV4_SNAT_IF_PLACEHOLDER>', replace: "\n      - {{ EGRESS.EDGE_SNAT_INTERFACES_IPV4 | join('\n      - ') }}"}
+  - { regexp: '<IPV4_EDGE_BFD_PEER_PLACEHOLDER>', replace: '{{ EGRESS.EDGE_BFD_PEER_INTERFACE_IPV4 }}'}
+  - { regexp: '<IPV4_CONTROL_BFD_PEER_PLACEHOLDER>', replace: '{{ EGRESS.CONTROL_BFD_PEER_INTERFACE_IPV4 }}'}
+  - { regexp: '<IPV4_WORKER_BFD_PEER_PLACEHOLDER>', replace: '{{ EGRESS.WORKER_BFD_PEER_INTERFACE_IPV4 }}'}
+  - { regexp: '<IPV6_SNAT_IF_PLACEHOLDER>', replace: "\n      - {{ EGRESS.EDGE_SNAT_INTERFACES_IPV6 | join('\n      - ') }}"}
+  - { regexp: '<IPV6_EDGE_BFD_PEER_PLACEHOLDER>', replace: '{{ EGRESS.EDGE_BFD_PEER_INTERFACE_IPV6 }}'}
+  - { regexp: '<IPV6_CONTROL_BFD_PEER_PLACEHOLDER>', replace: '{{ EGRESS.CONTROL_BFD_PEER_INTERFACE_IPV6 }}'}
+  - { regexp: '<IPV6_WORKER_BFD_PEER_PLACEHOLDER>', replace: '{{ EGRESS.WORKER_BFD_PEER_INTERFACE_IPV6 }}'}
+  when: egressConfigurationProfile.stat.exists

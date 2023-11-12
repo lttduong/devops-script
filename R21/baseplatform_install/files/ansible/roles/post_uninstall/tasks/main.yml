@@ -1,0 +1,14 @@
+---
+- name: "Delete {{ namespaceHelmName }} helm chart"
+  shell: "{{ helm }} delete {{ namespaceHelmName }}"
+  become: yes
+
+- name: Waiting for namespace removal
+  shell: echo $(kubectl get ns | awk '{ print $1,$2 }' | grep "^{{ item }} Terminating" | wc -l)
+  with_items:
+    - "{{ BP_NAMESPACE }}"
+    - "{{ BP_CONFIG_NAMESPACE }}"
+  register: result
+  until: result.stdout == "0"
+  retries: 100
+  delay: 3

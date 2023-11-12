@@ -1,0 +1,57 @@
+---
+- name: Reinstalling after the VM is brought up successfully
+  hosts: restore_wsse_vm
+  
+  vars_files:
+    se_env_variables
+
+  tasks: 
+  - name: Copy openvpn profile
+    copy:
+      src: /etc/openvpn3/{{wsseProfile}}.ovpn
+      dest: /home/WSSE_Admin/
+    become: true        
+
+  - name: Connect VPN to WHLabs
+    shell: |
+      openvpn3 session-start --config /home/WSSE_Admin/{{wsseProfile}}.ovpn
+    become_user: WSSE_Admin
+    become: true
+    become_method: su
+    become_flags: '-s /bin/bash'
+
+  - name: Check vpn connaction with NFMT
+    shell: openvpn3 sessions-list 
+    register: showConnection
+
+  - name: List VPN connections
+    debug:
+      msg: "{{showConnection.stdout}}"
+
+  - name: Replace the new NFM-T IP for config file
+    shell: |
+      sed -i "25 s/nfmt_noc_host: .*/nfmt_noc_host: {{nfmtIp}}/g" /opt/WaveSuite-Service-Enablement-22-02-0/wavesuite.yaml
+    become: true
+
+  - name: Run script to update the NFM-T 
+    shell: |
+      cd /opt/WaveSuite-Service-Enablement-22-02-0
+      spawn sudo ./wsse_installer.sh --update 
+      expect "Enter vault password:"
+      send "admin@123\r"
+      interact
+      exit 0
+    args:
+      executable: /usr/bin/expect
+    register: output
+    become: true
+    ignore_errors: yes
+
+  - name: Pause 10' for reinstall wsse
+    pause:
+      minutes: 10
+
+  - name: Restarting the wsse system
+    shell: systemctl restart wsse
+    become: true
+

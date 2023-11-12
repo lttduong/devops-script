@@ -1,0 +1,3 @@
+certManager:
+  dnsNames: <ACCESS_FQDNS_PLACEHOLDER>
+  ipAddresses: <ACCESS_IPS_PLACEHOLDER>

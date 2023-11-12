@@ -1,0 +1,13 @@
+- name: "Create application directories"
+  include: create-directories.yml
+
+- name: "Copy files to nodes"
+  include: copy-files.yml
+
+- name: "Copy SSH private key"
+  include: copy-ssh-private-key.yml
+  when: sshPrivateKeyFile != "" and sshPrivateKeyFile is not none
+
+- name: "Copy custom configs"
+  include: copy-custom-configs.yml src={{ item.src }} dest={{ item.dest }}
+  loop: "{{ customConfigs | default([]) }}"

@@ -1,0 +1,58 @@
+{{- if and .Values.cbur .Values.cbur.enabled }}
+{{- if and (.Capabilities.APIVersions.Has "cbur.csf.nokia.com/v1") (not .Values.cbur.legacyHooks) }}
+{{ $job := dict "Values" .Values "Chart" .Chart "Release" .Release "Hook" .Values.cbur.preRestoreHook "HookType" "pre"}}
+apiVersion: "cbur.csf.nokia.com/v1"
+kind: BrHook
+metadata:
+  name: {{ template "cmdb-job.name" $job }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "cmdb-mariadb.labels" . | indent 4 }}
+spec:
+  properties:
+    targetType: "{{ .Values.cbur.brhookType }}"
+    targetName: {{ template "cmdb.pod-prefix" . }}-mariadb
+    hookPoint: prerestore
+    weight: {{ .Values.cbur.brhookWeight }}
+    enable: {{ .Values.cbur.brhookEnable }}
+    timeout: {{ .Values.cbur.brhookTimeout }}
+    deletePolicy: {{ .Values.hooks.deletePolicy | nospace | quote }}
+  template:
+    spec:
+      template:
+        {{- if .Values.istio.enabled }}
+        metadata:
+            annotations:
+              sidecar.istio.io/inject: "true"
+        {{- end }}
+        spec:
+          {{- include "cmdb-admin.secctx" . | nindent 10 }}
+          {{- include "cmdb.sa" . | nindent 10 }}
+          restartPolicy: Never
+          terminationGracePeriodSeconds: 30
+
+          containers:
+          - name: {{ template "cmdb-job.container-name" $job }}
+            {{- include "cmdb-admin.image" . | indent 12 }}
+            args: [ "restore" ]
+            env:
+            - name: CLUSTER_TYPE
+              value: "{{ .Values.cluster_type }}"
+            - name: CLUSTER_NAME
+              value: "{{ .Values.cluster_name | default .Release.Name | trunc 32 }}"
+            {{- include "cmdb-job.env" $job | nindent 12 }}
+            {{- include "cmdb-k8s.env" . | nindent 12 }}
+            {{- include "cmdb-admin.service" . | indent 12 }}
+            resources:
+{{ toYaml .Values.admin.resources | indent 14 }}
+
+        {{- if .Values.admin.tolerations }}
+          tolerations:
+{{ toYaml .Values.admin.tolerations | indent 12 }}
+        {{- end }}
+        {{- if .Values.admin.nodeSelector }}
+          nodeSelector:
+{{ toYaml .Values.admin.nodeSelector | indent 12 }}
+        {{- end }}
+{{- end }}
+{{- end }}

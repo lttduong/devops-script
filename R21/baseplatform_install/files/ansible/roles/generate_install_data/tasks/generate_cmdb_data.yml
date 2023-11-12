@@ -1,0 +1,80 @@
+---
+- name: "Set cmdbRootPassword"
+  set_fact:
+    cmdbRootPassword: "{{ lookup('password', '/dev/null length=1 chars=ascii_uppercase') +
+                          lookup('password', '/dev/null length=1 chars=ascii_lowercase') +
+                          lookup('password', '/dev/null length=1 chars=digits') +
+                          lookup('password', '/dev/null length=1 chars={{ passwordSigns }}') +
+                          lookup('password', '/dev/null length={{ passwordLength-4 }}
+                                  chars=ascii_letters,digits,{{ passwordSigns }}') | shuffle | join | trim }}"
+  no_log: true
+  when: cmdbRootPassword is not defined
+
+- name: "Encode cmdbRootPassword to base64 form"
+  shell: echo "{{ cmdbRootPassword }}" | base64
+  register: base64_cmdb_root_password
+  no_log: true
+
+- name: "Set cmdbUserPassword"
+  set_fact:
+    cmdbUserPassword: "{{ lookup('password', '/dev/null length=1 chars=ascii_uppercase') +
+                          lookup('password', '/dev/null length=1 chars=ascii_lowercase') +
+                          lookup('password', '/dev/null length=1 chars=digits') +
+                          lookup('password', '/dev/null length=1 chars={{ passwordSigns }}') +
+                          lookup('password', '/dev/null length={{ passwordLength-4 }}
+                                  chars=ascii_letters,digits,{{ passwordSigns }}') | shuffle | join | trim }}"
+  no_log: true
+  when: cmdbUserPassword is not defined
+
+- name: "Encode cmdbUserPassword to base64 form"
+  shell: echo "{{ cmdbUserPassword }}" | base64
+  register: base64_cmdb_user_password
+  no_log: true
+
+- name: "Set maxscaleUserPassword"
+  set_fact:
+    maxscaleUserPassword: "{{ lookup('password', '/dev/null length=1 chars=ascii_uppercase') +
+                          lookup('password', '/dev/null length=1 chars=ascii_lowercase') +
+                          lookup('password', '/dev/null length=1 chars=digits') +
+                          lookup('password', '/dev/null length=1 chars={{ passwordSigns }}') +
+                          lookup('password', '/dev/null length={{ passwordLength-4 }}
+                                  chars=ascii_letters,digits,{{ passwordSigns }}') | shuffle | join | trim }}"
+  no_log: true
+  when: maxscaleUserPassword is not defined
+
+- name: "Encode maxscaleUserPassword to base64 form"
+  shell: echo "{{ maxscaleUserPassword }}" | base64
+  register: base64_maxscale_user_password
+  no_log: true
+
+- name: "Set mariadbReplUserPassword"
+  set_fact:
+    mariadbReplUserPassword: "{{ lookup('password', '/dev/null length=1 chars=ascii_uppercase') +
+                          lookup('password', '/dev/null length=1 chars=ascii_lowercase') +
+                          lookup('password', '/dev/null length=1 chars=digits') +
+                          lookup('password', '/dev/null length=1 chars={{ passwordSigns }}') +
+                          lookup('password', '/dev/null length={{ passwordLength-4 }}
+                                  chars=ascii_letters,digits,{{ passwordSigns }}') | shuffle | join | trim }}"
+  no_log: true
+  when: mariadbReplUserPassword is not defined
+
+- name: "Encode mariadbReplUserPassword to base64 form"
+  shell: echo "{{ mariadbReplUserPassword }}" | base64
+  register: base64_mariadb_repl_user_password
+  no_log: true
+
+- name: "Set metricsUserPassword"
+  set_fact:
+    metricsUserPassword: "{{ lookup('password', '/dev/null length=1 chars=ascii_uppercase') +
+                          lookup('password', '/dev/null length=1 chars=ascii_lowercase') +
+                          lookup('password', '/dev/null length=1 chars=digits') +
+                          lookup('password', '/dev/null length=1 chars={{ passwordSigns }}') +
+                          lookup('password', '/dev/null length={{ passwordLength-4 }}
+                                  chars=ascii_letters,digits,{{ passwordSigns }}') | shuffle | join | trim }}"
+  no_log: true
+  when: metricsUserPassword is not defined
+
+- name: "Encode metricsUserPassword to base64 form"
+  shell: echo "{{ metricsUserPassword }}" | base64
+  register: base64_metrics_user_password
+  no_log: true

@@ -1,0 +1,6 @@
+- name: "Upgrade geo redundancy settings"
+  shell: >
+    {{ helm }}  upgrade {{ geoRedundancySettingsHelmName }} {{ chartsPath }}/geo-redundancy-settings
+    --namespace {{ BP_NAMESPACE }}
+    --reuse-values
+    --install

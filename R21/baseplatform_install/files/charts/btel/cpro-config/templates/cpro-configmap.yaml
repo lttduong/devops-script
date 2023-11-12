@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    app: {{ .Chart.Name }}
+  name: {{ .Chart.Name }}-alerts
+data:
+{{ (.Files.Glob "alerts/*").AsConfig | indent 2 }}

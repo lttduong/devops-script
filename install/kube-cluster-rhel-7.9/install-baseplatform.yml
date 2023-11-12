@@ -1,0 +1,6 @@
+---
+- import_playbook: was-install/playbook/initize.yml
+- import_playbook: was-install/playbook/workers_setup.yml
+- import_playbook: was-install/playbook/master_setup.yml
+- import_playbook: was-install/playbook/baseplatform_presetup.yml
+- import_playbook: was-install/playbook/baseplatform_setup.yml

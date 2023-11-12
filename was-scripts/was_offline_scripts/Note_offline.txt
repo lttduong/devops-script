@@ -1,0 +1,20 @@
+1/ Prerequisites
+Copy the resources onto package directory of nodes include:
+    - allwasimagesregistry.tar
+    - helm-v2.16.9-linux-amd64.tar.gz
+    - helm-v3.4.0-linux-amd64.tar.gz
+    - nfs-utils.tar.gz
+    - yum-packages.tar.gz
+
+2/ Run scripts to install k8s 
+
+
+3/ Run script to install wasr21
+
+We will replace IPs in configuration files to be IPs of currently Node for these files:
+    - bp_config_vars.yml
+    - was_config_vars.yml
+    - workbench_config_vars.yml
+
+and change hostnames of Nodes in file:
+    - env_variables

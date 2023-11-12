@@ -1,0 +1,17 @@
+{{ if .Values.global.extraSslCerts.server }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.global.releaseNamePrefix }}{{ template "name" . }}-truststore-extra
+  labels:
+    app: {{ template "name" . }}
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+    backup: "true"
+  annotations:
+    "helm.sh/hook": pre-install
+    "helm.sh/hook-weight": "-10"
+data:
+  cert.pem: {{ .Values.global.extraSslCerts.server | b64dec | quote }}
+{{ end }}

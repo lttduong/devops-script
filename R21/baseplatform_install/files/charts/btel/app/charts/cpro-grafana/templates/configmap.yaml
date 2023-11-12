@@ -1,0 +1,69 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "grafana.fullname" . }}
+  labels:
+    app: {{ template "grafana.name" . }}
+    chart: {{ template "grafana.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+    {{- if .Values.global.labels }}
+{{ toYaml .Values.global.labels | indent 4}}
+    {{- end }}
+{{- if .Values.global.annotations }}
+  annotations:
+{{- include "grafana-annotations" (tuple .Values.global.annotations) | indent 4}}
+{{- end }}
+data:
+{{- $root := . -}}
+{{- with .Values.plugins }}
+  plugins: {{ . | quote }}
+{{- end }}
+  # Start of custom modification of original chart for CSFS-31473
+  grafana.ini: |
+{{- range $key, $value := index .Values "grafana_ini" }}
+    [{{ $key }}]
+    {{- range $elem, $elemVal := $value }}
+      {{- if and ($root.Values.cmdb.need_deployed) (eq $key "database") (eq $elem "host") }}
+    {{ $elem }} = "{{ template "grafana.cmdb.fullname" $ }}.{{ $root.Release.Namespace }}.{{ .Values.dns.domain }}:3306"
+      {{- else if and ($root.Values.cmdb.need_deployed) (eq $key "session") (eq $elem "provider_config") }}
+    {{ $elem }} = `{{ $root.Values.grafana_ini.database.user }}:{{ $root.Values.grafana_ini.database.password }}@tcp({{ template "grafana.cmdb.fullname" $ }}.{{ $root.Release.Namespace }}.{{ .Values.dns.domain }}:3306)/grafana`
+    {{- else if kindIs "string" $elemVal }}
+      {{ $elem }} = {{ tpl $elemVal $ }}
+     {{- else }}
+    {{ $elem }} = {{ $elemVal }}
+     {{- end }}
+    {{- end }}
+{{- end }}
+
+{{- if .Values.datasources }}
+  {{- range $key, $value := .Values.datasources }}
+  {{ $key }}: |
+{{ toYaml $value | indent 4 }}
+  {{- end -}}
+{{- end -}}
+
+{{- if .Values.dashboardProviders }}
+  {{- range $key, $value := .Values.dashboardProviders }}
+  {{ $key }}: |
+{{ toYaml $value | indent 4 }}
+  {{- end -}}
+{{- end -}}
+  # End of custom modification of original chart for CSFS-31473
+{{- if .Values.dashboards  }}
+  download_dashboards.sh: |
+    #!/usr/bin/env sh
+    set -euf
+    mkdir -p /var/lib/grafana/dashboards
+  {{- range $key, $value := .Values.dashboards }}
+    {{- if (or (hasKey $value "gnetId") (hasKey $value "url")) }}
+    curl -sk \
+    --connect-timeout 60 \
+    --max-time 60 \
+    -H "Accept: application/json" \
+    -H "Content-Type: application/json;charset=UTF-8" \
+    {{- if $value.url -}}{{ $value.url }}{{- else -}} https://grafana.com/api/dashboards/{{ $value.gnetId }}/revisions/{{- if $value.revision -}}{{ $value.revision }}{{- else -}}1{{- end -}}/download{{- end -}}{{ if $value.datasource }}| sed 's|\"datasource\":[^,]*|\"datasource\": \"{{ $value.datasource }}\"|g'{{ end }} \
+    > /var/lib/grafana/dashboards/{{ $key }}.json
+    {{- end }}
+  {{- end }}
+{{- end }}

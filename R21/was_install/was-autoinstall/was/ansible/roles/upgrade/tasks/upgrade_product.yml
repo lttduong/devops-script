@@ -1,0 +1,113 @@
+---
+- name: Configure workflow directory
+  file:
+    state: directory
+    path: "{{ playbook_dir }}/opt/bcmt/storage/workflows"
+    mode: 0755
+
+- name: Create workflow staging directory
+  file:
+    state: directory
+    path: "{{ playbook_dir }}/opt/bcmt/storage/workflows/install"
+    mode: 0755
+
+- name: Create process variable config directory
+  file:
+    state: directory
+    path: "{{ playbook_dir }}/opt/bcmt/storage/was-process-variable-config"
+    mode: 0755
+
+- name: Prepare workflow archive files
+  block:
+  - name: Stage workflow files
+    copy:
+      src: "{{ playbook_dir }}/opt/bcmt/storage/workflows/"
+      dest: "{{ playbook_dir }}/opt/bcmt/storage/workflows/install/"
+      mode: 0644
+
+  - name: Remove extra install directory
+    file:
+      path: "{{ playbook_dir }}/opt/bcmt/storage/workflows/install/install"
+      state: absent
+
+  - name: Extract zip files
+    unarchive:
+      src: "{{ item }}"
+      dest: "{{ playbook_dir }}/opt/bcmt/storage/workflows/install"
+      mode: 0644
+    with_fileglob:
+      - "{{ playbook_dir }}/opt/bcmt/storage/workflows/install/*.zip"
+
+  - name: Install process variable configuration files
+    copy:
+      src: "{{ item }}"
+      dest: "{{ playbook_dir }}/opt/bcmt/storage/was-process-variable-config/"
+    with_fileglob:
+      - "{{ playbook_dir }}/opt/bcmt/storage/workflows/install/*.y*ml"
+
+- name: Get CKEY addresses from BP config namespace
+  shell: >
+    {{ kubectlPath }} get configmap ckey-realm-urls-config -n {{ BP_CONFIG_NAMESPACE }} -o jsonpath='{ .data.keycloak-realm-urls }'
+  register: ckeyAdapterAddresses
+
+- name: Store CKEY addresses in a fact
+  set_fact:
+    addresses: "{{ ckeyAdapterAddresses.stdout.split(';') | to_json }}"
+
+# Make sure application charts are in a directory named as per fact "productPrefix" defined in product_facts.yml
+- name: Upgrading WAS
+  shell: >
+    {{ helmPath }} upgrade {{ productPrefix }} {{ chartsPath }}/{{ productPrefix }}
+    --namespace {{ NAMESPACE }}
+    --reuse-values
+    --values {{ chartsPath }}/values/global-values.yaml
+    --values {{ chartsPath }}/image-tags.yaml
+    --values {{ chartsPath }}/{{ productPrefix }}/values.yaml
+    --values {{ chartsPath }}/{{ productPrefix }}/override.yaml
+    --values {{ chartsPath }}/{{ productPrefix }}/profile-{{ RESOURCE_PROFILE }}.yaml
+    --set dbschematool.operation="upgrade"
+    --set server.dbschematool.operation="upgrade"
+    --set server.dbConfig.transactionTimeoutSeconds="{{ TRANSACTION_TIMEOUT_SECONDS | default('600') }}"
+    --set server.diagnosticVolume.size={{ DIAGNOSTIC_VOLUME_SIZE | default('32Gi') }}
+    --set server.encryptionKey.enabled="{{ ENCRYPTION_KEY_GENERATION_ENABLED | default('false') }}"
+    --set server.encryptionKey.version="{{ ENCRYPTION_VERSION | default('20200000-1') }}"
+    --set server.encryptionKey.password="{{ ENCRYPTION_PASSWORD | default('') }}"
+    --set server.encryptionKey.previous.version="{{ ENCRYPTION_VERSION_PREVIOUS | default('20200000-1') }}"
+    --set server.encryptionKey.previous.password="{{ ENCRYPTION_PASSWORD_PREVIOUS | default('') }}"
+    --set server.mail.host={{ MAIL_HOST }}
+    --set server.mail.port={{ MAIL_PORT }}
+    --set server.mail.from={{ MAIL_FROM }}
+    --set server.replicaCount={{ SERVER_REPLICAS }}
+    --set ui.replicaCount={{ UI_REPLICAS }}
+    --set global.APP_NAMESPACE={{ NAMESPACE }}
+    --set global.BP_NAMESPACE={{ BP_NAMESPACE }}
+    --set global.BP_CONFIG_NAMESPACE={{ BP_CONFIG_NAMESPACE }}
+    --set global.DNS_DOMAIN={{ DNS_DOMAIN }}
+    --set global.ingressClass={{ INGRESS_CLASS }}
+    --set global.cbur.enabled={{ CBUR.ENABLED | default(false) }}
+    --set global.cbur.backendMode={{ CBUR.BACKEND_MODE | default('local') }}
+    --set global.cbur.maxiCopy={{ CBUR.COPIES | default(3) }}
+    --set global.cbur.cronSpec="{{ CBUR.SCHEDULE.CRONJOB | default('0 0 * * *') }}"
+    --set global.cbur.autoEnableCron={{ CBUR.SCHEDULE.ENABLED | default(false) }}
+    --set global.ckeyAdapterAddresses={{ addresses | replace(',', '\,') | quote }}
+    --set global.ipv6Only={{ ipv6Only }}
+    --set global.registry={{ bcmtRegistry }}
+    --set global.storageClass={{ storageClass }}
+    --set product.name={{ PRODUCT_NAME | default('NetGuard') }}
+    --set realm={{ CKEY_REALM_NAME }}
+    --set registry={{ bcmtRegistry }}
+    {{ helm_params }}
+    --wait
+
+- name: "Create configmap process-variable-config-configmap"
+  shell: >
+   {{ kubectlPath }} create configmap
+   -n {{ NAMESPACE }} process-variable-config-configmap
+   --from-file={{ playbook_dir }}/opt/bcmt/storage/was-process-variable-config
+   --dry-run -o yaml |
+   {{ kubectlPath }} apply -f -
+
+- name: Clean workflow staging directory
+  file:
+    state: absent
+    path: "{{ playbook_dir }}/opt/bcmt/storage/workflows/install/"

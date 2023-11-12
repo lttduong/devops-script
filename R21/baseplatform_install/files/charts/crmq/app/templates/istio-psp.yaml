@@ -1,0 +1,27 @@
+{{- if and .Values.rbac.enabled }}
+{{- if and (eq .Values.istio.enabled true) (eq .Values.istio.cni.enabled false)}}
+apiVersion: {{ template "PSPVersion" . }}
+kind: PodSecurityPolicy
+metadata:
+  name: {{ template "rabbitmq.fullname" . }}-psp
+  annotations:
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: '*'
+spec:
+  seLinux:
+    rule: RunAsAny
+  runAsUser:
+    rule: RunAsAny
+  supplementalGroups:
+    rule: RunAsAny
+  fsGroup:
+    rule: RunAsAny
+  volumes:
+  - '*'
+  allowPrivilegeEscalation: true
+  allowedCapabilities:
+  - 'NET_ADMIN'
+  - 'NET_RAW'
+  requiredDropCapabilities:
+  - ALL
+{{- end }}
+{{- end }}

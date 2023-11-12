@@ -1,0 +1,30 @@
+{{- if and (.Values.istio.enable) (ne .Values.global.istioVersion 1.4) }}
+apiVersion: "security.istio.io/v1beta1"
+kind: "PeerAuthentication"
+metadata:
+  labels:
+    app: {{ template "grafana.name" . }}
+    chart: {{ template "grafana.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+    {{- if .Values.global.labels }}
+{{ toYaml .Values.global.labels | indent 4}}
+    {{- end }}
+{{- if .Values.global.annotations }}
+  annotations:
+{{- include "grafana-annotations" (tuple .Values.global.annotations) | indent 4}}
+{{- end }}
+  name: {{ template "grafana.fullname" . }}
+  namespace: "{{.Release.Namespace}}"
+spec:
+  selector:
+    matchLabels:
+      app: {{ template "grafana.name" . }}
+      release: {{ .Release.Name }}
+  mtls:
+{{- if .Values.istio.mtls_enable }}
+    mode: STRICT
+{{- else }}
+    mode: PERMISSIVE
+{{- end }}
+{{- end }}

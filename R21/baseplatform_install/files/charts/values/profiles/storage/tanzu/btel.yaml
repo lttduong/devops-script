@@ -1,0 +1,35 @@
+belk:
+  persistence:
+    storageClassName: default
+  belk-elasticsearch:
+    elasticsearch_master:
+      persistence:
+        createPv: false
+    esdata:
+      persistence:
+        createPv: false
+
+calm:
+  persistence:
+    createPv: false
+    storageClass: default
+
+cpro:
+  alertmanager:
+    persistence:
+      createPv: false
+      storageClass: default
+  server:
+    persistence:
+      createPv: false
+      storageClass: default
+
+grafana:
+  persistence:
+    createPv: false
+    storageClass: default
+
+gen3gppxml:
+  persistence:
+    createPv: false
+    storageClass: default

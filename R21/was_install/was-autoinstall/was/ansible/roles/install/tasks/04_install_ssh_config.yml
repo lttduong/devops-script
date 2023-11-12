@@ -1,0 +1,14 @@
+---
+- name: "Installing ssh-config"
+  shell: >
+    {{ helmPath }} install {{ chartsPath }}/ssh-config
+    --wait
+    --namespace {{ NAMESPACE }}
+    --name-template {{ sshConfigHelmName }}
+    --values {{ chartsPath }}/values/global-values.yaml
+    --values {{ chartsPath }}/ssh-config/values.yaml
+    --set nameOverride={{ productPrefix }}-ssh-config
+    --set registry={{ bcmtRegistry }}
+    --set global.registry={{ bcmtRegistry }}
+    --set namespace={{ NAMESPACE }}
+  when: shouldInstall == true

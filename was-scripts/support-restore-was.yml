@@ -1,0 +1,6 @@
+---
+ - import_playbook: was-r21-script/restore-new-was/restore-replace-existing-master.yml
+ - import_playbook: was-r21-script/restore-new-was/restore-replace-existing-worker.yml
+ - import_playbook: was-r21-script/restore-new-was/restore-replace-existing-dpa.yml
+ - import_playbook: was-r21-script/restore-new-was/reinstall-was.yml
+ - import_playbook: was-r21-script/restore-new-was/getinfo-was.yml

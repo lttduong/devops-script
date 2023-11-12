@@ -1,0 +1,8 @@
+---
+- name: "Upgrading PSP bypass"
+  shell: >
+    {{ helmPath }} upgrade {{ helmName }}-psp-bypass {{ chartsPath }}/psp-bypass
+    --reuse-values
+    --install
+    --wait
+    --timeout 100s

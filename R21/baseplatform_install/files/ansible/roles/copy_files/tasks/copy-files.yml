@@ -1,0 +1,8 @@
+---
+- name: "Copy 'files' folder from package to {{ temporaryAppFilesDirectory }} on installation node"
+  shell: |
+    rm -rf {{ temporaryAppFilesDirectory }}
+    mkdir -p {{ temporaryAppFilesDirectory }}
+    cp -r {{ files_path }}/* {{ temporaryAppFilesDirectory }}
+
+

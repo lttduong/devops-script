@@ -1,0 +1,47 @@
+{{- if .Values.ingressManagement.enabled -}}
+{{- $releaseName := .Release.Name -}}
+{{- $managementPort := .Values.ingressManagement.keycloakManagementPort -}}
+{{- $managementPath := .Values.ingressManagement.managementPath | default "" -}}
+apiVersion: networking.k8s.io/v1beta1
+kind: Ingress
+metadata:
+  annotations:
+  {{- range $key, $value := .Values.ingressManagement.annotations }}
+    {{ $key }}: {{ $value | quote }}
+  {{- end }}
+  labels:
+    app: {{ template "keycloak.fullname" . }}
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+    provider: "csf-paas"
+  name: {{ printf "%s.%s.%.0f" .Release.Namespace $releaseName $managementPort}}
+spec:
+  rules:
+  {{- if .Values.ingressManagement.hosts -}}
+  {{- range .Values.ingressManagement.hosts }}
+  - host: {{ . }}
+    http:
+      paths:
+        {{- if ne $managementPath "" }}
+      - path: {{ printf "%s" $managementPath }}
+        {{ end }}
+        backend:
+          serviceName: {{ template "keycloak.fullname" $ }}
+          servicePort: {{ printf "%.0f" $managementPort }}
+  {{- end }}
+  {{ else }}
+  - http:
+      paths:
+        {{- if ne $managementPath "" }}
+      - path: {{ printf "%s" $managementPath }}
+        {{ end }}
+        backend:
+          serviceName: {{ template "keycloak.fullname" . }}
+          servicePort: {{ printf "%.0f" $managementPort }}
+  {{- end -}}
+  {{- if .Values.ingressManagement.tls }}
+  tls:
+{{ toYaml .Values.ingressManagement.tls | indent 4 }}
+  {{- end -}}
+{{- end -}}

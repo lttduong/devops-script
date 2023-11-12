@@ -1,0 +1,24 @@
+keycloakUser: admin
+keycloakPassword: admin
+keycloakClientId: admin-cli
+config:
+  ckey:
+    netguard:
+      clientSecret:
+      clientId: netguard-admin
+      authRealm: netguard
+    master:
+      clientSecret:
+      clientId: master-admin
+      authRealm: master
+keycloakHostname: ckey-ckey
+httpsPort: 8443
+
+cbur:
+  enabled: true
+  backendMode: local
+  cronSpec: "0 0 * * *"
+  dataEncryption: true
+  maxiCopy: 1
+  autoEnableCron: false
+  autoUpdateCron: false

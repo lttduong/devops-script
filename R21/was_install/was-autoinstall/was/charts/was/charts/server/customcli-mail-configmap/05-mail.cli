@@ -1,0 +1,14 @@
+# vim: filetype=conf
+# Documentation: https://access.redhat.com/documentation/en-us/red_hat_jboss_enterprise_application_platform/7.1/html/management_cli_guide/
+
+embed-server --server-config=${server.config:standalone-full.xml}
+
+echo "Starting 05-mail.cli"
+
+echo "Creating mail session and bindings for Nokia mail. Using SMTP:{{ .Values.mail.host }}:{{ .Values.mail.port }} from {{ .Values.mail.from }}"
+
+/subsystem=mail/mail-session=NokiaMail:add(jndi-name=java:/NakinaMail, from={{ .Values.mail.from }})
+/socket-binding-group=standard-sockets/remote-destination-outbound-socket-binding=NokiaMail-smtp-binding:add(host={{ .Values.mail.host }}, port={{ .Values.mail.port }})
+/subsystem=mail/mail-session=NokiaMail/server=smtp:add(outbound-socket-binding-ref=NokiaMail-smtp-binding)
+
+echo "Finished 05-mail.cli"

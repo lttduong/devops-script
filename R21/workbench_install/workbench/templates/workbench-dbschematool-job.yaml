@@ -1,0 +1,73 @@
+{{- if ne .Values.dbschematool.operation "skip" }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Values.global.releaseNamePrefix }}{{ template "name" . }}-dbschematool
+  labels:
+    app: {{ template "name" . }}
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": {{ .Values.dbschematool.hookWeight | quote }}
+spec:
+  template:
+    spec:
+      securityContext:
+        runAsUser: 1000
+        fsGroup: 1000
+{{- if .Values.global.jobNodeAffinityRuleTemplate }}
+{{ tpl .Values.global.jobNodeAffinityRuleTemplate . | indent 6 }}
+{{- end }}
+      initContainers:
+{{ tpl .Values.certsConverter.initContainersTemplate . | indent 8 }}
+      containers:
+      - name: {{ .Release.Name }}-dbschematool
+        image: "{{ .Values.global.registry }}/{{ .Values.dbschematool.image }}:{{ tpl .Values.dbschematool.imageTag . }}"
+        imagePullPolicy: "{{ .Values.dbschematool.imagePullPolicy }}"
+        terminationMessagePolicy: FallbackToLogsOnError
+        env:
+          - name: "DB_HOST"
+            value: {{ tpl .Values.global.mariadbExternalName . | quote }}
+          - name: "DB_PORT"
+            value: {{ .Values.global.mariadbPort | quote }}
+          - name: "DB_USER"
+            valueFrom:
+              secretKeyRef:
+                name: "{{ tpl .Values.global.workbenchdbSecret . }}"
+                key: username
+          - name: "DB_PASS"
+            valueFrom:
+              secretKeyRef:
+                name: "{{ tpl .Values.global.workbenchdbSecret . }}"
+                key: password
+          - name: "NOS_USER"
+            valueFrom:
+              secretKeyRef:
+                name: "{{ tpl .Values.global.nosdbSecret . }}"
+                key: username
+          - name: "DB_TRUSTSTORE"
+            value: "{{ .Values.certsConverter.truststorefile }}"
+          - name: "DB_TRUSTPASS"
+            value: "{{ .Values.certsConverter.jkspass }}"
+          - name: "DB_OPERATION"
+            value: {{ .Values.dbschematool.operation | quote }}
+        volumeMounts:
+          - name: extprops
+            mountPath: "/opt/nokia/dbschematool/extProps"
+{{ tpl .Values.certsConverter.volumeMountsTemplate . | indent 10 }}
+        resources:
+          requests:
+            memory: {{ .Values.dbschematool.requests.memory | quote }}
+            cpu: {{ .Values.dbschematool.requests.cpu | quote }}
+          limits:
+            memory: {{ .Values.dbschematool.limits.memory | quote }}
+            cpu: {{ .Values.dbschematool.limits.cpu | quote }}
+      restartPolicy: {{ .Values.dbschematool.restartPolicy | quote }}
+      volumes:
+        - name: extprops
+          configMap:
+            name:  {{ tpl .Values.global.extendedPropertiesConfigMapName . }}
+{{ tpl .Values.certsConverter.volumesTemplate . | indent 8 }}
+{{- end }}

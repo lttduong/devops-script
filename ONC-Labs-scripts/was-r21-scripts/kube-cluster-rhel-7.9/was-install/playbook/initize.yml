@@ -1,0 +1,53 @@
+- hosts: kubernetes_master_nodes:kubernetes_worker_nodes
+  become: yes
+  tasks:
+    - name: disable firewall for all nodes
+      shell: service firewalld stop
+
+    - name: install python docker module
+      yum:
+        name: python-docker
+        state: present
+
+    - name: Login to Azure Repository for WAS R21
+      docker_login:
+        registry: wasr21containerregistry.azurecr.io
+        username: WASR21ContainerRegistry
+        password: sDW51Hxp+p41rlgSDGLR3BTG3GxChQWl
+        reauthorize: yes
+
+    - name: create helm2 directory
+      file:
+        path: $HOME/helm2
+        state: directory
+        mode: 0755  
+
+    - name: download helm2 package
+      shell: wget https://get.helm.sh/helm-v2.16.9-linux-amd64.tar.gz -P $HOME/helm2
+
+    - name: extract helm2 package & copy helm2 to bin directory
+      shell: cd $HOME/helm2 &&  tar -xzvf helm-v2.16.9-linux-amd64.tar.gz && cp linux-amd64/helm /usr/local/bin/helm && chmod 755 /usr/local/bin/helm && cp linux-amd64/helm /usr/bin/helm
+
+    - name: create helm3 directory
+      file:
+        path: $HOME/helm3
+        state: directory
+        mode: 0755
+
+    - name: download helm3 package
+      shell: wget https://get.helm.sh/helm-v3.4.0-linux-amd64.tar.gz -P $HOME/helm3
+
+    - name: extract helm3 package & copy helm3 to bin directory
+      shell: cd $HOME/helm3 &&  tar -xzvf helm-v3.4.0-linux-amd64.tar.gz && cp linux-amd64/helm /usr/local/bin/helm3 && chmod 755 /usr/local/bin/helm3 && cp linux-amd64/helm /usr/bin/helm3
+
+
+    - name: copy docker config file to all hosts
+      copy:
+        src: config.json
+        dest: /var/lib/kubelet/config.json
+
+    - name: install nfs-utils
+      shell: yum install nfs-utils -y
+
+    - name: Pulling Docker Image 
+      shell: docker pull wasr21containerregistry.azurecr.io/keycloak/4489/keycloak-ha:11.0.0-1

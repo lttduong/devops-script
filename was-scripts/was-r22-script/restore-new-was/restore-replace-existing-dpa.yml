@@ -1,0 +1,45 @@
+---
+- name: Recovery Existing WSHA VM
+  hosts: localhost
+  connection: local
+  collections:
+    - azure.azcollection
+
+  vars_files:
+    - env_variables
+
+  tasks:
+    - name: Restore the disk from your recovery point
+      shell: sudo az backup restore restore-disks --resource-group "{{ resourceGroup }}" --vault-name "{{ dpaVaultName }}" --container-name "{{ dpaName }}" --item-name "{{ dpaName }}" --storage-account "{{ dpaStorageName }}" --rp-name "{{ dpaRecoveryPoint }}" --target-resource-group "{{ newRG }}" --query name
+      register: backupjob
+
+    - name: Pause for 5 minutes for restore disk
+      pause:
+        minutes: 5
+
+    - name: Disable backup of VM
+      shell: sudo az backup protection disable --resource-group "{{ resourceGroup }}" --vault-name "{{ dpaVaultName }}" --container-name "{{ dpaName }}" --item-name "{{ dpaName }}" --backup-management-type AzureIaaSVM -y
+
+    - name: Get new Id disk
+      shell: sudo az disk list -g "{{ newRG }}" --query '[?managedBy==`null`].[id]' -o tsv | grep -i "{{ dpaName }}"
+      register: newiddisk
+
+    - name: Get old Id disk
+      shell: sudo az vm show -d -g "{{ newRG }}" -n "{{ dpaName }}" --query "storageProfile.osDisk.managedDisk.id" | awk -F '[/]' '{print $9}' | sed 's/"//'
+      register: oldiddisk
+
+    - name: Stop DPA VM
+      shell: sudo az vm stop -n "{{ dpaName }}" -g "{{ newRG }}"
+
+    - name: Swap disk for DPA VM
+      shell: sudo az vm update -g "{{ newRG }}" -n "{{ dpaName }}" --os-disk {{ newiddisk.stdout }}
+
+    - name: Start DPA VM
+      shell: sudo az vm start -n "{{ dpaName }}" -g "{{ newRG }}"
+
+    - name: Remove Os Disk
+      azure_rm_manageddisk:
+        name: "{{ oldiddisk.stdout }}"
+        location: "{{ location }}"
+        resourceGroup: "{{ newRG }}"
+        state: absent

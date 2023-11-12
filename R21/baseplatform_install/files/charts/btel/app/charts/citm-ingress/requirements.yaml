@@ -1,0 +1,8 @@
+dependencies:
+  - name: default404
+    version: 1.0.34
+    repository: https://repo.lab.pl.alcatel-lucent.com/csf-helm-stable
+    condition: defaultBackend.enabled
+    tags:
+      - defaultBackend
+

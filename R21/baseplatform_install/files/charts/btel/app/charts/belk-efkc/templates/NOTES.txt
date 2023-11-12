@@ -1,0 +1,5 @@
+belk-efkc chart creates pods in the Release namespace of the chart.
+kubectl get pods --namespace {{ .Release.Namespace }} -l release={{ .Release.Name }}
+
+belk-efkc component service comes up in the Release namespace of the chart.
+kubectl get svc --namespace {{ .Release.Namespace }} -l release={{ .Release.Name }}

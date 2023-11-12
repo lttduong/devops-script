@@ -1,0 +1,40 @@
+{{ if gt (int .Values.global.preheal ) 0 }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: "{{ template "schema-registry.name" . }}-sr-preheal-job"
+  annotations:
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: {{ .Values.global.seccompAllowedProfileNames }} 
+    seccomp.security.alpha.kubernetes.io/defaultProfileName: {{ .Values.global.seccompDefaultProfileName }}
+spec:
+  template:
+    spec:
+      {{- if .Values.global.rbacEnable }}
+      serviceAccountName: {{ template "schema-registry.name" . }}-sradmin
+      {{- end }}
+      {{- if eq .Values.Security.enabled true }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: {{ .Values.Security.runAsUser }}
+        fsGroup: {{ .Values.Security.fsGroup }}
+      {{- end }}
+      restartPolicy: Never
+      containers:
+      - name: ckaf-schema-registry-preheal
+        image: {{ .Values.global.registry4 }}/{{ .Values.KubectlTool.image.name }}:{{ .Values.KubectlTool.image.tag }}
+        imagePullPolicy: {{ .Values.KubectlTool.image.pullPolicy }}
+        {{- if eq .Values.Security.enabled true }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          privileged: false
+          capabilities:
+            drop:
+              - all
+        {{- end }}
+        resources:
+{{ toYaml .Values.jobresources | indent 10 }}
+        command:
+          - sh
+          - -c
+          - kubectl delete pods --namespace {{ .Release.Namespace }} -l app={{ .Chart.Name }},release={{ .Release.Name }}
+{{ end }}

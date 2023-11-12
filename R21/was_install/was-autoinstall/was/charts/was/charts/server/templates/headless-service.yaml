@@ -1,0 +1,26 @@
+# Service definition for the 'server' service,
+# This defines the non-cluster address, which is unique per pod.
+# ('headless' means it doesn't have a cluster IP)
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "name" . }}
+  labels:
+    app: {{ template "name" . }}
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+    - name: jboss-https
+      port: {{ .Values.httpsPort }}
+      protocol: TCP
+{{- if .Values.cluster.ha }}
+    - name: jboss-jgroups
+      port: {{ .Values.jgroupsPort }}
+      protocol: TCP
+{{- end }}
+  selector:
+    app: {{ template "name" . }}

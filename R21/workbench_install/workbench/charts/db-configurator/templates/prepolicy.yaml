@@ -1,0 +1,57 @@
+{{- if .Values.global.rbac.enabled }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Chart.Name }}-pre-sa
+  namespace: "{{ .Values.global.BP_CONFIG_NAMESPACE }}"
+  labels:
+    app: {{ .Chart.Name }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+  annotations:
+    "helm.sh/hook": pre-upgrade,pre-delete
+    "helm.sh/hook-weight": "-18"
+    "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded
+
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ .Chart.Name }}-pre-rb
+  namespace: "{{ .Values.global.BP_CONFIG_NAMESPACE }}"
+  labels:
+    app: {{ .Chart.Name }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+  annotations:
+    "helm.sh/hook": pre-upgrade,pre-delete
+    "helm.sh/hook-weight": "-17"
+    "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded
+subjects:
+- kind: ServiceAccount
+  name: {{ .Chart.Name }}-pre-sa
+  namespace: "{{ .Values.global.BP_CONFIG_NAMESPACE }}"
+  apiGroup: ""
+roleRef:
+  kind: Role
+  name: {{ .Chart.Name }}-pre-role
+  apiGroup: ""
+
+---
+kind: Role
+apiVersion: rbac.authorization.k8s.io/{{ .Values.global.apiVersion }}
+metadata:
+  namespace: "{{ .Values.global.BP_CONFIG_NAMESPACE }}"
+  name: {{ .Chart.Name }}-pre-role
+  labels:
+    app: {{ .Chart.Name }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+  annotations:
+    "helm.sh/hook": pre-upgrade,pre-delete
+    "helm.sh/hook-weight": "-18"
+    "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded
+rules:
+- apiGroups: ["","batch","cert-manager.io"]
+  resources: ["jobs","secrets","certificates"]
+  verbs: ["delete"]
+{{- end }}

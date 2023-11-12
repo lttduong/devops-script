@@ -1,0 +1,143 @@
+---
+- name: Recovery WSSE VM
+  hosts: localhost
+  connection: local
+  collections:
+   - azure.azcollection
+
+  vars_files:
+    - se_env_variables
+
+  tasks:
+    - name: Restore the disk from your recovery point 
+      shell: sudo az backup restore restore-disks --resource-group "{{ resourceGroup }}" --vault-name "{{ wsseVaultName }}" --container-name "{{ wsseContainerName }}" --item-name "{{ wsseContainerName }}" --storage-account "{{ wsseStorageName }}" --rp-name "{{ wsseRecoveryPoint }}" --target-resource-group "{{ newRG }}" --query name
+      register: backupjob
+
+    - name: Pause for 5 minutes for restore disk
+      pause:
+        minutes: 5   
+
+    - name: Mornitoring the restore job 
+      shell: sudo az backup job list --resource-group "{{ resourceGroup }}" --vault-name "{{ wsseVaultName }}" --output table
+      register: restorejob
+    
+    - name: Job name of Backup
+      debug: 
+        msg: "{{ restorejob.stdout }}"
+    
+    - name: Fetch the job details
+      shell: sudo az backup job show -v "{{ wsseVaultName }}" -g "{{ resourceGroup }}" -n {{ backupjob.stdout }} --query 'properties.extendedInfo.propertyBag'| grep Template | awk -F '["]' '{print $4}'
+      register: link
+
+    - name: get link
+      debug:
+        msg: "{{ link.stdout }}"
+    
+    - name: Take template name
+      shell: echo "{{ link.stdout }}" | awk -F '[/]' '{print $4; exit}'
+      register: template
+
+    - name: get link
+      debug:
+        msg: "{{ template.stdout }}"
+
+    - name: Take container name
+      shell: echo "{{ link.stdout }}" | awk -F '[/]' '{print $5; exit}'
+      register: cname
+    - name: get link
+      debug:
+        msg: "{{ cname.stdout }}"
+
+    - name: Create Expiretime var
+      shell: date -u -d '30 minutes' +%Y-%m-%dT%H:%MZ
+      register: expiretime
+
+    - name: get expiretime
+      debug:
+        msg: "{{ expiretime.stdout }}"
+
+    - name: Create Connection var
+      command: sudo az storage account show-connection-string --resource-group "{{ resourceGroup }}" --name "{{ wsseStorageName }}" --query connectionString
+      register: connection
+    
+    - name: get connection
+      debug:
+        msg: "{{ connection.stdout }}"
+    
+    - name: Create token for deploy vm 
+      shell: sudo az storage blob generate-sas --container-name {{ template.stdout }} --name {{ cname.stdout }} --expiry {{ expiretime.stdout}} --permissions r --output tsv --connection-string {{ connection.stdout }}
+      register: token
+    
+    - name: get token
+      debug:
+        msg: "{{ token.stdout }}"
+
+    - name: Create Url var for 
+      shell: sudo az storage blob url --container-name {{ template.stdout }} --name {{ cname.stdout }} --output tsv --connection-string {{ connection.stdout }}
+      register: url
+    
+    - name: get url
+      debug:
+        msg: "{{ url.stdout }}"
+
+    - name: Deploy the template to create the VM
+      shell: sudo az deployment group create --resource-group "{{ newRG }}" --template-uri "{{ url.stdout }}?{{ token.stdout }}" --parameters VirtualMachineName="{{ wsseName }}"
+    
+    - name: Add Qualys extension for security Linux
+      shell: sudo az vm extension set -n LinuxAgent.AzureSecurityCenter --publisher Qualys --vm-name "{{ wsseName }}" --resource-group "{{ newRG }}"
+      ignore_errors: yes
+  
+    - name: Add Security extension for security Linux
+      shell: az vm extension set -n LinuxAgent.AzureSecurityCenter --publisher Microsoft.OSTCExtensions --version 1.4 --vm-name "{{ wsseName }}" --resource-group "{{ newRG }}"
+      ignore_errors: yes 
+      
+    # - name: Enable backup for vm
+    #   shell: sudo az backup protection enable-for-vm --resource-group "{{ resourceGroup }}" --vault-name "{{ wsseVaultName }}" --vm $(az vm show -g "{{ newRG }}" -n "{{ wsseName }}" --query id | tr -d '"') --policy-name "{{ wssePolicyVault }}"
+    #   ignore_errors: yes
+
+    - name: Get NIC name
+      shell: sudo az vm nic list --vm-name "{{ wsseName }}" -g "{{ newRG }}" --query [0].id | awk -F '[/]' '{print $9}' | sed 's/"//'
+      register: nic
+
+    - name: Get publicip name
+      shell: sudo az vm list-ip-addresses -g "{{ newRG }}" -n "{{ wsseName }}" --query [0].virtualMachine.network.publicIpAddresses[0].name | sed 's/"//g'
+      register: wsseOldIp
+
+    - name: Show public ip name
+      set_fact:
+        wsse_ip_address: "{{ wsseOldIp.stdout }}"
+
+    - name: Get name ip configuration of NIC
+      shell: sudo az network nic ip-config list -g "{{ newRG }}" --nic-name "{{ nic.stdout }}" --query [0].name
+      register: ipconf
+
+    - name: Static private ip address for master vm
+      shell: sudo az network nic ip-config update --name "{{ ipconf.stdout }}" --resource-group "{{ newRG }}" --nic-name "{{ nic.stdout }}" --private-ip-address "{{ wsse_private_ip_address }}"
+
+    # - name: Creating new public ip
+    #   shell: az network public-ip create --resource-group "{{ newRG }}" --name "{{ wsseName }}" --version IPv4 -l "{{ location }}" --allocation-method Static
+
+    - name: Updating public IP for VM
+      shell: sudo az network nic ip-config update --name "{{ ipconf.stdout }}" --nic-name {{ nic.stdout }} --public-ip-address "{{ wsse_public_ip_address }}" --resource-group "{{ newRG }}"
+
+    - name: Remove the old Public IP
+      shell: az network public-ip delete -g "{{ newRG }}" -n "{{ wsse_ip_address }}"
+      ignore_errors: yes
+
+    - name: Get public IP new restore vm
+      shell: sudo az vm show -g "{{ newRG }}" -n "{{ wsseName }}"  --query publicIps -d --out tsv
+      register: publicip
+
+    - name: Get private IP new store vm
+      shell: sudo az vm show -g "{{ newRG }}" -n "{{ wsseName }}"  --query privateIps -d --out tsv
+      register: privateip
+
+    - name: Replace public ip of wsse hosts
+      shell: sudo sed -i "s/172.17.0.7/"{{ publicip.stdout }}"/g" ../hosts
+
+    - name: Refresh inventory to ensure new instances exist in inventory
+      meta: refresh_inventory
+
+    - name: Pause 2 minutes for sync hosts file
+      pause:
+        minutes: 2

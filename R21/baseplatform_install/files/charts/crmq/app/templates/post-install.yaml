@@ -1,0 +1,161 @@
+{{- if .Values.rabbitmq.dynamicConfig.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "postInstallJobName" . }}
+  labels:
+    app: {{ template "rabbitmq.name" . }}-post-install
+    chart: {{ template "rabbitmq.chart" .  }}
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+  annotations:
+    "helm.sh/hook": post-install
+    "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded
+spec:
+  activeDeadlineSeconds: {{ .Values.rabbitmq.dynamicConfig.timeout }}
+  template:
+    metadata:
+      {{- if .Values.istio.enabled }}
+      annotations:
+        sidecar.istio.io/inject: "false"
+      {{- end }}
+      labels:
+        app: {{ template "rabbitmq.name" . }}-post-install-job
+        chart: {{ template "rabbitmq.chart" .  }}
+        release: "{{ .Release.Name }}"
+        heritage: "{{ .Release.Service }}"
+    spec:
+      hostname: {{ template "rabbitmq.fullname" . }}-dynamic-config-pod
+      subdomain: {{ template "rabbitmq.fullname" . }}
+      restartPolicy: Never
+      securityContext:
+        runAsUser: 10000
+        fsGroup: 10000 
+      serviceAccountName: {{ if .Values.rbac.enabled }}{{ template "rabbitmq.fullname" . }}{{ else }}"{{ .Values.rbac.serviceAccountName }}"{{ end }}
+      containers:
+      - name: {{ template "postInstallContainerName" . }}
+        image: "{{ .Values.global.registry }}/{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        command:
+          - bash
+          - -ec
+          - |
+            ls -al /var/lib/rabbitmq
+            if [ ! -f /var/lib/rabbitmq/.erlang.cookie ]; then
+              echo $RABBITMQ_ERL_COOKIE > /var/lib/rabbitmq/.erlang.cookie
+            fi
+            chmod 400 /var/lib/rabbitmq/.erlang.cookie
+            ls -al /var/lib/rabbitmq
+            set -x
+            if [ -z {{ .Values.global.podNamePrefix }} ]; then
+            pod="{{ template "rabbitmq.fullname" . }}"
+            else
+            pod="{{ .Values.global.podNamePrefix }}{{ template "rabbitmq.fullname" . }}"
+            fi
+            #wait when pod is ready. Job will sleep when rabbitmqctl return "Error:"
+            #It depends on the output of rabbitmqctl
+            #since we don't know how long rabbitmqctl will return
+            #timeout value is the same as activeDeadlineSeconds to make it simple
+            min=1
+            max={{ .Values.rabbitmq.dynamicConfig.timeout }}
+            while [ $min -le $max ]
+            do
+              min=`expr $min + 1`
+            {{- if (eq "hostname" .Values.rabbitmq.clustering.address_type) }}
+              result=`rabbitmqctl -l -n rabbit@\${pod}-0.$(K8S_SERVICE_NAME).$(MY_POD_NAMESPACE).svc.{{ .Values.rabbitmq.clustering.k8s_domain }} list_vhosts 2>&1 || true`
+            {{- else }}
+              result=`rabbitmqctl -n rabbit@\${pod}-0  list_vhosts 2>&1 || true`
+            {{- end }}
+              if [ ${result:0:6} == "Error:" ]; then
+                sleep 1
+              else
+                break
+              fi
+            done
+
+            number=0
+            patt="cmd"
+            fname=""
+            while read line;
+            do
+              printf -v fname -- '%s-%02d' "$patt" "$(( ++number ))"
+              {{- if (eq "hostname" .Values.rabbitmq.clustering.address_type) }}
+              echo "rabbitmqctl -l -n rabbit@$pod-0.$(K8S_SERVICE_NAME).$(MY_POD_NAMESPACE).svc.{{ .Values.rabbitmq.clustering.k8s_domain }} ${line}" >> /tmp/${fname};
+              {{- else }}
+              echo "rabbitmqctl -n rabbit@$pod-0 ${line}" >> /tmp/${fname};
+              {{- end }}
+            done < /tmp/parameters
+            
+            set +e
+            for f in /tmp/cmd*;
+            do
+              min=1
+              max={{ .Values.rabbitmq.dynamicConfig.maxCommandRetries }}
+              while [ $min -le $max ]
+              do
+                min=`expr $min + 1`
+                chmod +x $f
+                sh -c $f
+                if [ $? -eq 0 ]; then
+                  rm $f
+                  break
+                else
+                  sleep 1
+                fi
+              done
+              if [ $min -gt $max ]; then
+                exit 1
+              fi             
+            done
+
+            set +x
+
+        {{- if .Values.resources }}
+        resources:
+{{ toYaml .Values.resources | indent 10 }}
+        {{- end }}
+        volumeMounts:
+          - name: dynamic-config-parameters
+            mountPath: /tmp/parameters
+            subPath: parameters
+        ports:
+        - name: tcp-epmd
+          containerPort: 4369
+        - name: tcp-dist
+          containerPort: 25672
+        - name: tcp-erlang
+          containerPort: 35672
+
+        env:
+          - name: LC_ALL
+            value: en_US.UTF-8
+          - name: LANG
+            value: en_US.UTF-8
+          {{- if .Values.ipv6Enabled }}
+          - name: RABBITMQ_CTL_ERL_ARGS
+            value: "-proto_dist inet6_tcp"
+          {{- end }}
+          - name: RABBITMQ_ERL_COOKIE
+            valueFrom:
+              secretKeyRef:
+                name: {{ template "rabbitmq.fullname" . }}-const
+                key: rabbitmq-erlang-cookie
+          - name: K8S_SERVICE_NAME
+            value: {{ template "rabbitmq.fullname" . }}
+          - name: MY_POD_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+
+      dnsConfig:
+        searches:
+          # Start of custom modification of original chart for CSFS-31476
+          - {{ template "rabbitmq.fullname" . }}.{{ .Release.Namespace }}.{{ .Values.dns.domain }}
+          # End of custom modification of original chart for CSFS-31476
+      volumes:
+        - name: dynamic-config-parameters
+          configMap:
+            name: {{ template "rabbitmq.fullname" . }}-parameters
+            items:
+            - key: parameters
+              path: parameters          
+{{- end }}

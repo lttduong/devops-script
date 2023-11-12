@@ -1,0 +1,62 @@
+{{- range $app, $appvalue := .Values.ingress }}
+{{- range $type, $typevalue := . }}
+{{- if .enabled }}
+{{- $useRewrite := (ne .internalPath .externalPath) }}
+---
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  annotations:
+    {{- if $.Values.cluster.ha }}
+    ingress.citm.nokia.com/sticky-route-services: "$cookie_NAKINASESSIONID|NAKINASESSIONID ip_cookie"
+    {{- end }}
+    {{- if .maxBodySize }}
+    nginx.ingress.kubernetes.io/proxy-body-size: {{ .maxBodySize | quote }}
+    {{- end }}
+    {{- if .limitConnections }}
+    nginx.ingress.kubernetes.io/limit-connections: {{ .limitConnections | quote }}
+    {{- end }}
+    {{- if .limitRps }}
+    nginx.ingress.kubernetes.io/limit-rps: {{ .limitRps | quote }}
+    {{- end }}
+    {{- if .proxyReadTimeout }}
+    nginx.ingress.kubernetes.io/proxy-read-timeout: {{ .proxyReadTimeout | quote }}
+    {{- end }}
+    {{- if $useRewrite }}
+    nginx.ingress.kubernetes.io/rewrite-target: {{ printf "%s/$2" (.internalPath | trimSuffix "/") | quote }}
+    {{- end }}
+    {{- if (not .authRedirectEnabled) }}
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      access_by_lua_block {
+        require("keycloak").authenticate()
+      }
+    {{- else if ne .authRedirectEnabled "false"}}
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      access_by_lua_block {
+        require("keycloak").authenticate()
+      }
+    {{- end}}
+    nginx.ingress.kubernetes.io/secure-backends: {{ .useHttps | default "true" | quote }}
+    nginx.ingress.kubernetes.io/use-regex: {{ .useRegex | default "true" | quote }}
+    kubernetes.io/ingress.class: {{ $.Values.global.ingressClass | quote }}
+  labels:
+    app: {{ template "name" $ }}
+    chart: "{{ $.Chart.Name }}-{{ $.Chart.Version }}"
+    release: "{{ $.Release.Name }}"
+    heritage: "{{ $.Release.Service }}"
+  name: {{ $app | lower }}-{{ $type | lower }}
+spec:
+  rules:
+  - http:
+      paths:
+      - backend:
+          serviceName: {{ $.Values.global.serverClusterServiceName }}
+          servicePort: {{ printf "%.0f" $.Values.global.serverClusterServiceHttpsPort }}
+        path: {{ printf "%s(/|$)(.*)" (.externalPath | trimSuffix "/") | quote }}
+status:
+  loadBalancer:
+    ingress:
+    - {}
+{{- end }}
+{{- end }}
+{{- end }}

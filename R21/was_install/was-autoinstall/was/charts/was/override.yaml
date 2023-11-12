@@ -1,0 +1,11 @@
+server:
+  encryptedProperties:
+    secrets:
+      ckeyNetguardWorkflowAutomationSecret:
+        secretName: "ckey-netguard-was-client-secret"
+        path: "ckey.client.secret.netguardWorkflowAutomation"
+        enabled: true
+      ckeyFrameworkSecret:
+        secretName: "ckey-netguard-framework-client-secret"
+        path: "ckey.client.secret.framework"
+        enabled: true

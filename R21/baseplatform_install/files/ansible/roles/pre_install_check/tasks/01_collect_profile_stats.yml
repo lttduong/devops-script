@@ -1,0 +1,321 @@
+## Collect BTEL configuration, resources and storage profiles stats
+- name: Collect BTEL resources profile stats
+  stat:
+      path: "{{ resourcesProfiles }}/btel.yaml"
+  register: btelResourcesProfile
+  no_log: true
+
+- name: Collect BTEL storage profile stats
+  stat:
+      path: "{{ storageProfiles }}/btel.yaml"
+  register: btelStorageProfile
+  no_log: true
+
+- name: Check if BTEL resources profile exists
+  fail:
+    msg: "BTEL resources profile not found: '{{ resourcesProfiles }}/btel.yaml'"
+  when: not btelResourcesProfile.stat.exists
+
+- name: Check if BTEL storage profile exists
+  fail:
+    msg: "BTEL storage profile not found: '{{ storageProfiles }}/btel.yaml'"
+  when: not btelStorageProfile.stat.exists
+
+## Collect Egress configuration profile stats
+- name: Collect egress configuration profile stats
+  stat:
+      path: "{{ configurationProfiles }}/egress.yaml"
+  register: egressConfigurationProfile
+  no_log: true
+
+- name: Check if egress configuration profile exists
+  fail:
+    msg: "Egress configuration profile not found: '{{ configurationProfiles }}/egress.yaml'"
+  when: not egressConfigurationProfile.stat.exists
+
+## Collect CITM configuration, resources and storage profiles stats
+- name: Collect CITM configuration profile stats
+  stat:
+      path: "{{ configurationProfiles }}/citm.yaml"
+  register: citmConfigurationProfile
+  no_log: true
+
+- name: Collect CITM resources profile stats
+  stat:
+      path: "{{ resourcesProfiles }}/citm.yaml"
+  register: citmResourcesProfile
+  no_log: true
+
+- name: Check if CITM configuration profile exists
+  fail:
+    msg: "CITM configuration profile not found: '{{ configurationProfiles }}/citm.yaml'"
+  when: not citmConfigurationProfile.stat.exists
+
+- name: Check if CITM resources profile exists
+  fail:
+    msg: "CITM resources profile not found: '{{ resourcesProfiles }}/citm.yaml'"
+  when: not citmResourcesProfile.stat.exists
+
+## Collect CKEY configuration, resources and storage profiles stats
+- name: Collect CKEY configuration profile stats
+  stat:
+      path: "{{ configurationProfiles }}/ckey.yaml"
+  register: ckeyConfigurationProfile
+  no_log: true
+
+- name: Collect CKEY resources profile stats
+  stat:
+      path: "{{ resourcesProfiles }}/ckey.yaml"
+  register: ckeyResourcesProfile
+  no_log: true
+
+- name: Collect CKEY storage profile stats
+  stat:
+      path: "{{ storageProfiles }}/ckey.yaml"
+  register: ckeyStorageProfile
+  no_log: true
+
+- name: Check if CKEY configuration profile exists
+  fail:
+    msg: "CKEY configuration profile not found: '{{ configurationProfiles }}/ckey.yaml'"
+  when: not ckeyConfigurationProfile.stat.exists
+
+- name: Check if CKEY resources profile exists
+  fail:
+    msg: "CKEY resources profile not found: '{{ resourcesProfiles }}/ckey.yaml'"
+  when: not ckeyResourcesProfile.stat.exists
+
+- name: Check if CKEY storage profile exists
+  fail:
+    msg: "CKEY storage profile not found: '{{ storageProfiles }}/ckey.yaml'"
+  when: not ckeyStorageProfile.stat.exists
+
+## Collect CMDB configuration, resources and storage profiles stats
+- name: Collect CMDB configuration profile stats
+  stat:
+      path: "{{ configurationProfiles }}/cmdb.yaml"
+  register: cmdbConfigurationProfile
+  no_log: true
+
+- name: Collect CMDB resources profile stats
+  stat:
+      path: "{{ resourcesProfiles }}/cmdb.yaml"
+  register: cmdbResourcesProfile
+  no_log: true
+
+- name: Collect CMDB storage profile stats
+  stat:
+      path: "{{ storageProfiles }}/cmdb.yaml"
+  register: cmdbStorageProfile
+  no_log: true
+
+- name: Check if CMDB configuration profile exists
+  fail:
+    msg: "CMDB configuration profile not found: '{{ configurationProfiles }}/cmdb.yaml'"
+  when: not cmdbConfigurationProfile.stat.exists
+
+- name: Check if CMDB resources profile exists
+  fail:
+    msg: "CMDB resources profile not found: '{{ resourcesProfiles }}/cmdb.yaml'"
+  when: not cmdbResourcesProfile.stat.exists
+
+- name: Check if CMDB storage profile exists
+  fail:
+    msg: "CMDB storage profile not found: '{{ storageProfiles }}/cmdb.yaml'"
+  when: not cmdbStorageProfile.stat.exists
+
+## Collect CRMQ configuration, resources and storage profiles stats
+- name: Collect CRMQ configuration profile stats
+  stat:
+      path: "{{ configurationProfiles }}/crmq.yaml"
+  register: crmqConfigurationProfile
+  no_log: true
+
+- name: Collect CRMQ resources profile stats
+  stat:
+      path: "{{ resourcesProfiles }}/crmq.yaml"
+  register: crmqResourcesProfile
+  no_log: true
+
+- name: Collect CRMQ storage profile stats
+  stat:
+      path: "{{ storageProfiles }}/crmq.yaml"
+  register: crmqStorageProfile
+  no_log: true
+
+- name: Check if CRMQ configuration profile exists
+  fail:
+    msg: "CRMQ configuration profile not found: '{{ configurationProfiles }}/crmq.yaml'"
+  when: not crmqConfigurationProfile.stat.exists
+
+- name: Check if CRMQ resources profile exists
+  fail:
+    msg: "CRMQ resources profile not found: '{{ resourcesProfiles }}/crmq.yaml'"
+  when: not crmqResourcesProfile.stat.exists
+
+- name: Check if CRMQ storage profile exists
+  fail:
+    msg: "CRMQ storage profile not found: '{{ storageProfiles }}/crmq.yaml'"
+  when: not crmqStorageProfile.stat.exists
+
+## Collect start page configuration, resources and storage profiles stats
+- name: Collect start-page configuration profile stats
+  stat:
+    path: "{{ configurationProfiles }}/start-page.yaml"
+  register: startPageConfigurationProfile
+  no_log: true
+
+- name: Collect start page resources profile stats
+  stat:
+      path: "{{ resourcesProfiles }}/start-page.yaml"
+  register: startPageResourcesProfile
+  no_log: true
+
+- name: Check if start-page configuration profile exists
+  fail:
+    msg: "Start page configuration profile not found: '{{ configurationProfiles }}/start-page.yaml'"
+  when: not startPageConfigurationProfile.stat.exists
+
+- name: Check if start page resources profile exists
+  fail:
+    msg: "Start page resources profile not found: '{{ resourcesProfiles }}/start-page.yaml'"
+  when: not startPageResourcesProfile.stat.exists
+
+## Collect geo-redundancy-btel configuration, resources and storage profiles stats
+- name: Collect geo redundancy BTEL resources profile stats
+  stat:
+    path: "{{ resourcesProfiles }}/geo-redundancy-btel.yaml"
+  register: geoRedundancyBtelResourcesProfile
+  no_log: true
+
+- name: Collect geo redundancy BTEL storage profile stats
+  stat:
+    path: "{{ storageProfiles }}/geo-redundancy-btel.yaml"
+  register: geoRedundancyBtelStorageProfile
+  no_log: true
+
+- name: Check if geo redundancy BTEL resources profile exists
+  fail:
+    msg: "Geo redundancy BTEL resources profile not found: '{{ resourcesProfiles }}/geo-redundancy-btel.yaml'"
+  when: not geoRedundancyBtelResourcesProfile.stat.exists
+
+- name: Check if geo redundancy BTEL storage profile exists
+  fail:
+    msg: "Geo redundancy BTEL storage profile not found: '{{ storageProfiles }}/geo-redundancy-btel.yaml'"
+  when: not geoRedundancyBtelStorageProfile.stat.exists
+
+## Prepare the override options
+- set_fact:
+    startPageConfigurationOverride: ""
+    startPageResourcesOverride: ""
+    startPageStorageOverride: ""
+    crmqConfigurationOverride: ""
+    crmqResourcesOverride: ""
+    crmqStorageOverride: ""
+    cmdbConfigurationOverride: ""
+    cmdbResourcesOverride: ""
+    cmdbStorageOverride: ""
+    ckeyConfigurationOverride: ""
+    ckeyResourcesOverride: ""
+    ckeyStorageOverride: ""
+    citmConfigurationOverride: ""
+    citmResourcesOverride: ""
+    citmStorageOverride: ""
+    egressConfigurationOverride: ""
+    btelConfigurationOverride: ""
+    btelResourcesOverride: ""
+    btelStorageOverride: ""
+    geoRedundancyBtelConfigurationOverride: ""
+    geoRedundancyBtelResourcesOverride: ""
+    geoRedundancyBtelStorageOverride: ""
+  no_log: true
+
+- set_fact:
+    startPageConfigurationOverride: "--values {{ startPageConfigurationProfile.stat.path }}"
+  when: startPageConfigurationProfile.stat.exists
+  no_log: true
+
+- set_fact:
+    startPageResourcesOverride: "--values {{ startPageResourcesProfile.stat.path }}"
+  when: startPageResourcesProfile.stat.exists
+  no_log: true
+
+- set_fact:
+    crmqConfigurationOverride: "--values {{ crmqConfigurationProfile.stat.path }}"
+  when: crmqConfigurationProfile.stat.exists
+  no_log: true
+
+- set_fact:
+    crmqResourcesOverride: "--values {{ crmqResourcesProfile.stat.path }}"
+  when: crmqResourcesProfile.stat.exists
+  no_log: true
+
+- set_fact:
+    crmqStorageOverride: "--values {{ crmqStorageProfile.stat.path }}"
+  when: crmqStorageProfile.stat.exists
+  no_log: true
+
+- set_fact:
+    cmdbConfigurationOverride: "--values {{ cmdbConfigurationProfile.stat.path }}"
+  when: cmdbConfigurationProfile.stat.exists
+  no_log: true
+
+- set_fact:
+    cmdbResourcesOverride: "--values {{ cmdbResourcesProfile.stat.path }}"
+  when: cmdbResourcesProfile.stat.exists
+  no_log: true
+
+- set_fact:
+    cmdbStorageOverride: "--values {{ cmdbStorageProfile.stat.path }}"
+  when: cmdbStorageProfile.stat.exists
+  no_log: true
+
+- set_fact:
+    ckeyConfigurationOverride: "--values {{ ckeyConfigurationProfile.stat.path }}"
+  when: ckeyConfigurationProfile.stat.exists
+  no_log: true
+
+- set_fact:
+    ckeyResourcesOverride: "--values {{ ckeyResourcesProfile.stat.path }}"
+  when: ckeyResourcesProfile.stat.exists
+  no_log: true
+
+- set_fact:
+    ckeyStorageOverride: "--values {{ ckeyStorageProfile.stat.path }}"
+  when: ckeyStorageProfile.stat.exists
+  no_log: true
+
+- set_fact:
+    citmConfigurationOverride: "--values {{ citmConfigurationProfile.stat.path }}"
+  when: citmConfigurationProfile.stat.exists
+  no_log: true
+
+- set_fact:
+    citmResourcesOverride: "--values {{ citmResourcesProfile.stat.path }}"
+  when: citmResourcesProfile.stat.exists
+  no_log: true
+
+- set_fact:
+    btelResourcesOverride: "--values {{ btelResourcesProfile.stat.path }}"
+  when: btelResourcesProfile.stat.exists
+  no_log: true
+
+- set_fact:
+    egressConfigurationOverride: "--values {{ egressConfigurationProfile.stat.path }}"
+  when: egressConfigurationProfile.stat.exists
+  no_log: true
+
+- set_fact:
+    btelStorageOverride: "--values {{ btelStorageProfile.stat.path }}"
+  when: btelStorageProfile.stat.exists
+  no_log: true
+
+- set_fact:
+    geoRedundancyBtelResourcesOverride: "--values {{ geoRedundancyBtelResourcesProfile.stat.path }}"
+  when: geoRedundancyBtelResourcesProfile.stat.exists
+  no_log: true
+
+- set_fact:
+    geoRedundancyBtelStorageOverride: "--values {{ geoRedundancyBtelStorageProfile.stat.path }}"
+  when: geoRedundancyBtelStorageProfile.stat.exists
+  no_log: true

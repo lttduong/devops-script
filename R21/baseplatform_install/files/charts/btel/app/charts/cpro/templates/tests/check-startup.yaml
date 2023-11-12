@@ -1,0 +1,41 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ template "prometheus.server.serverHelmTestPod" . }}
+  annotations:
+    "helm.sh/hook": test-success
+    "helm.sh/hook-delete-policy": "{{ .Values.helmtest.deletepolicy }}"
+    sidecar.istio.io/inject: "{{ .Values.istio.enable }}" 
+spec:
+  containers:
+    - name: {{ template "prometheus.server.serverHelmTestContainer" . }}
+      image: "{{ .Values.global.registry1 }}/{{ .Values.tools.image.imageRepo }}:{{ .Values.tools.image.imageTag }}"
+      resources:
+{{ toYaml .Values.helmtest.resources | indent 8 }}
+      volumeMounts:
+        - name: gittest 
+          mountPath: /test/
+      command:
+        - bash
+        - -c
+        - |
+          {{- if .Values.istio.enable }}
+          until curl --head localhost:15000
+          do
+            echo "Waiting for istio-proxy ..."
+            sleep 1
+          done
+          sleep_time={{- .Values.istio.test_timeout }};
+          sleep $sleep_time
+          echo "istio-proxy available"
+          {{- end }}
+          bash /test/run.sh; RC=$?
+          {{- if .Values.istio.enable }}
+          curl -X POST http://localhost:15000/quitquitquit
+          {{- end }}
+          exit $RC
+  volumes:
+    - name: gittest
+      configMap:
+        name: "{{ .Release.Name }}-{{ .Chart.Name }}-status-test-configmap"
+  restartPolicy: Never

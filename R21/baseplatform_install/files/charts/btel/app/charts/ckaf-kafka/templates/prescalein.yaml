@@ -1,0 +1,59 @@
+{{ if gt (int .Values.prescalein ) 0 }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "kafka.name" . }}-kf-prescalein-job
+  annotations:
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: {{ .Values.global.seccompAllowedProfileNames }}
+    seccomp.security.alpha.kubernetes.io/defaultProfileName: {{ .Values.global.seccompDefaultProfileName }}
+
+spec:
+  template:
+    metadata:
+      labels:
+        app: {{ .Chart.Name }}
+      annotations:
+        sidecar.istio.io/inject: "false"
+    spec:
+      {{- if .Values.global.rbacEnable }}
+      serviceAccountName: {{ template "kfserviceAccount.name" . }}
+      {{- end }}
+      {{- if eq .Values.security.enabled true }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: {{ .Values.security.runAsUser }}
+        fsGroup: {{ .Values.security.fsGroup }}
+      {{- end }}
+      restartPolicy: Never
+      containers:
+      - name: ckaf-kafka-kf-prescalein
+        image: "{{ .Values.global.registry3 }}/{{ .Values.kubectlImage }}:{{ .Values.kubectlTag }}"
+        imagePullPolicy: IfNotPresent
+        {{- if eq .Values.security.enabled true }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          privileged: false
+          capabilities:
+            drop:
+              - all
+        {{- end }}
+        resources:
+{{ toYaml .Values.jobResources | indent 10 }}
+        command:
+        - bash
+        - -c
+        - |
+          echo 'Kafka partition reassignemnet onto the final set of pods'
+          KF_COUNT={{ .Values.Replicas }}
+          echo "UPDATED_KF_COUNT = ${KF_COUNT}"
+          kfcurrentreplicacount=$(kubectl get pods -l release={{ .Release.Name }} | grep {{ template "kafka.name" . }} | wc -l)
+          brokers=""
+          for (( i=0; i<${KF_COUNT}; i++ ));do
+          brokerid=$(kubectl exec -it {{ template "kafka.name" . }}-$i -c ckaf-kafka-broker  -- cat /var/lib/kafka/data/topics/meta.properties |grep broker.id | sed -e 's/broker.id=//')
+          brokers=${brokers}${brokerid}","
+          done;
+          echo "brokers list: ${brokers}"
+          kubectl exec -it {{ template "kafka.name" . }}-0 -c ckaf-kafka-broker -- sh /etc/kafka/ckaf-reassign-partitions --zookeeper  "{{ template "zkConnect.url" . }}" --broker ${brokers} --topic all --throttle {{ .Values.throttle | int  }}
+
+{{- end }}
+

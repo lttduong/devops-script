@@ -1,0 +1,64 @@
+- hosts: kubernetes_master_nodes
+  become: yes
+  vars_files:
+    - env_variables
+    
+  tasks:
+  - name: Copy nbp config file to master host
+    copy:
+      src: bp-packages/bp_config_vars.yml 
+      dest: "{{ dir_master[0] }}"
+  
+  - name: Copy nbp rbac_resource.yaml file to master host
+    copy:
+      src: bp-packages/rbac_resources.yaml
+      dest: "{{ dir_master[0] }}"
+
+  - name: Copy nbp value package of R22 to master host
+    copy:
+      src: bp-packages/NetGuard_Base_Platform-Values-22.2.0.tgz
+      dest: "{{ dir_master[0] }}"
+
+  - name: Copy ncmtpl binary execute file to master host
+    copy:
+      src: bp-packages/ncmtpl
+      dest: "{{ dir_master[0] }}"
+      mode: a+x
+  
+  - name: Copy nbp chart package of R22 to master host
+    copy:
+      src: bp-packages/NetGuard_Base_Platform-Charts-22.2.0.tgz
+      dest: "{{ dir_master[0] }}"
+  
+  - name: Copy generate value script of NBP
+    copy:
+      src: bp-packages/generate_values.sh
+      dest: "{{ dir_master[0] }}"
+
+  - name: Copy installation script file of NBP
+    copy:
+      src: bp-packages/install.sh
+      dest: "{{ dir_master[0] }}"
+
+  - name: Remove netguard-base namespace
+    shell: kubectl delete ns netguard-base
+    ignore_errors: yes
+
+  - name: Create netguard-base namespace
+    shell: kubectl create ns netguard-base
+
+  - name: Generate the value package from config file
+    shell: bash -x generate_values.sh --values-package=NetGuard_Base_Platform-Values-22.2.0.tgz --config-vars=bp_config_vars.yml --output-dir=./  --ncmtpl-bin=./ncmtpl
+    args:
+      chdir: "{{ dir_master[0] }}"
+
+  - name: Install rbac resources nbp on namespace
+    shell: kubectl apply -f ./rbac_resources.yaml -n netguard-base
+    args:
+      chdir: "{{ dir_master[0] }}"
+
+  - name: Install baseplatform deploy by helm3 scripting
+    shell: bash -x install.sh --action=install --charts-package=./NetGuard_Base_Platform-Charts-22.2.0.tgz --values-package=./NetGuard_Base_Platform-Values-gen.tgz 
+    args:
+      chdir: "{{ dir_master[0] }}"
+

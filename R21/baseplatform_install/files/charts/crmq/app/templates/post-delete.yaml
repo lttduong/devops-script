@@ -1,0 +1,55 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "postDeleteJobName" . }}
+  labels:
+    app: {{ template "rabbitmq.name" . }}-post-delete
+    chart: {{ template "rabbitmq.chart" .  }}
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+  annotations:
+    "helm.sh/hook": post-delete
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": hook-succeeded, hook-failed
+spec:
+  template:
+    metadata:
+      {{- if .Values.istio.enabled }}
+      annotations:
+        sidecar.istio.io/inject: "false"
+      {{- end }}
+      labels:
+        app: {{ template "rabbitmq.name" . }}-post-delete-job
+        chart: {{ template "rabbitmq.chart" .  }}
+        release: "{{ .Release.Name }}"
+        heritage: "{{ .Release.Service }}"
+    spec:
+      restartPolicy: Never
+      {{- if .Values.rbac.enabled}}
+      serviceAccountName: {{ template "rabbitmq.fullname" . }}-post-del
+      {{- else if not ( empty .Values.rbac.serviceAccountNamePostDel ) }}
+      serviceAccountName: "{{ .Values.rbac.serviceAccountNamePostDel }}"
+      {{- else }}
+      serviceAccountName: "{{ .Values.rbac.serviceAccountName }}"
+      {{- end }}
+      containers:
+      - name: {{ template "postDeleteContainerName" . }}
+        image: "{{ .Values.global.registry1 }}/{{ .Values.kubectlImage.repository }}:{{ .Values.kubectlImage.tag }}"
+        command:
+        - sh
+        - -ec
+        - |
+          {{- if and .Values.persistence.data.enabled (not .Values.persistence.reservePvc) }}
+          kubectl delete pvc --namespace {{ .Release.Namespace }} -l release={{ .Release.Name }},app={{ template "rabbitmq.name" . }}
+          {{- end }}
+          kubectl delete secret --namespace {{ .Release.Namespace }} -l release={{ .Release.Name }},app={{ template "rabbitmq.name" . }}
+          {{- if .Values.postDeleteForceClean.enabled }}
+          kubectl delete role --namespace {{ .Release.Namespace }} -l release={{ .Release.Name }},app={{ template "rabbitmq.name" . }}
+          kubectl delete rolebinding --namespace {{ .Release.Namespace }} -l release={{ .Release.Name }},app={{ template "rabbitmq.name" . }}
+          kubectl delete svc --namespace {{ .Release.Namespace }} -l release={{ .Release.Name }},app={{ template "rabbitmq.name" . }}
+          kubectl delete ing --namespace {{ .Release.Namespace }} -l release={{ .Release.Name }},app={{ template "rabbitmq.name" . }}
+          {{- end }}
+        {{- if .Values.resources }}
+        resources:
+{{ toYaml .Values.resources | indent 10 }}
+        {{- end }}

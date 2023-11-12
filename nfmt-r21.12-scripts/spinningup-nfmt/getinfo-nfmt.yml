@@ -1,0 +1,152 @@
+---
+ - name: Connect to LRA component to get credentials
+   hosts: restore_lra_vm
+   become: yes
+
+   tasks:
+   - name: Run script to get credential of LRA component
+     shell: |
+       cd /opt/wavesuite/cp/22.02.0/bin/
+       spawn sudo ./update_vault.sh -v
+       expect "Vault password: "
+       send "admin@123\r"
+       interact
+       exit 0 
+     args:
+       executable: /usr/bin/expect
+     register: output
+
+   - name: Set facts
+     set_fact:
+       set_output: "{{ output.stdout_lines }}"       
+
+#   - name: Show out username pass
+#     shell: echo {{ set_output }} | grep wavesuite | awk -F ' ' '{print $2}' | cut -c 1-10 
+#     register: password
+
+#   - name: Set facts
+#     set_fact:
+#       set_output: "{{ output.stdout_lines[14] }}"
+
+   - name: Show out keycloak_master_realm_admin_password
+     shell: echo {{ output.stdout_lines[4] }} | cut -c 1-48
+     register: keycloak_master
+
+   - name: Print out keycloak_master_realm_admin_password
+     shell: echo " {{ keycloak_master.stdout }} " > /lraCredential.txt
+   
+   - name: Show out mariadb_keycloak_user_password
+     shell: echo {{ output.stdout_lines[5] }} | cut -c 1-42
+     register: mariadb_keycloak
+
+   - name: Print out mariadb_keycloak_user_password
+     shell: echo " {{ mariadb_keycloak.stdout }} " >>  /lraCredential.txt
+
+   - name: Show out mariadb_kong_user_password
+     shell: echo {{ output.stdout_lines[6] }} | cut -c 1-38
+     register: mariadb_kong
+
+   - name: Print out mariadb_kong_user_password
+     shell: echo " {{ mariadb_kong.stdout }} " >> /lraCredential.txt
+
+   - name: Show out mariadb_root_user_password
+     shell: echo {{ output.stdout_lines[7] }} | cut -c 1-38
+     register: mariadb_root
+
+   - name: Print out mariadb_root_user_password
+     shell: echo " {{ mariadb_root.stdout }} " >> /lraCredential.txt
+
+   - name: Show out mariadb_wscp_user_password
+     shell: echo {{ output.stdout_lines[8] }} | cut -c 1-38
+     register: mariadb_wscp
+
+   - name: Print out mariadb_wscp_user_password
+     shell: echo " {{ mariadb_wscp.stdout }} " >> /lraCredential.txt
+
+   - name: Show out ssl_keystore_password
+     shell: echo {{ output.stdout_lines[9] }} | cut -c 1-33
+     register: ssl_keystore
+
+   - name: Print out ssl_keystore_password
+     shell: echo " {{ ssl_keystore.stdout }} " >> /lraCredential.txt
+
+   - name: Show out ssl_truststore_password
+     shell: echo {{ output.stdout_lines[10] }} | cut -c 1-35
+     register: ssl_truststore
+
+   - name: Print out ssl_truststore_password
+     shell: echo " {{ ssl_truststore.stdout }} " >> /lraCredential.txt
+
+   - name: Show out wavesuite_admin_password
+     shell: echo {{ output.stdout_lines[11] }} | cut -c 1-36
+     register: wavesuite_admin
+
+   - name: Print out wavesuite_admin_password
+     shell: echo " {{ wavesuite_admin.stdout }} " >> /lraCredential.txt
+   
+   - name: Show out target_host_ssh_password
+     shell: echo {{ output.stdout_lines[12] }} | cut -c 1-36
+     register: target_host
+
+   - name: Print out target_host_ssh_password
+     shell: echo " {{ target_host.stdout }} " >> /lraCredential.txt
+
+   - name: Fetch tenanid to host
+     fetch:
+      src: /lraCredential.txt
+      dest: ./
+      flat: yes
+
+   - name: Delete credential file
+     shell: rm -f /lraCredential.txt   
+
+   - name: Reboot the machine
+     shell: systemctl daemon-reload  
+
+ - name: Get URL of LRA component
+   hosts: localhost 
+   connection: local
+   collections:
+    - azure.azcollection
+
+   vars:
+    newRG: "{{ lookup('env', 'rg') }}"
+    vmName: "{{ lookup('env', 'lraname') }}"
+ 
+   tasks:
+     - name: Get Public IP of VM
+       shell: sudo az vm show -g "{{ newRG }}" -n "{{ vmName }}"  --query publicIps -d --out tsv > ./publicip.txt
+              
+     - name: set credentials
+       shell: cat ./lraCredential.txt
+       register: credential 
+     
+     - name: Get ip public
+       shell: awk '{if(NR==1) print $1}' ./publicip.txt
+       register: publicip
+
+     - name: Show URL of LRA Keycloack login
+       debug:
+        msg: " This is URL of lra: https://{{ publicip.stdout }}:8443/wavesuite/common/auth/admin/master/console"
+
+     - name: Show URL of LRA App
+       debug:
+        msg: " This is URL of LRA Component : https://{{ publicip.stdout }}:8443/lra-web/"
+   
+     - name: Print out Resource Group of New LRA
+       debug:
+        msg: " This is Resource Group of New LRA: {{ newRG }}"
+
+     - name: Print out VM name of New LRA
+       debug:
+        msg: " This is VM name of New LRA: {{ vmName }}"
+
+     - name:  Print out Credentials of New LRA
+       debug:
+        msg: " {{ credential.stdout_lines }} "
+
+    #  - name: Delete credential file 
+    #    shell: rm -f /tmp/lra/lraCredential.txt
+
+    #  - name: Delete credential file 
+    #    shell: rm -f /tmp/lra/publicip.txt  

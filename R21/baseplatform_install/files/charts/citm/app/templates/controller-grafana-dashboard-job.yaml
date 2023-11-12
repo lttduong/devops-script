@@ -1,0 +1,64 @@
+{{- if .Values.grafanaURL }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  labels:
+    app: {{ template "name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+  name: {{ template "controller.fullname" . }}-import-dashboard
+  annotations:
+    "helm.sh/hook": post-install
+    "helm.sh/hook-delete-policy": hook-succeeded, hook-failed
+spec:
+  template:
+    metadata:
+      labels:
+        app: {{ template "name" . }}
+        release: {{ .Release.Name }}
+    spec:
+      containers:
+      - name: {{ template "controller.fullname" . }}-import-dashboard
+        image: "{{ .Values.global.registry }}/cpro/grafana-registry1/grafana-tiny-tools:1.0"
+        securityContext:
+          runAsUser: 1000
+        env:
+        - name: ADMIN_USER
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.grafanaSecret }}
+              key: admin-user
+        - name: ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.grafanaSecret }}
+              key: admin-password
+        command: ["/bin/sh", "-c"]
+        workingDir: /opt/grafana-import-dashboards
+        args:
+          - >
+            for file in *.json ; do
+              if [ -e "$file" ] ; then
+                echo "importing $file" &&
+                ( echo '{"dashboard":'; \
+                  cat "$file"; \
+                  echo ',"overwrite":false}' ) \
+                | jq -c '.' \
+                | curl --silent --show-error --insecure \
+                  https://$(ADMIN_USER):$(ADMIN_PASSWORD)@{{ .Values.grafanaURL }}/api/dashboards/db \
+                  --max-time 30 --retry 3 \
+                  --header "Content-Type: application/json" \
+                  --data-binary "@-" &&
+                echo "OK" || exit 1
+              fi
+            done
+        volumeMounts:
+        - name: dashboard-volume
+          mountPath: /opt/grafana-import-dashboards   
+      restartPolicy: "OnFailure"
+      volumes:
+      - name: dashboard-volume
+        configMap:
+          name:  {{ template "controller.fullname" . }}-dashs
+{{- end }}

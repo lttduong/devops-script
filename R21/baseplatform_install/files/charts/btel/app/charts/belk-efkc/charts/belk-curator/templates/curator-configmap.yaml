@@ -1,0 +1,16 @@
+{{- if and (.Values.curator.enabled) ( empty .Values.curator.configMaps.preCreatedConfigmap) }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "curator.fullname" . }}
+  labels:
+    app: {{ template "curator.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+data:
+  ## Start of custom modification of original chart
+  actions.yml: {{ toYaml ( tpl .Values.curator.configMaps.action_file_yml $) | indent 2 }}
+  ## End of custom modification of original chart
+  curator.yml: {{ toYaml .Values.curator.configMaps.config_yml | indent 2 }}
+{{- end }}

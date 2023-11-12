@@ -1,0 +1,9 @@
+---
+resource_group: "{{ lookup('env', 'rg') }}"
+
+nmaster: "{{ lookup('env', 'mastername') }}"
+
+nworker: "{{ lookup('env', 'workername') }}"
+
+location: "{{ lookup('env', 'region') }}"
+

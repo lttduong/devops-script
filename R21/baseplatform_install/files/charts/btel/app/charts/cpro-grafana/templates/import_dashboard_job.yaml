@@ -1,0 +1,136 @@
+{{- if .Values.SetDashboard.enabled -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  labels:
+    app: {{ template "grafana.fullname" . }}
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    component: "{{ .Values.name }}"
+    heritage: "{{ .Release.Service }}"
+    release: "{{ .Release.Name }}"
+    {{- if .Values.global.labels }}
+{{ toYaml .Values.global.labels | indent 4}}
+    {{- end }}
+  name: {{ template "grafana.importDashboardjobPod" . }}
+  annotations:
+{{- if .Values.global.annotations }}
+{{- include "grafana-annotations" (tuple .Values.global.annotations) | indent 4}}
+{{- end }}
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": hook-succeeded,before-hook-creation
+spec:
+  #activeDeadlineSeconds: 450
+  backoffLimit: {{ .Values.SetDashboard.backoffLimit }}
+  template:
+    metadata:
+      labels:
+        app: {{ template "grafana.fullname" . }}-setdashboard
+        component: "{{ .Values.name }}"
+        release: "{{ .Release.Name }}"
+{{- include "custom-labels" (tuple .Values.custom.pod.labels) | indent 8}}
+      annotations:
+        sidecar.istio.io/inject: "{{ .Values.istio.enable }}"
+{{- include "custom-annotations" (tuple .Values.custom.pod.annotations) | indent 8}}
+{{- if .Values.rbac.pspUseAppArmor }}
+{{- include "custom-annotations" (tuple .Values.custom.pod.apparmorAnnotations) | indent 8}}
+{{- end }}
+    spec:
+      serviceAccountName: {{ template "grafana.serviceAccountName" . }}
+      securityContext:
+      {{- if .Values.deployOnCompass }}
+        fsGroup: {{ template "grafana.fsgroup" . }}
+      {{- end }}
+      {{- if .Values.supplementalGroups }}
+        supplementalGroups: {{ .Values.supplementalGroups }}
+      {{- end }}
+      {{- if .Values.seLinuxOptions.enabled }}
+        seLinuxOptions:
+          level: {{ .Values.seLinuxOptions.level }}
+          role: {{ .Values.seLinuxOptions.role }}
+          type: {{ .Values.seLinuxOptions.type }}
+          user: {{ .Values.seLinuxOptions.user }}
+      {{- end }}
+      containers:
+      - name: {{ template "grafana.importDashboardjobContainer" . }}
+        image: "{{ .Values.global.registry3 }}/{{ .Values.SetDashboard.tinytools.imageRepo }}:{{ .Values.SetDashboard.tinytools.imageTag }}"
+        imagePullPolicy: {{ .Values.SetDashboard.tinytools.imagePullPolicy }}
+        securityContext:
+          runAsUser: {{ template "grafana.user" . }}
+        resources:
+{{ toYaml .Values.SetDashboard.resourcesTinytools | indent 10 }}
+        env:
+        - name: ADMIN_USER
+          valueFrom:
+            secretKeyRef:
+              name: {{ template "grafana.fullname" . }}
+              key: admin-user
+        - name: ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ template "grafana.fullname" . }}
+              key: admin-password
+        command: ["/bin/sh", "-c"]
+        workingDir: /opt/grafana-import-dashboards
+        args:
+          - -c
+          - |
+            {{- if eq .Values.scheme "https" }}
+            until $(curl --output /dev/null --silent --head --fail --insecure https://{{ template "grafana.fullname" . }}:{{ .Values.service.port }}/api/health); do
+                printf '.'
+                sleep 1
+            done
+            {{ else if eq .Values.scheme "http" }}
+            until $(curl --output /dev/null --silent --head --fail http://{{ template "grafana.fullname" . }}:{{ .Values.service.port }}/api/health); do
+                printf '.'
+                sleep 1
+            done
+            {{- end }}
+
+            {{- if .Values.istio.enable }}
+            until curl --head localhost:15000
+            do
+              echo "Waiting for istio-proxy ..."
+              sleep 1
+            done
+            echo "istio-proxy available"
+            {{- end }}
+            auth=$(echo -ne "${ADMIN_USER}:${ADMIN_PASSWORD}" | base64 --wrap 0)
+            curl_opts=( --header 'Authorization: Basic '${auth} --insecure --connect-timeout 5 --max-time 30 --retry 3 --fail --silent --show-error --globoff)
+            grafana_hostname={{ template "grafana.fullname" . }}
+            grafana_port={{ .Values.service.port }}
+            protocol={{ .Values.scheme }}
+            prom_method="POST"
+            prom_api="/api/dashboards/db"
+            for file in *.json ; do
+              if [ -e "$file" ] ; then
+                echo "importing $file" &&
+                ( echo '{"dashboard":'; \
+                  cat "$file"; \
+{{- if .Values.SetDashboard.overwrite }}
+                  echo ',"overwrite":true}' ) \
+{{- else }}
+                  echo ',"overwrite":false}' ) \
+{{- end }}
+                | jq -c '.' \
+                | curl -v -H "Content-Type: application/json" \
+                  -H "Accept: application/json" "${curl_opts[@]}" \
+                  -X ${prom_method} ${protocol}://${grafana_hostname}:${grafana_port}${prom_api} \
+                  --data-binary "@-" &&
+                echo "OK" || rc=1
+              fi
+            done
+
+            {{- if .Values.istio.enable }}
+            curl -X POST http://localhost:15000/quitquitquit
+            {{- end }}
+            exit $rc
+        volumeMounts:
+        - name: dashboard-volume
+          mountPath: /opt/grafana-import-dashboards   
+      restartPolicy: "OnFailure"
+      volumes:
+      - name: dashboard-volume
+        configMap:
+          name: {{ template "grafana.fullname" . }}-dashs
+{{- end -}}

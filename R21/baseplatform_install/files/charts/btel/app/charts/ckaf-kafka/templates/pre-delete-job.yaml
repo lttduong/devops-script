@@ -1,0 +1,53 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "kafka.name" . }}-kf-predel-job
+  labels:
+    app: {{ .Chart.Name }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service | quote }}
+  annotations:
+    # This is what defines this resource as a hook. Without this line, the
+    # job is considered part of the release. 
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: {{ .Values.global.seccompAllowedProfileNames }}
+    seccomp.security.alpha.kubernetes.io/defaultProfileName: {{ .Values.global.seccompDefaultProfileName }}
+    "helm.sh/hook": pre-delete
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    "helm.sh/hook-weight": "-5"
+spec:
+  template:
+    metadata:
+      labels:
+        app: {{ .Chart.Name }}
+      annotations:
+        sidecar.istio.io/inject: "false"
+    spec:
+      {{- if .Values.global.rbacEnable }}
+      serviceAccountName: {{ template "kfserviceAccount.name" . }}
+      {{- end }}
+      {{- if eq .Values.security.enabled true }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: {{ .Values.security.runAsUser }}
+        fsGroup: {{ .Values.security.fsGroup }}
+      {{- end }}
+      restartPolicy: Never
+      containers:
+      - name: ckaf-kafka-kf-predel
+        image: "{{ .Values.global.registry3 }}/{{ .Values.kubectlImage }}:{{ .Values.kubectlTag }}"
+        {{- if eq .Values.security.enabled true }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          privileged: false
+          capabilities:
+            drop:
+              - all
+        {{- end }}
+        resources:
+{{ toYaml .Values.jobResources | indent 10 }}
+        command:
+        - sh
+        - -c
+        - |
+          kubectl delete statefulset --force=true --grace-period=0 --ignore-not-found=true --include-uninitialized=true --timeout=120s --namespace {{ .Release.Namespace }} -l app={{ .Chart.Name }},release={{ .Release.Name }}
+          kubectl delete pod --force=true --grace-period=0 --ignore-not-found=true --include-uninitialized=true --timeout=180s --namespace {{ .Release.Namespace }} -l app={{ .Chart.Name }},release={{ .Release.Name }}

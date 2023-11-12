@@ -1,0 +1,2 @@
+---
+- import_playbook: was-install/playbook/was_setup.yml

@@ -1,0 +1,404 @@
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ template "cmdb.pod-prefix" . }}-mariadb
+  labels:
+    {{- include "cmdb-mariadb.labels" . | indent 4 }}
+  {{- if .Values.istio.enabled }}
+    mtls-strict: "true"
+  {{- end }}
+    
+spec:
+  serviceName: {{ template "cmdb.fullname" . }}
+  podManagementPolicy: "Parallel"
+{{- if eq (.Values.cluster_type) "simplex" }}
+  replicas: 1
+{{- else }}
+  replicas: {{ .Values.mariadb.count }}
+{{- end }}
+  updateStrategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      {{- include "cmdb-mariadb.labels" . | indent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "cmdb-mariadb.labels" . | indent 8 }}
+      {{- if .Values.istio.enabled }}
+        mtls-strict: "true"
+      {{- end }}
+        type: mariadb
+      annotations:
+      {{- if or (.Values.admin.configAnnotation) (eq (.Values.cluster_type) "simplex") }}
+        checksum/config: {{ include (print $.Template.BasePath "/mariadb-config-configmap.yaml") . | sha256sum }}
+      {{- end }}
+      {{- if and (.Values.mariadb.use_tls) (eq (default "none" .Values.mariadb.certificates.secret) "cmgr") }}
+        checksum/client:  {{ include (print $.Template.BasePath "/tls-client-secret.yaml") . | sha256sum }}
+        checksum/server:  {{ include (print $.Template.BasePath "/tls-server-secret.yaml") . | sha256sum }}
+      {{- end }}
+      {{- if (and (.Values.istio.enabled) (eq .Values.cluster_type "galera")) }}
+        sidecar.istio.io/inject: "false"
+      {{- else if .Values.istio.enabled }}
+        sidecar.istio.io/inject: "true"
+      {{- end }}
+    spec:
+      securityContext:
+        runAsUser: 1771
+        runAsGroup: 1771
+        fsGroup: 1771
+      {{- include "cmdb.istio-only-sa" . | nindent 6 }}
+
+      initContainers:
+      - name: {{ template "cmdb.container-prefix" . }}init-config
+        {{- include "cmdb-mariadb.image" . | indent 8 }}
+        env:
+        command:
+          - bash
+          - "-c"
+          - |
+            cp /import-cm/mysqld.site /import/
+            cp /import-users/database_users.json /import/ 2>/dev/null | true
+            sed -i -e '$a\' $(ls -d /import/* | grep -v db.d) | true
+        volumeMounts:
+        - name: import
+          mountPath: /import
+        - name: import-cm
+          mountPath: /import-cm
+        - name: import-users
+          mountPath: /import-users
+        resources:
+          limits:
+            cpu: 100m
+            memory: 64Mi
+          requests:
+            cpu: 100m
+            memory: 64Mi
+
+      containers:
+      - name: {{ template "cmdb.container-prefix" . }}mariadb
+        {{- include "cmdb-mariadb.image" . | indent 8 }}
+      {{- if gt (int .Values.maxscale.count) 0 }}
+        {{- $mxssvchost := default (printf "%s-maxscale" (include "cmdb.fullname" .)) .Values.services.maxscale.name }}
+        {{- $timeout := default 30 .Values.maxscale.masterSwitchoverTimeout }}
+        lifecycle:
+          preStop:
+            exec:
+              command:
+              - bash
+              - "-c"
+              - |
+                /usr/lib/mariadb/master_switchover.py --url={{ $mxssvchost }}.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}:{{ .Values.services.maxscale.port }} --timeout={{ $timeout }}
+      {{- end }}
+        ports:
+        - containerPort: 3306
+          name: tcp-mysql
+        - containerPort: 4444
+          name: tcp-sst
+        {{- if eq .Values.cluster_type "galera" }}
+        - containerPort: 4567
+          name: tcp-gcomm
+        - containerPort: 4568
+          name: tcp-gist
+        {{- end }}
+        env:
+        - name: CLUSTER_TYPE
+          value: "{{ .Values.cluster_type }}"
+        - name: CLUSTER_NAME
+          value: "{{ .Values.cluster_name | default .Release.Name | trunc 32 }}"
+        - name: REQUIRE_USERS_JSON
+          value: "yes"
+        {{- if .Values.geo_redundancy.enabled }}
+        - name: SITE_POSITION
+          value: "{{ .Values.geo_redundancy.site_index }}:2"
+        {{- end }}
+        {{- if .Values.mariadb.metrics.enabled }}
+        - name: MYSQL_METRICS_USER
+          value: "{{ .Values.mariadb.metrics.user }}"
+        {{- end }}
+        {{- include "cmdb-admin.service" . | indent 8 }}
+
+        volumeMounts:
+        {{- if and (.Values.mariadb.use_tls) (eq (default "none" .Values.mariadb.certificates.secret) "cmgr") }}
+        - name: mdb-certificates-server
+          readOnly: true
+          mountPath: "/etc/.certificates/{{ .Values.mariadb.certificates.server_cert }}"
+          subPath: {{ .Values.mariadb.certificates.server_cert }}
+        - name: mdb-certificates-server
+          readOnly: true
+          mountPath: "/etc/.certificates/{{ .Values.mariadb.certificates.server_key }}"
+          subPath: {{ .Values.mariadb.certificates.server_key }}
+        - name: mdb-certificates-server
+          readOnly: true
+          mountPath: "/etc/.certificates/{{ .Values.mariadb.certificates.server_ca_cert }}"
+          subPath: {{ .Values.mariadb.certificates.server_ca_cert }}
+        - name: mdb-certificates-client
+          readOnly: true
+          mountPath: "/etc/.certificates/{{ .Values.mariadb.certificates.client_cert }}"
+          subPath: {{ .Values.mariadb.certificates.client_cert }}
+        - name: mdb-certificates-client
+          readOnly: true
+          mountPath: "/etc/.certificates/{{ .Values.mariadb.certificates.client_key }}"
+          subPath: {{ .Values.mariadb.certificates.client_key }}
+        - name: mdb-certificates-client
+          readOnly: true
+          mountPath: "/etc/.certificates/{{ .Values.mariadb.certificates.client_ca_cert }}"
+          subPath: {{ .Values.mariadb.certificates.client_ca_cert }}
+        {{- else if and (.Values.mariadb.use_tls) (ne (default "none" .Values.mariadb.certificates.secret) "none") }}
+        - name: mdb-certificates
+          readOnly: true
+          mountPath: "/etc/.certificates"
+        {{- end }}
+        {{- if .Values.mariadb.encryption.enabled }}
+        - name: mdb-encryption
+          readOnly: true
+          mountPath: "/etc/.encryption"
+        {{- end }}
+        - name: cluster-cm
+          mountPath: /chart
+        - name: import
+          mountPath: /import
+        - name: importdb
+          mountPath: /import/db.d
+        - name: datadir
+          mountPath: /mariadb
+        {{- if .Values.mariadb.metrics.enabled }}
+        - name: metrics
+          mountPath: /metrics
+        {{- end }}
+        {{- if and (.Values.mariadb.persistence.backup) (.Values.mariadb.persistence.backup.enabled) }}
+        - name: backupdir
+          mountPath: {{ default "/mariadb/backup" .Values.mariadb.persistence.backup.dir }}
+        {{- end }}
+        livenessProbe:
+          exec:
+            command:
+            - bash
+            - "-c"
+            - |
+              /usr/bin/mariadb_db --verify-access
+          initialDelaySeconds: 300
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 6
+        readinessProbe:
+          exec:
+            command:
+            - bash
+            - "-c"
+            - |
+              /usr/bin/mariadb_db --verify-access
+          initialDelaySeconds: 10
+          periodSeconds: 15
+          timeoutSeconds: 1
+          failureThreshold: 3
+        resources:
+{{ toYaml .Values.mariadb.resources | indent 10 }}
+
+      {{- if .Values.mariadb.metrics.enabled }}
+      - name: {{ template "cmdb.container-prefix" . }}metrics
+        {{- include "mariadb-metrics.image" . | indent 8 }}
+        command: 
+          - sh 
+          - -c 
+          - |
+            timeout=120 ;
+            touch /metrics/need-env
+            until [[ -s /metrics/exporter.env ]] || [ $timeout -le 0 ]; do sleep 1; timeout=$((timeout+=-1)); done ;
+            [ $timeout -le 0 ] && exit 1 ;
+            rm -f /metrics/need-env
+            sleep 5 ;
+            while [ -s /metrics/exporter.env ]; do
+              . /metrics/exporter.env ; 
+              rm /metrics/exporter.env ;
+              export DATA_SOURCE_NAME="$MYSQL_METRICS_USER:${MYSQL_METRICS_PASSWORD}@(localhost:3306)/" ; 
+              /bin/mysqld_exporter --web.listen-address=[::]:${MYSQLD_EXPORTER_PORT} ;
+            done
+        env:
+          - name: MYSQLD_EXPORTER_PORT
+            value: "{{ .Values.services.mysql.exporter_port }}"
+        ports:
+        - name: tcp-mdb-metrics
+          containerPort: {{ .Values.services.mysql.exporter_port }}
+        volumeMounts:
+        - name: metrics
+          mountPath: /metrics
+        resources:
+{{ toYaml .Values.mariadb.metrics.resources | indent 10 }}
+      {{- end }}
+
+      {{- if .Values.cbur.enabled }}
+      # NOTE: CBUR requires hard-coded sidecar container name
+      - name: cbura-sidecar
+        {{- include "cbur-mariadb.image" . | indent 8 }}
+        securityContext:
+          runAsUser: 1771
+        resources:
+{{ toYaml .Values.cbur.resources | indent 10 }}
+        volumeMounts:
+        {{- if and (.Values.mariadb.persistence.backup) (.Values.mariadb.persistence.backup.enabled) }}
+        - mountPath: backupdir
+          name: backupdir
+        {{- else }}
+        - mountPath: datadir
+          name: datadir
+        {{- end }}
+      {{- end }} #cbur.enabled
+      terminationGracePeriodSeconds: {{ default 30 .Values.mariadb.terminationGracePeriodSeconds }}
+      volumes:
+      - name: cluster-cm
+        configMap:
+          name: {{ template "cmdb.fullname" . }}-mariadb-cluster
+      - name: import
+        emptyDir: {}
+      - name: import-cm
+        configMap:
+          name: {{ template "cmdb.fullname" . }}-mariadb-config
+      - name: import-users
+        secret:
+          secretName: {{ template "cmdb.fullname" . }}-mariadb-initialusers
+          optional: true
+      - name: importdb
+        configMap:
+          name: {{ template "cmdb.fullname" . }}-mariadb-databases
+      {{- if and (.Values.mariadb.use_tls) (eq (default "none" .Values.mariadb.certificates.secret) "cmgr") }}
+      - name: mdb-certificates-server
+        secret:
+          secretName: {{ template "cmdb.fullname" . }}-server-cert
+          items:
+          - key: tls.crt
+            path: {{ .Values.mariadb.certificates.server_cert }}
+          - key: tls.key
+            path: {{ .Values.mariadb.certificates.server_key }}
+          - key: ca.crt
+            path: {{ .Values.mariadb.certificates.server_ca_cert }}
+      - name: mdb-certificates-client
+        secret:
+          secretName: {{ template "cmdb.fullname" . }}-client-cert
+          items:
+          - key: tls.crt
+            path: {{ .Values.mariadb.certificates.client_cert }}
+          - key: tls.key
+            path: {{ .Values.mariadb.certificates.client_key }}
+          - key: ca.crt
+            path: {{ .Values.mariadb.certificates.client_ca_cert }}
+      {{- else if and (.Values.mariadb.use_tls) (ne (default "none" .Values.mariadb.certificates.secret) "none") }}
+      - name: mdb-certificates
+        secret:
+          secretName: {{ .Values.mariadb.certificates.secret }}
+      {{- end }}
+      {{- if .Values.mariadb.encryption.secret }}
+      - name: mdb-encryption
+        secret:
+          secretName: {{ .Values.mariadb.encryption.secret }}
+      {{- end }}
+      {{- if .Values.mariadb.metrics.enabled }}
+      - name: metrics
+        emptyDir:
+          medium: Memory
+      {{- end }}
+
+    {{- if .Values.mariadb.tolerations }}
+      tolerations:
+{{ toYaml .Values.mariadb.tolerations | indent 8 }}
+    {{- end }}
+    {{- if .Values.mariadb.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.mariadb.nodeSelector | indent 8 }}
+    {{- end }}
+      affinity:
+      {{- if .Values.mariadb.nodeAffinity.enabled }}
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: {{ .Values.mariadb.nodeAffinity.key }}
+                operator: In
+                values:
+                - {{ quote .Values.mariadb.nodeAffinity.value }}
+      {{- end }}
+        podAntiAffinity:
+        ## Unset value uses soft for backwards-compatibility
+        {{- if eq (default "soft" .Values.nodeAntiAffinity) "hard" }}
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - {{ template "cmdb.fullname" . }}
+              - key: type
+                operator: In
+                values:
+                - mariadb
+                - maxscale
+            topologyKey: "kubernetes.io/hostname"
+          preferredDuringSchedulingIgnoredDuringExecution:
+        {{- else }}
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - {{ template "cmdb.fullname" . }}
+                - key: type
+                  operator: In
+                  values:
+                  - mariadb
+                  - maxscale
+              topologyKey: "kubernetes.io/hostname"
+        {{- end }}
+          - weight: 50
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - {{ template "cmdb.fullname" . }}
+                - key: type
+                  operator: In
+                  values:
+                  - mariadb
+                  - maxscale
+              topologyKey: "failure-domain.beta.kubernetes.io/zone"
+  volumeClaimTemplates:
+    - metadata:
+        annotations:
+          "helm.sh/resource-policy": {{ default "delete" .Values.mariadb.persistence.resourcePolicy }}   
+        name: datadir
+        labels:
+          {{- include "cmdb-mariadb.labels" . | indent 10 }}
+          type: mariadb
+      spec:
+        accessModes:
+          - {{ .Values.mariadb.persistence.accessMode | quote }}
+        resources:
+          requests:
+            storage: {{ .Values.mariadb.persistence.size | quote }}
+      {{- if .Values.compaas }}
+        storageClassName: "{{ .Values.compaas.storageClass }}"
+      {{- else if .Values.mariadb.persistence.storageClass }}
+        storageClassName: {{ .Values.mariadb.persistence.storageClass }}
+      {{- end }}
+    {{- if and (.Values.mariadb.persistence.backup) (.Values.mariadb.persistence.backup.enabled) }}
+    - metadata:
+        name: backupdir
+        labels:
+          {{- include "cmdb-mariadb.labels" . | indent 10 }}
+      spec:
+        accessModes: [ {{ .Values.mariadb.persistence.backup.accessMode }} ]
+      {{- if .Values.compaas }}
+        storageClassName: "{{ .Values.compaas.storageClass }}"
+      {{- else if .Values.mariadb.persistence.backup.storageClass }}
+        storageClassName: {{ .Values.mariadb.persistence.backup.storageClass }}
+      {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.mariadb.persistence.backup.size }}
+    {{- end }}
+

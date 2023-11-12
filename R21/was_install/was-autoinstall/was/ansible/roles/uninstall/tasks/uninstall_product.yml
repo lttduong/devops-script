@@ -1,0 +1,4 @@
+- name: Delete WAS Helm chart
+  shell: "{{ helmPath }} delete --purge was"
+  become: yes
+  when: shouldInstall == true

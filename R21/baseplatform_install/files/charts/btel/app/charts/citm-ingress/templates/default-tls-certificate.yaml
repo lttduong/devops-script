@@ -1,0 +1,12 @@
+{{- if .Values.defaultTlsCertificate }}
+apiVersion: v1
+data:
+  tls.crt: {{ .Values.defaultTlsCertificate | b64enc }}
+  tls.key: {{ .Values.defaultTlsKey | b64enc }}
+kind: Secret
+metadata:
+  name: ingress-default-tls-certificate
+  namespace: {{ .Release.Namespace }}
+type: Opaque
+{{- end }}
+

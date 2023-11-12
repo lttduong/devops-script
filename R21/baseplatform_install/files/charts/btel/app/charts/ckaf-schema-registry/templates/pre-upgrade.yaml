@@ -1,0 +1,102 @@
+{{if .Values.enable_upgrade_hook}}
+{{- if .Values.global.rbacEnable }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ template "schema-registry.name" . }}-sr-preupg-admin
+  namespace: "{{.Release.Namespace}}"
+  labels:
+    app: {{ .Chart.Name }}
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+  annotations:
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: {{ .Values.global.seccompAllowedProfileNames }}
+    seccomp.security.alpha.kubernetes.io/defaultProfileName: {{ .Values.global.seccompDefaultProfileName }}
+    "helm.sh/hook": pre-upgrade
+    "helm.sh/hook-weight": "-8"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded,hook-failed
+{{- end }}
+---
+{{- if .Values.global.rbacEnable }}
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ template "schema-registry.name" . }}-sr-preupg-rolebind
+  namespace: "{{.Release.Namespace}}"
+  labels:
+    app: {{ .Chart.Name }}
+  annotations:
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: {{ .Values.global.seccompAllowedProfileNames }}
+    seccomp.security.alpha.kubernetes.io/defaultProfileName: {{ .Values.global.seccompDefaultProfileName }}
+    "helm.sh/hook": pre-upgrade
+    "helm.sh/hook-weight": "-6"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded,hook-failed
+subjects:
+- kind: ServiceAccount
+  name: {{ template "schema-registry.name" . }}-sr-preupg-admin
+  namespace: "{{.Release.Namespace}}"
+roleRef:
+  kind: ClusterRole
+  name: admin
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: "{{ template "schema-registry.name" . }}-sr-preupg-job"
+  labels:
+    heritage: {{ .Release.Service | quote }}
+    release: {{ .Release.Name | quote }}
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+  annotations:
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: {{ .Values.global.seccompAllowedProfileNames }}
+    seccomp.security.alpha.kubernetes.io/defaultProfileName: {{ .Values.global.seccompDefaultProfileName }}
+    "helm.sh/hook": pre-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    "helm.sh/hook-weight": "-5"
+spec:
+  template:
+    metadata:
+      name: "{{ template "schema-registry.name" . }}-sr-preupg-pod"
+      labels:
+        heritage: {{.Release.Service | quote }}
+        release: {{.Release.Name | quote }}
+        chart: "{{.Chart.Name}}-{{.Chart.Version}}"
+      annotations:
+        seccomp.security.alpha.kubernetes.io/allowedProfileNames: {{ .Values.global.seccompAllowedProfileNames }}
+        seccomp.security.alpha.kubernetes.io/defaultProfileName: {{ .Values.global.seccompDefaultProfileName }}
+    spec:
+      {{- if .Values.global.rbacEnable }}
+      serviceAccountName: {{ template "schema-registry.name" . }}-sr-preupg-admin
+      {{- end }}
+      {{- if eq .Values.Security.enabled true }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: {{ .Values.Security.runAsUser }}
+        fsGroup: {{ .Values.Security.fsGroup }}
+      {{- end }}
+      restartPolicy: Never
+      containers:
+        - name: ckaf-schema-registry-preupg
+          image: "{{ .Values.global.registry4 }}/{{ .Values.KubectlTool.image.name }}:{{ .Values.KubectlTool.image.tag }}"
+          imagePullPolicy: {{ .Values.KubectlTool.image.pullPolicy }}
+          {{- if eq .Values.Security.enabled true }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            privileged: false
+            capabilities:
+              drop:
+                - all
+          {{- end }}
+          resources:
+{{ toYaml .Values.jobresources | indent 12 }}
+          command: 
+          - bash
+          - -c
+          - |
+            # Upgrade forcefully by deleting statefulset
+            {{- if .Values.global.forceUpgrade }}
+            kubectl delete statefulset --cascade=false --namespace {{ .Release.Namespace }} -l app={{ .Chart.Name }},release={{ .Release.Name }}
+            {{- end }}
+{{- end }}

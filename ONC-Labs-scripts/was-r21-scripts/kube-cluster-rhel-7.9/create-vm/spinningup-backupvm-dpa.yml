@@ -1,0 +1,141 @@
+---
+- name: Recovery DPA VM
+  hosts: localhost
+  connection: local
+  collections:
+   - azure.azcollection
+
+  vars:
+    resource_group: open-wavehub-dev
+    vault_name: OriginalWavesuiteBackupVaultWE
+    new_rg: "{{ lookup('env', 'rg') }}"
+    dpa_vault_name: "{{ lookup('env', 'dpaVaultName') }}"
+    container_name: "{{ lookup('env', 'dpaContainerName') }}"
+    storage_name: "{{ lookup('env', 'dpaStorageName') }}"
+    recovery_point: "{{ lookup('env', 'dpaRecoveryPoint') }}"
+    vm_name: "{{ lookup('env', 'dpaName') }}"
+    location: "{{ lookup('env', 'region') }}"
+    ssh_key: ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCi1gF+jh9FixksT8zRPgteMZh6cBs0oqsOE9q7Amqbci2ERV1I5fgnc4O2itJ3XaJg9Dk5KVmQxEyqAO2cEFcve9d9ep7yFNOyPL/0aQn47HNnU318zCr2g/pah+239v54uAwS2+9mYVDGxb1rMk16gGUvLnrrmRlOqBg9EkvYgflR35jxc9qXlsiOjEaF3TltM4rGYGf/Hg8wqixLeOVrAKJdxjF6UJ6qryjR3r0H/+lomSBwEmuBj3Vy28DWCYxjBf8y4lPMzrvqOr5wsSDx7VcdaO5zK2v9Urli2H/fIjo9nBqDnJgWwc4ze8U/zHoMsxCGk9VDoIU4JwnZRs7J root@LabControllerVM
+    policy: "{{ lookup('env', 'policyvault') }}"
+  tasks:
+#  - name: Listing available recovery points
+#    shell: sudo az backup recoverypoint list --resource-group "{{ resource_group }}" --vault-name "{{ vault_name }}" --backup-management-type AzureIaasVM --container-name "{{ container_name }}" --item-name "{{ container_name }}" --query [0].name --output tsv
+#    register: recoverypoint
+
+#  - name: Creating a storage account
+#    shell: sudo az storage account create --resource-group "{{ resource_group }}" --name "{{ storage_name }}" --sku Standard_LRS -l eastus
+
+  - name: Restore the disk from your recovery point 
+    shell: sudo az backup restore restore-disks --resource-group "{{ resource_group }}" --vault-name "{{ vault_name }}" --container-name "{{ container_name }}" --item-name "{{ container_name }}" --storage-account "{{ storage_name }}" --rp-name "{{ recovery_point }}" --target-resource-group "{{ new_rg }}" --query name
+    register: backupjob
+
+  - name: Pause for 5 minutes for restore disk
+    pause:
+      minutes: 5   
+
+  - name: Mornitoring the restore job 
+    shell: sudo az backup job list --resource-group "{{ resource_group }}" --vault-name "{{ vault_name }}" --output table
+    register: restorejob
+  
+  - name: Job name of Backup
+    debug: 
+      msg: "{{ restorejob.stdout }}"
+  
+  - name: Fetch the job details
+    shell: sudo az backup job show -v "{{ vault_name }}" -g "{{ resource_group }}" -n {{ backupjob.stdout }} --query 'properties.extendedInfo.propertyBag'| grep Template | awk -F '["]' '{print $4}'
+    register: link
+
+  - name: Get link
+    debug:
+      msg: "{{ link.stdout }}"
+  
+  - name: Take template name
+    shell: echo "{{ link.stdout }}" | awk -F '[/]' '{print $4; exit}'
+    register: template
+
+  - name: Get link
+    debug:
+      msg: "{{ template.stdout }}"
+
+  - name: Take container name
+    shell: echo "{{ link.stdout }}" | awk -F '[/]' '{print $5; exit}'
+    register: cname
+  
+  - name: Get link
+    debug:
+      msg: "{{ cname.stdout }}"
+
+  - name: Create Expiretime var
+    shell: date -u -d '30 minutes' +%Y-%m-%dT%H:%MZ
+    register: expiretime
+
+  - name: Get expiretime
+    debug:
+      msg: "{{ expiretime.stdout }}"
+
+  - name: Create Connection var
+    command: sudo az storage account show-connection-string --resource-group "{{ resource_group }}" --name "{{ storage_name }}" --query connectionString
+    register: connection
+  
+  - name: Get connection
+    debug:
+      msg: "{{ connection.stdout }}"
+  
+  - name: Create token for deploy vm 
+    shell: sudo az storage blob generate-sas --container-name {{ template.stdout }} --name {{ cname.stdout }} --expiry {{ expiretime.stdout}} --permissions r --output tsv --connection-string {{ connection.stdout }}
+    register: token
+  
+  - name: Get token
+    debug:
+      msg: "{{ token.stdout }}"
+
+  - name: Create Url var for deploy VM
+    shell: sudo az storage blob url --container-name {{ template.stdout }} --name {{ cname.stdout }} --output tsv --connection-string {{ connection.stdout }}
+    register: url
+  
+  - name: Get url
+    debug:
+      msg: "{{ url.stdout }}"
+
+  - name: Deploy the template to create the DPA VM
+    shell: sudo az deployment group create --resource-group "{{ new_rg }}" --template-uri "{{ url.stdout }}?{{ token.stdout }}" --parameters VirtualMachineName="{{ vm_name }}"
+
+  - name: Enable backup item for dpa VM
+    shell: sudo az backup protection enable-for-vm --resource-group "{{ resource_group }}" --vault-name "{{ dpa_vault_name }}" --vm $(az vm show -g "{{ new_rg }}" -n "{{ vm_name }}" --query id | tr -d '"') --policy-name "{{ policy }}"
+    ignore_errors: yes
+  
+  - name: Get NIC name
+    shell: sudo az vm nic list --vm-name "{{ vm_name }}" -g "{{ new_rg }}" --query [0].id | awk -F '[/]' '{print $9}' | sed 's/"//'
+    register: nic
+
+  - name: Creating new public ip
+    shell: az network public-ip create --resource-group "{{ new_rg }}" --name "{{ vm_name }}" --version IPv4 -l "{{ location }}"
+
+  - name: Get name ip configuration of NIC
+    shell: sudo az network nic ip-config list -g "{{ new_rg }}" --nic-name "{{ nic.stdout }}" --query [0].name
+    register: ipconf
+
+  - name: Updating public IP for VM
+    shell: sudo az network nic ip-config update --name "{{ ipconf.stdout }}" --nic-name {{ nic.stdout }} --public-ip-address "{{ vm_name }}" --resource-group "{{ new_rg }}"
+
+  - name: Get public IP new restore vm
+    shell: sudo az vm show -g "{{ new_rg }}" -n "{{ vm_name }}"  --query publicIps -d --out tsv
+    register: publicip
+
+  - name: Get private IP new store vm
+    shell: sudo az vm show -g "{{ new_rg }}" -n "{{ vm_name }}"  --query privateIps -d --out tsv
+    register: privateip
+
+  - name: Replace public ip of dpa hosts
+    shell: sudo sed -i "s/172.17.0.8/"{{ publicip.stdout }}"/g" ../../hosts
+
+  - name: Set SSH for new VM
+    shell: |
+     sudo az vm extension set --name VMAccessForLinux --publisher Microsoft.OSTCExtensions --version 1.4 --vm-name "{{ vm_name }}" --resource-group "{{ new_rg }}" --protected-settings '{"username":"DPA_Admin", "ssh_key":"{{ ssh_key }}", "reset_ssh": true}'
+
+  - name: Refresh inventory to ensure new instances exist in inventory
+    meta: refresh_inventory
+
+  - name: Pause 2 minutes for sync hosts file
+    pause:
+     minutes: 2

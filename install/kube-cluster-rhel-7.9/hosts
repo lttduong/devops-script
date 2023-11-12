@@ -1,0 +1,12 @@
+[kubernetes_master_nodes]
+kubernetes-master ansible_host=172.17.2.4 ansible_user=azureuser
+
+[kubernetes_worker_nodes]
+kubernetes-worker1 ansible_host=172.17.2.5 ansible_user=azureuser
+
+
+[kubernetes:children]
+kubernetes_worker_nodes
+kubernetes_master_nodes
+
+

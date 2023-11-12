@@ -1,0 +1,51 @@
+{{- if (gt (int .Values.mariadb.count) 1) }}
+{{- if (and (.Values.istio.enabled) (ne .Values.cluster_type "galera")) }}
+{{- $g := . -}}
+{{- $istio_enabled := .Values.istio.enabled }}
+{{- $cluster_type := .Values.cluster_type }}
+{{- range $i := until (int .Values.mariadb.count) }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "cmdb.fullname" $g }}-mariadb-{{ $i }}
+  labels:
+    {{- include "cmdb-mariadb.labels" $g | indent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+  - name: tcp-mysql
+    port: 3306
+  - name: tcp-sst
+    port: 4444
+  selector:
+    {{- include "cmdb-mariadb.labels" $g | indent 4 }}
+    type: mariadb
+    statefulset.kubernetes.io/pod-name: {{ template "cmdb.fullname" $g }}-mariadb-{{ $i }}
+
+---
+{{- if $istio_enabled }}
+apiVersion: "authentication.istio.io/v1alpha1"
+kind: "Policy"
+metadata:
+  name: {{ template "cmdb.fullname" $g }}-mariadb-{{ $i }}-mtls-authn
+spec:
+  targets:
+  - name: {{ template "cmdb.fullname" $g }}-mariadb-{{ $i }}
+  peers:
+  - mtls:
+      mode: STRICT
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: {{ template "cmdb.fullname" $g }}-mariadb-{{ $i }}-mlts-dr
+spec:
+  host: {{ template "cmdb.fullname" $g }}-mariadb-{{ $i }}
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

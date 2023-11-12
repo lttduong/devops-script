@@ -1,0 +1,8 @@
+# Port forwarding
+
+* Used in minikube, kube-proxy:
+
+POD_NAME=$(kubectl get pods --namespace {{ .Release.Namespace }} -l "app={{ template "cnot_configmap.name" . }},component={{ .Values.cnot_configmap.name }}" -o jsonpath="{.items[0].metadata.name}")
+kubectl --namespace {{ .Release.Namespace }} port-forward $POD_NAME 8443
+
+* Please be aware, port forwarding is active while this process is in running state

@@ -1,0 +1,93 @@
+- name: "Read CMDB resources profile"
+  include_vars:
+    file: "{{ files_path }}/charts/values/profiles/resources/{{ BP_DEPLOYMENT_PROFILE.RESOURCES }}/cmdb.yaml"
+    name: cmdb_resources_values
+
+- name: "Read CRMQ resources profile"
+  include_vars:
+    file: "{{ files_path }}/charts/values/profiles/resources/{{ BP_DEPLOYMENT_PROFILE.RESOURCES }}/crmq.yaml"
+    name: crmq_resources_values
+
+- name: "Read worker nodes"
+  shell: >
+    kubectl get nodes --show-labels --no-headers | grep is_worker=true | awk '{print $1}'
+  register: workerNodesOutput
+
+- name: "Set worker nodes"
+  set_fact:
+    workerNodes: "{{ workerNodesOutput.stdout.split('\n')}}"
+
+- name: "Print worker nodes"
+  debug:
+    var: workerNodes
+
+- name: "Read edge nodes"
+  shell: >
+    kubectl get nodes --show-labels --no-headers | grep is_edge=true | awk '{print $1}'
+  register: edgeNodesOutput
+
+- name: "Set edge nodes"
+  set_fact:
+    edgeNodes: "{{ edgeNodesOutput.stdout.split('\n')}}"
+
+- name: "Print edge nodes"
+  debug:
+    var: edgeNodes
+
+- name: "Set CMDB instances count"
+  set_fact:
+    cmdbCount: "{{ cmdb_resources_values.mariadb.count }}"
+
+- name: "Print CMDB instances count"
+  debug:
+    var: cmdbCount
+
+- name: "Set CRMQ instances count"
+  set_fact:
+    crmqCount: "{{ crmq_resources_values.replicas }}"
+
+- name: "Print CRMQ instances count"
+  debug:
+    var: crmqCount
+
+- name: "Set CMDB nodes"
+  set_fact: cmdbNodes="{{ cmdbNodes|default([]) + [ item ] }}"
+  loop: "{{ workerNodes }}"
+  when: index < cmdbCount|int
+  loop_control:
+    index_var: index
+
+- name: "Print CMDB nodes"
+  debug:
+    var: cmdbNodes
+
+- name: "Shuffle worker nodes"
+  set_fact:
+    shuffledWorkerNodes: "{{ workerNodes | shuffle }}"
+
+- name: "Print shuffled worker nodes"
+  debug:
+    var: shuffledWorkerNodes
+
+- name: "Set CRMQ nodes"
+  set_fact: crmqNodes="{{ crmqNodes|default([]) + [ item ] }}"
+  loop: "{{ shuffledWorkerNodes }}"
+  when: index < crmqCount|int
+  loop_control:
+    index_var: index
+
+- name: "Print CRMQ nodes"
+  debug:
+    var: crmqNodes
+
+- name: "Set CMDB label"
+  set_fact:
+    cmdbLabel:
+      key: "bp-cmdb-database"
+      value: "true"
+
+- name: "Set CRMQ label"
+  set_fact:
+    crmqLabel:
+      key: "bp-crmq-message-queue"
+      value: "true"

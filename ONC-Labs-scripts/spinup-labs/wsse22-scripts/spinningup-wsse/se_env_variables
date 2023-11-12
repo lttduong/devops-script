@@ -1,0 +1,20 @@
+# Common variables
+resourceGroup: open-wavehub-dev
+vaultName: WavesuiteBackupVaultWE
+location: "{{ lookup('env', 'region') }}"
+newRG: "{{ lookup('env', 'rg') }}" 
+nfmtIp: "{{ lookup('env', 'nfmtIp') }}"
+nfmtPassWord: "{{ lookup('env', 'nfmtPassWord') }}"
+vpnProfile: "{{ lookup('env', 'vpnProfile') }}"
+rootProfile: "{{ lookup('env', 'rootProfile') }}"
+
+# Wsse variables
+wsseVaultName: "{{ lookup('env', 'wsseVaultName') }}"
+wsseContainerName: "{{ lookup('env', 'wsseContainerName') }}"
+wsseStorageName: "{{ lookup('env', 'wsseStorageName') }}"
+wsseRecoveryPoint: "{{ lookup('env', 'wsseRecoveryPoint') }}"
+wsseName: "{{ lookup('env', 'wsseName') }}"
+wssePolicyVault: "{{ lookup('env', 'wssePolicyVaultVault') }}"
+wsse_public_ip_address: "{{ lookup('env', 'wsse_public_ip_address') }}"
+wsse_private_ip_address: "{{ lookup('env', 'wsse_private_ip_address') }}"
+wsse_profile_name: "{{ lookup('env', 'wsse_profile_name') }}"

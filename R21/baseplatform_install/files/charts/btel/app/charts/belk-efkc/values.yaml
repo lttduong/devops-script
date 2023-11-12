@@ -1,0 +1,1105 @@
+### global registry
+global:
+  # This registry is used for belk images
+  registry: csf-docker-delivered.repo.lab.pl.alcatel-lucent.com
+  # This registry is used for cbur and kubectl images
+  registry1: csf-docker-delivered.repo.lab.pl.alcatel-lucent.com
+  seccompAllowedProfileNames: docker/default
+  seccompDefaultProfileName: docker/default
+
+  #you can add prefixes to pod and container names by providing values for below parameters
+  #Provide lowercase alphanumeric characters, '-' or '.'
+  #Consider suffixing the podNamePrefix and containerNamePrefix with either - for convenience
+  podNamePrefix:
+  containerNamePrefix:
+
+  # Istio-related parameters
+  istio:
+    #Istio version defined at global level. Accepts version in numeric X.Y format. Ex. 1.4/1.5
+    version: 1.4
+
+  #If rbac.enabled is set to false, then it is mandatory to provide precreated Service account either at global level or at individual chart level.
+  rbac:
+    enabled: true
+  #User can specify the precreated global SA here
+  serviceAccountName: ""
+
+## Enable or disable components of umbrella chart for EFKC.
+tags:
+  belk-fluentd: true
+  belk-elasticsearch: true
+  belk-kibana: true
+  belk-curator: true
+
+
+## If searchguard is enabled then create base64 encoding for keystore, keystorepasswd, truststore, truststorepasswd file and provide to below variables.
+## base64 encoding for passwords use below command
+## echo -n <string in double quotes> | base64
+## base64 encoding for files  use below command
+## base64 <filename>  | tr -d '\n'
+## paste the output of each base64 converted file, password to respective field without any double quotes.
+## Example- To convert plain text password to base64 run this command
+## echo -n "changeit" | base64
+## Y2hhbmdlaXQ=
+## Example- To convert root-ca.pem to base64 run this command
+## base64 <root-ca.pem>  | tr -d '\n'
+## LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURrRENDQW5pZ0F3SUJBZ0lCQVRBTkJna3Foa2lHOXcwQkFRc0ZBREJaTVIwd0d3WUtDWkltaVpQeUxHUUIKR1JZTlpXeGhjM1JwWTNObFlYSmphREVYTUJVR0NnbVNKb21UOGl4a0FSa1dCMnh2WjJkcGJtY3hIekFkQmdOVgpCQU1NRm1Wc1lYTjBhV056WldGeVkyZ3VJRkp2YjNRZ1EwRXdIaGNOTVRnd05qQTJNRGd6TmpRd1doY05Namd3Ck5qQTFNRGd6TmpRd1dqQlpNUjB3R3dZS0NaSW1pWlB5TEdRQkdSWU5aV3hoYzNScFkzTmxZWEpqYURFWE1CVUcKQ2dtU0pvbVQ4aXhrQVJrV0IyeHZaMmRwYm1jeEh6QWRCZ05WQkFNTUZtVnNZWE4wYVdOelpXRnlZMmd1SUZKdgpiM1FnUTBFd2dnRWlNQTBHQ1NxR1NJYjNEUUVCQVFVQUE0SUJEd0F3Z2dFS0FvSUJBUUNjM2dUNi9uWWRheDlSClpoZmllempiK1lIOURza20yc2ZjNUFhN0FZcDYxdlpBNlhoNG1NQVZ5MXF2Ylk1R0djSkhmbGxpbEo4Z0NVQ3EKN201Mks4K05uZ0pBdjlJZHhHNkp6RXkwdmN4cUZ4Qk9wOGtRcnFzd1hFVmNWcWV3Z1drRmhXWXBCWFAxVE94ZwpOcmJKaEozZ1B5RlZmUkZySTJNZXVGL21OcUh6S2Mwd0h2RjBTaUNWWEMwb28vTjUzYVg1c00vR3NIZzlrRDRhCjA2Nm5UNDVkUlMvTCtMaVlRR1I3WGFsdlNYejl2eW9UTDhvQllCWnRjVGhLaCtUekY2TU1TWEt5dDRhS2lXTk4KUFVEeEJGbG9SSzREeUtsekdadTViYUYyb1FRbGZvTXM1QkdhOW92aWpRWGlTenRqalZwUSt2UklaSXJJZTErUAp1Znk4UEVNUkFnTUJBQUdqWXpCaE1BNEdBMVVkRHdFQi93UUVBd0lCQmpBUEJnTlZIUk1CQWY4RUJUQURBUUgvCk1CMEdBMVVkRGdRV0JCUjNENU1UbFl6YzdMWkFmc2VUY1dESWxSY0ZSekFmQmdOVkhTTUVHREFXZ0JSM0Q1TVQKbFl6YzdMWkFmc2VUY1dESWxSY0ZSekFOQmdrcWhraUc5dzBCQVFzRkFBT0NBUUVBYW02dlpFcGhja0JzQVl5ZQplZGFrNGZSeHhaNXJZL2FyWGRYdDBrcDJ0RmswU00zcHYya3dLaDZheWJBc3hwaU1wQ1FEWnE2M2hRNGN6RnRSCjlmTlpYMVF1ZlNUdDltbC9XK0dxaVpUUUVzTmp0TFBVVnQwTW5Sd1JTdGNHcWk1amZ3WGJaUzJ0dW85STN4cWQKbkREMXJYbWVoZW1VNTBoUHdybGhuNUY0OWYxZU5jaUpwbm8wc1BST2RveXgwYmk1RzgvWDNpT200M25tSDFxcgp4cVkvdHJLVDVWMTEzdUFQb0J6d3lJSGdLSFlIUXR4NzM0YVJLL3ZiYXpjZFc3S1UxR1NiNGxlM3VQdXdoV3luCjhTRmdnQ2pGV055RXV3V3l6eEdHdUF1Vm9HYjNkKyt2UmZWR2Njb1J3bGF1bEJuUTFwTW9NQktXbVJoY2RkckMKMWtFVzJBPT0KLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo=
+
+
+## To overwrite child helm chart values by parent define:
+## chart_name:
+##   parameters in values.yaml in child chart
+
+## Overwrite values for fluentd
+belk-fluentd:
+  fluentd:
+    resources:
+      limits:
+        cpu: "1"
+        memory: "1Gi"
+      requests:
+        cpu: "500m"
+        memory: "500Mi"
+
+#set the system name and system ID for non-container log messages
+    EnvVars:
+      system: "BCMT"
+      systemId: "BCMT ID"
+#enable_root_privilege: false is supported for all kind of fluentd running as Deployment, DaemonSet, StatefulSet
+#if set to true fluentd container will run as root user and reads container, journal logs.
+#setting it to false will run container as td-agent user and it will not read container, journal logs.
+#Example- If kind is StatefulSet and you want to store the logs coming from kafka and you dont want to read any container/journal logs then set this flag to false.
+#Donot change the flag unless required.
+    enable_root_privilege: true
+    # We are supporting three different type of kinds i.e DaemonSet, Deployment and StatefulSet
+    kind: DaemonSet
+    # When fluentd is deployed as Deployment or StatefulSet, below flag is used to scale the replicas.
+    replicas: 1
+
+    #User can configure the precreated SA specifically for this chart here. SA specified here takes precedence over the SA specified in global.
+    #If precreated SA is not provided at global and individual chart level and rbac.enabled is set to true, then rbac objects will be created by the chart.
+    #Note- To upgrade fluentd from root user to non root user and with no precreated SA, set serviceAccountName to "default"
+    serviceAccountName: ""
+
+    # When docker_selinux is enabled on BCMT, to read /var/log/messages, set privileged as True in securityContext
+    securityContext:
+      privileged: False
+      # By default fluentd chart runs as root user for reading container logs.
+      # When root privilege is disabled it runs as td-agent user with UID: 999
+      # fsGroup is the gid that is assigned for the volumemounts mounted to the pod(fsGroup ID is used for block storage)
+      fsGroup: 998
+      # The supplementalGroups ID applies to shared storage volumes. Uncomment below line to set supplemetary group.
+      #supplementalGroups: [998]
+      # Uncomment below lines lines to configure SELinux label to a container.
+      # For more details refer to https://kubernetes.io/docs/tasks/configure-pod-container/security-context/
+      #seLinuxOptions:
+      #  level: "s0:c23,c123"
+
+    # Uncomment below lines to configure fluentd pod specific annotations. Use 8 space indentation
+    #custom:
+      #annotations:
+
+#set enabled as true if you want to add any certificate in fluentd configuration or if you want to use ssl for fluentd configuration while using SG.
+#all the fluentd certificates will be present in "/etc/td-agent/certs"
+#Make sure to use the same path in fluentd configuration with proper certificate names.
+#Give certificate name and paste the base64 converted certificates or passwords in data section.
+    fluentd_certificates:
+      enabled: false
+      data:
+        #example
+        #prometheus-crt.pem: <base64_crt_pem>
+        #prometheus-key.pem: <base64_key_pem>
+        #prometheus-root-ca.pem: <base64_root_ca_pem>
+        #es-root-ca.pem: <base64_es_root_ca_pem>
+
+# set the enabled value to true if some service to be exposed from fluentd like fluentd-promethues-plugin which exports fluentd metrics so that prometheus can scrap the metrics via this service and port
+# The below section added to enable/disable fluentd-prometheus service.
+    service:
+      enabled: false
+      # if you want to provide your own name for service then provide the value in "custom_name"
+      # Default value is template {{ "fullname" . }}
+      # Delete the old chart and deploy new chart if you want to configure "custom_name" parameter.
+      custom_name: ""
+      # type of service: None, ClusterIP
+      type: ClusterIP
+      # metricsPort is for getting fluentd prometheus metrics.
+      # 24231 is the default port of fluentd-prometheus-plugin.
+      # If metricsPort is changed, update same port in fluentd-prometheus configuration in the respective .conf file and in the prometheus annotation below as well.
+      metricsPort: 24231
+      annotations:
+        prometheus.io/port: "24231"
+        prometheus.io/scrape: "true"
+        prometheus.io/scheme: "http"
+
+# This section is added to enable/disable fluentd forward service.
+    forward_service:
+      enabled: false
+      # if you want to provide your own name for service then provide the value in "custom_name"
+      # Default value is template {{ "fullname" . }}-forwarder
+      custom_name: ""
+      # source port for forwarder
+      port: 24224
+      # type of service: None, ClusterIP
+      type: ClusterIP
+      annotations: {}
+
+    # set to false only in case of fluentd running as StatefulSet or Deployment if you dont want to mount these directories.
+    volume_mount_enable: true
+    # fluentd volumes
+    volumes:
+    - name: varlog
+      hostPath:
+        path: /var/log
+    - name: dockercontainers
+      hostPath:
+        path: /data0/docker/
+
+    # volume mounts
+    volumeMounts:
+    - name: varlog
+      mountPath: /var/log
+    - name: dockercontainers
+      mountPath: /data0/docker/
+
+    ## Node labels for pod assignment
+    ### ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#nodeselector
+    nodeSelector: {}
+
+    ## Toleration is asking the K8S schedule to ignore a taint
+    ### ref: https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
+    tolerations: []
+
+    ## Pod scheduling preferences.
+    ## ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
+    affinity: {}
+
+    #To configure cutomized labels to pods. Uncomment the below line and give labels after 6 space indentation
+    #podLabels:
+      #resourcetype: pod
+
+    livenessProbe:
+      initialDelaySeconds: 30
+      periodSeconds: 10
+    readinessProbe:
+      initialDelaySeconds: 30
+      periodSeconds: 10
+
+    persistence:
+      #For 18.8 BCMT onwards storageClassName cinder will bydefault get picked up. For using the chart in BCMT-18.6 provide storageClassName which you have created.
+      ##If you want to use local storage as volume give "local-storage" in storageClassName.
+      storageClassName: ""
+      accessMode: ReadWriteOnce
+      size: 10Gi
+      #set pvc_auto_delete to true if you want the persistent volume to also get deleted on deletion of the release.
+      #This will delete all the previsous data stored in the persistent volume.
+      #When local storage is used it will deleted only PVC not PV.
+      pvc_auto_delete: false
+
+    #configurable values are belk, clog-json, clog-journal, custom-value.
+    #If you use belk configuration, it will read journal and container logs. journal log index pattern will be created as journal-<timestamp>. Container logs index pattern will be created as <namespace>-<timestamp> and logs are not segreated based on type of logs.
+    #For harmonized logs use clog configuration, any data which does not follow harmonized logging format will be stored in index <namespace>-legacy
+    #If you use clog-journal it will read journal logs with  index created as <namespace>-<type>.
+    #If you use clog-json it will read container log with  index created as <namespace>-<type>.
+    #If you want to make any changes to the default configuration available(belk/clog), then go to charts/belk-fluentd/fluentd-config/ directory and make changes to respective .conf file.
+    fluentd_config: belk
+
+    configFile: |
+      #If you have own configuration for fluentd other than provided by belk/clog then set fluentd_config: custom-value and provide your configuration below. Example-
+      #<source>
+      #  @type tail
+      #  path /var/log/test/*.log
+      #  tag test
+      #  pos_file /var/log/td-agent.pos
+      #  format none
+      #</source>
+      #<match test>
+      #  @type stdout
+      #</match>
+
+  ##Following parameters are added for configmap specific restore. Enable below flag if you need to restore fluentd configmap via helm restore
+  cbur:
+    enabled: false
+    #the maximum copy you want to save.
+    maxCopy: 5
+    #Modes supported now: "local","NETBKUP","AVAMAR","CEPHS3","AWSS3", case insensitive
+    backendMode: "local"
+    #It is used for scheduled backup task
+    cronJob: "0 23 * * *"
+    #Set below parameters to true for auto enabling cron job
+    autoEnableCron: false
+    #Set autoUpdateCron to true if cronjob should be automatically deleted/updated based on autoEnableCron or cronJob parameters
+    autoUpdateCron: false
+
+  # Set to true to enable istio
+  istio:
+    enabled: false
+    #Istio version specified at chart level takes precedence over global level.
+    #Accepts istio version in numeric X.Y format. Ex. 1.4/1.5
+    version:
+
+  customResourceNames:
+    #Provide lowercase alphanumeric characters, '-' or '.'
+    resourceNameLimit: 63
+    fluentdPod:
+      #when fluentdContainerName is not provided,<containerprefix>-(fullname)-daemonset/statefulset would be used.
+      #Fullname will be set to <ReleaseName>-<ChartName> by default.
+      fluentdContainerName: ""
+    #If job/container names are not provided, then default names would be generated by the chart in following format: 
+    #For job name: <podprefix>-<ReleaseName>-<string related to job>
+    #For job containernames: <containerprefix>-<string related to job>
+    scaleinJob:
+      name: ""
+      postscaleinContainerName: ""
+    deletePvcJob:
+      name: ""
+      deletePvcContainerName: ""
+  #This section allows to configure user defined name for pods and containers(For container this will take effect only when customResourceName is not provided for container)
+  #Options include:
+  #nameOverride: fullname would become <ReleaseName>-<nameOverride>
+  #fullnameOverride: fullname would become fullnameOverride
+  #If specified both, fullnameOverride would take the precedence.
+  nameOverride:
+  fullnameOverride:
+
+## Overwrite values for elasticsearch
+belk-elasticsearch:
+  elasticsearch_master:
+    #please update the below repo to elk_e if you wish to use elasticsearch centos8 based image. default is centos7 image.
+    image:
+      repo: elk_e_cos7
+    replicas: 3
+    resources:
+      limits:
+        cpu: "1"
+        memory: "2Gi"
+      requests:
+        cpu: "500m"
+        memory: "1Gi"
+    es_java_opts: "-Xms1g -Xmx1g"
+    discovery_service: "elasticsearch-discovery"
+    antiAffinity: "soft"
+    podAffinity: {}
+    nodeAffinity: {}
+    nodeSelector: {}
+    tolerations: []
+    livenessProbe:
+      initialDelaySeconds: 30
+      periodSeconds: 10
+    readinessProbe:
+      initialDelaySeconds: 30
+      periodSeconds: 10
+    podManagementPolicy: Parallel
+    updateStrategy:
+      type: RollingUpdate
+    #To configure cutomized labels to pods. Uncomment the below line and give labels after 6 space indentation
+    #podLabels:
+      #resourcetype: pod
+
+  elasticsearch_client:
+    replicas: 3
+    resources:
+      limits:
+        cpu: "1"
+        memory: "4Gi"
+      requests:
+        cpu: "500m"
+        memory: "2Gi"
+    es_java_opts: "-Xms2g -Xmx2g"
+    antiAffinity: "soft"
+    podAffinity: {}
+    nodeAffinity: {}
+    nodeSelector: {}
+    tolerations: []
+    #If SG is enabled you may have to increase the initialDelaySeconds depending on your cluster
+    livenessProbe:
+      initialDelaySeconds: 90
+      periodSeconds: 20
+    readinessProbe:
+      initialDelaySeconds: 90
+      periodSeconds: 20
+    #To configure cutomized labels to pods. Uncomment the below line and give labels after 6 space indentation
+    #podLabels:
+      #resourcetype: pod
+
+  esdata:
+    replicas: 2
+    resources:
+      limits:
+        cpu: "1"
+        memory: "4Gi"
+      requests:
+        cpu: "500m"
+        memory: "2Gi"
+    es_java_opts: "-Xms2g -Xmx2g"
+    podManagementPolicy: Parallel
+    updateStrategy:
+      type: RollingUpdate
+    antiAffinity: "soft"
+    podAffinity: {}
+    nodeAffinity: {}
+    nodeSelector: {}
+    tolerations: []
+    livenessProbe:
+      initialDelaySeconds: 30
+      periodSeconds: 10
+    readinessProbe:
+      initialDelaySeconds: 30
+      periodSeconds: 10
+    #To configure cutomized labels to pods. Uncomment the below line and give labels after 6 space indentation
+    #podLabels:
+      #resourcetype: pod
+
+  customResourceNames:
+  #Provide lowercase alphanumeric characters, '-' or '.'
+    resourceNameLimit: 63
+    masterPod:
+      #when masterContainerName is not provided,<containerprefix>-es-master would be used.
+      masterContainerName: ""
+    dataPod:
+      #when dataContainerName is not provided,<containerprefix>-es-data would be used.
+      dataContainerName: ""
+    clientPod:
+      #when clientContainerName is not provided,<containerprefix>-es-client would be used.
+      clientContainerName: ""
+    #If job/container names are not provided, then default names would be generated by the chart in following format:
+    #For job name: <podprefix>-<ReleaseName>-<string related to job>
+    #For job containernames: <containerprefix>-<string related to job>
+    postScaleInJob:
+      name: ""
+      postScaleInContainerName: ""
+    preUpgradeSgMigrateJob:
+      name: ""
+      preUpgradeSgMigrateContainerName: ""
+    postUpgradeSgMigrateJob:
+      name: ""
+      postUpgradeSgMigrateContainerName: ""
+    preHealJob:
+      name: ""
+      preHealContainerName: ""
+    postDeletePrehealJob:
+      name: ""
+      postDeletePrehealContainerName: ""
+    postDeleteCleanupJob:
+      name: ""
+      postDeleteCleanupContainerName: ""
+    postDeletePvcJob:
+      name: ""
+      postDeletePvcContainerName: ""
+
+  #This section allows to configure user defined name for pods and containers(For container this will take effect only when customResourceName is not provided for container)
+  #Options include:
+  #nameOverride: fullname would become ReleaseName + nameOverride
+  #fullnameOverride: fullname would become fullnameOverride
+  #If specified both, fullnameOverride would take the precedence.
+  nameOverride:
+  fullnameOverride:
+
+  es_securityContext:
+    # Elasticsearch chart runs as elasticsearch user with UID: 1000
+    # fsGroup is the gid that is assigned for the volumemounts mounted to the pod(fsGroup ID is used for block storage)
+    fsGroup: 1000
+    # The supplementalGroups ID applies to shared storage volumes. Uncomment below line to set supplemetary group.
+    #supplementalGroups: [1000]
+    # Uncomment below lines to configure SELinux label to a container.
+    # For more details refer to https://kubernetes.io/docs/tasks/configure-pod-container/security-context/
+    #seLinuxOptions:
+    #  level: "s0:c223,c111"
+
+  # Uncomment below lines to configure Elasticsearch pod specific annotations. Use 6 space indentation
+  #custom:
+    #annotations:
+
+  #User can configure the precreated SA specifically for this chart here. SA specified here takes precedence over the SA specified in global.
+  #If precreated SA is not provided at global and individual chart level and rbac.enabled is set to true, then rbac objects will be created by the chart.
+  serviceAccountName: ""
+
+  #Delete policy of pre/post-upgrade jobs can be configured to modify the job retention
+  #For ex. if the jobs are to be retained even on success, remove hook-succeeded.
+  upgrade:
+    hookDelPolicy: before-hook-creation, hook-succeeded
+
+  persistence:
+    enabled: true
+    #Supported storageClasses for BELK data are cinder, local-storage, hostpath.
+    #The value "" picks up the default storageClass configured in BCMT cluster.
+    #If you want to use local storage as volume give "local-storage" in storageClassName.
+    storageClassName: ""
+    accessMode: ReadWriteOnce
+# Size of persistent storage of data pod to store the elasticsearch data.
+    size: 50Gi
+    # Size of persistent storage for master pod to persist cluster state
+    masterStorage: 1Gi
+# set auto_delete to true when the PV also has to be deleted on deletion of the release.
+# this will delete all the previous data stored in the persistent volume.
+# When local storage is used only PVC will get deleted not PV.
+    auto_delete: false
+
+  #network_host is set to _site_ by default. To know more about network_host and configure this parameter, please refer https://www.elastic.co/guide/en/elasticsearch/reference/7.0/modules-network.html#network-interface-values
+  #For IPv6 environment, this can be set to "_global:ipv6_". If the network interface is known, you can set it to "_[networkInterface]:ipv6_". For ex: "_eth0:ipv6_"
+  # When istio.enabled is true, network_host is internally fixed to "0.0.0.0"
+  network_host: "_site_"
+
+  backup_restore:
+    ## For production servers this number should likely be much larger.
+    size: 25Gi
+
+  cbur:
+    enabled: false
+    #an integer. This value only applies to statefulset. The value can be 0,1 or 2.
+    #Recommended value of brOption for BELK is 0.
+    brOption: 0
+    #the maximum copy you want to save.
+    maxCopy: 5
+    #Modes supported now: "local","NETBKUP","AVAMAR","CEPHS3","AWSS3", case insensitive
+    backendMode: "local"
+    #It is used for scheduled backup task
+    cronJob: "0 23 * * *"
+    #Set below parameters to true for auto enabling cron job
+    autoEnableCron: false
+    #Set autoUpdateCron to true if cronjob should be automatically deleted/updated based on autoEnableCron or cronJob parameters
+    autoUpdateCron: false
+    cbura:
+      imageRepo: cbur/cbura
+      imageTag: 1.0.3-1665
+      imagePullPolicy: IfNotPresent
+      userId: 1000
+      resources:
+        limits:
+          cpu: "1"
+          memory: "2Gi"
+        requests:
+          cpu: "500m"
+          memory: "1Gi"
+      #tmp_size is the mounted volume size of /tmp directory for cbur-sidecar.
+      #the value should be around double the size of backup_restore.size
+      tmp_size: 50Gi
+
+# One can deploy mulitple elasticsearch in same namespace with different elasticsearch service names.
+  service:
+    name: "elasticsearch"
+    #Set prometheus_metrics to true to scrape metrics from elasticsearch
+    prometheus_metrics:
+      enabled: false
+      #If searchguard is enabled, you will have to create a custom scrape job in cpro chart. Refer belk user-guide for the same.
+      #Prometheus annotation for scraping metrics from elaticsearch https endpoints. If this annotation is modified, make sure to add the same name in custom scrape job created in cpro chart.
+      pro_annotation_https_scrape: "prometheus.io/scrape_es"
+
+  # Set to true to enable istio
+  istio:
+    enabled: false
+    # Health check port of istio envoy proxy
+    envoy_health_chk_port: 15020
+    #Istio version specified at chart level takes precedence over global level.
+    #Accepts istio version in numeric X.Y format. Ex. 1.4/1.5
+    version:
+
+  searchguard:
+    enable: false
+    #please update the below repo to elk_e_sg if you wish to use elasticsearch centos8 based image. default is centos7 image.
+    image:
+      repo: elk_e_sg_cos7
+
+    # When istio is enabled or http_ssl is disabled, admin user credentials must be provided in base64 encoding below
+    # echo -n <string in double quotes> | base64
+    adminUsername: ""
+    adminPwd: ""
+
+    # if authentication is required via keycloak, then set keycloak_auth to true
+    # Provide base64 format of keycloak rootCA under base64_keycloak_rootca_pem when istio is not enabled
+    keycloak_auth: false
+    base64_keycloak_rootca_pem: <base64 format of keycloak rootCA pem>
+    # when istio is enabled for belk and keycloak_auth is enabled, provide keycloak server details as explained below
+    istio:
+      # FQDN of ckey hostname that is externally accessible from browser
+      extCkeyHostname: "ckey.io"    # Ex. extCkeyHostname: "ckey.io"
+      # Location of ckey internal/external to the istio mesh. Default value is MESH_INTERNAL.
+      extCkeyLocation: "MESH_INTERNAL"  # Accepted values: MESH_INTERNAL, MESH_EXTERNAL
+
+    # Create base64 encoding for keystore, keystorepasswd, truststore, truststorepasswd file and provide to below variables
+    # base64 encoding for passwords use below command
+    # echo -n <string in double quotes> | base64
+    # base64 encoding for files  use below command
+    # base64 <filename>  | tr -d '\n'
+    # # When searchguard is enabled with istio, below configuration (from keystore_type to nodes_dn) is not required to be set as certificates are internally generated as part of docker entrypoint. 
+    keystore_type: JKS
+    truststore_type: JKS
+    base64Keystore: <base64_keystore.jks>
+    base64KeystorePasswd: <base64_ks_pwd>
+    base64Truststore: <base64_truststore.jks>
+    base64TruststorePasswd: <base64_ts_pwd>
+    base64ClientKeystore: <base64_admin-keystore.jks>
+    base64_client_cert: <base64-client-cert>
+    base64_client_key: <base64-client-key>
+    auth_admin_identity: <CN=admin,C=ELK>
+    #Configure the DN of node certificate (keystore.jks) if the certificate does not contain an OID defined in its SAN.
+    nodes_dn: ""
+
+    #To disable SSL on REST layer for searchguard, configure http_ssl to false
+    http_ssl: true
+    ## When SG is enabled, you can set the ciphers in the whitelist below. The ciphers provided in the list should be common in both JVM ciphers and kubelet ciphers.
+    ## The details about JVM supported ciphers and kubelet ciphers are mentioned in BELK userguide. Please refer that before configuring the cipher list.
+    ## Uncomment below line for setting cipher.
+    #ciphers:
+    #  - "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"
+    #  - "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384"
+
+    sg_configmap:
+      sg_internal_users_yml: |-
+        ---
+        _sg_meta:
+          type: "internalusers"
+          config_version: 2
+        admin:
+          reserved: true
+          hidden: false
+          hash: "$2a$12$VcCDgh2NDk07JGN0rjGbM.Ad41qVR/YFJcgHp0UGns5JDymv..TOG"
+          backend_roles:
+          - "admin"
+
+      # refer https://docs.search-guard.com/latest/action-groups for details about built-in action groups
+      sg_action_groups_yml: |-
+        ---
+        _sg_meta:
+          type: "actiongroups"
+          config_version: 2
+
+      sg_config_yml: |-
+        ---
+        _sg_meta:
+          type: "config"
+          config_version: 2
+        sg_config:
+          dynamic:
+            http:
+              anonymous_auth_enabled: false
+              xff:
+                enabled: false
+                internalProxies: '.+'
+
+            authc:
+              basic_internal_auth_domain:
+                http_enabled: true
+                transport_enabled: true
+                order: 0
+                http_authenticator:
+                  type: "basic"
+                  challenge: true   # Set this to false when keycloak authentication is enabled
+                authentication_backend:
+                  type: "intern"
+              keycloak_auth_domain:
+                http_enabled: false  # Set to true to enable keycloak authentication
+                transport_enabled: true
+                order: 1
+                http_authenticator:
+                  type: keycloak
+                  challenge: false
+                  config:
+                    username_key: preferred_username
+                    roles_key: <roles>
+                    keycloak_connect_url: https://<keycloak_ip>:<port>/auth/realms/<realm_name>/.well-known/openid-configuration
+                    client_id: <client_id>
+                    client_secret: <client_secret>
+                    ssl_validate: true               # Set to false when istio is enabled
+                authentication_backend:
+                    type: noop
+              proxy_auth_domain:
+                http_enabled: false
+                transport_enabled: false
+                order: 3
+                http_authenticator:
+                  type: "proxy"
+                  challenge: false
+                  config:
+                    user_header: "x-proxy-user"
+                    #roles_header: "x-proxy-roles"
+                authentication_backend:
+                  type: "noop"
+              clientcert_auth_domain:
+                http_enabled: false
+                transport_enabled: false
+                order: 2
+                http_authenticator:
+                  challenge: false
+                  type: "clientcert"
+                  config:
+                    username_attribute: "cn"
+                authentication_backend:
+                  type: "noop"
+
+      # refer https://docs.search-guard.com/latest/roles-permissions for configuring the roles.
+      # Define your roles in this section.
+      sg_roles_yml: |-
+        ---
+        _sg_meta:
+          type: "roles"
+          config_version: 2
+
+      ## Search Guard allows to block users by name (type: name), IP addresses (type: ip) and/or by a net mask (type: net_mask) configuration
+      ## Blocks are either white-/ or black-listed, i.e. you can allow (verdict: allow) or disallow (verdict: disallow) client requests
+      ## Precedence of blocking: White list -> Black list, i.e. white list is checked first and then black list for existing block configurations
+      sg_blocks_yml: |-
+        ---
+        _sg_meta:
+          type: "blocks"
+          config_version: 2
+
+      ## Demo user blocked
+      #demo_user_blocked:
+      #  type: "name"
+      #  verdict: "disallow"
+      #  value: ["Spock"] # you can also use regular expressions and wildcards for user name blocks, e.g. '* Spock'
+      #  description: "Demo user blocked by name, a user with this name will be blocked"
+      
+      ## Demo IP blocked
+      #demo_ip_blocked:
+      #  type: "ip"
+      #  verdict: "disallow"
+      #  value: ["8.8.8.8"]
+      #  description: "Demo IP blocked, i.e. this specific IP gets blocked"
+      
+      ## Demo net mask block
+      #demo_net_mask_blocked:
+      #  type: "net_mask"
+      #  verdict: "allow"
+      #  value: ["10.10.20.0/30"]
+      #  description: "Demo net mask allowed, i.e. only client IPs which are part of this network are allowed"
+
+      # refer https://docs.search-guard.com/latest/role-mapping-modes
+      # Define rolesmapping in this section.
+      sg_roles_mapping_yml: |-
+        ---
+        _sg_meta:
+          type: "rolesmapping"
+          config_version: 2
+        SGS_ALL_ACCESS:
+          reserved: true
+          hidden: false
+          backend_roles:
+          - "admin"
+          description: "Migrated from v6"
+
+        SGS_OWN_INDEX:
+          reserved: false
+          hidden: false
+          users:
+          - "*"
+        SGS_KIBANA_USER:
+          reserved: false
+          backend_roles:
+          - "kibanauser"
+          description: "Maps kibanauser to SGS_KIBANA_USER"
+        SGS_READALL:
+          reserved: true
+          backend_roles:
+          - "readall"
+        SGS_KIBANA_SERVER:
+          reserved: true
+          users:
+          - "kibanaserver"
+
+
+## Overwrite values for kibana
+#Follow BELK userguide to create kibana server certificates
+belk-kibana:
+  searchguard:
+    enable: false
+    #please update the below repo to elk_k_sg if you wish to use kibana centos8 based image. default is centos7 image.
+    image:
+      repo: elk_k_sg_cos7
+
+    # base64 encoding for passwords use below command
+    # echo -n <string in double quotes> | base64
+    base64_kib_es_username: <base64_kibana_username>
+    base64_kib_es_password: <base64_kibana_pwd>
+
+    #if authentication is required via keycloak, then set keycloak_auth to true
+    # Provide base64 format of keycloak rootCA under base64_keycloak_rootca_pem when istio is not enabled
+    keycloak_auth: false
+    base64_keycloak_rootca_pem: <base64_keycloak_rootCA_pem>
+
+    # when istio is enabled for belk and keycloak_auth is enabled, provide keycloak server details as explained below
+    istio:
+      # FQDN of ckey hostname that is externally accessible from browser
+      extCkeyHostname: ""     # Ex. extCkeyHostname: "ckey.io"
+      # Location of ckey internal/external to the istio mesh. Default value is MESH_INTERNAL
+      extCkeyLocation: "MESH_INTERNAL"   # Accepted values: MESH_INTERNAL, MESH_EXTERNAL
+      # Port on which ckey is externally accessible
+      extCkeyPort: ""         # Ex. extCkeyPort: 31390
+      # Protocol on which ckey is externally accessible
+      extCkeyProtocol: ""     # accepted values: HTTP, HTTPS
+      # If ckey location is MESH_INTERNAL, ckeyK8sSvcName and ckeyK8sSvcPort should be configured as explained below.
+      # FQDN of ckey k8s service name internally accessible within k8s cluster
+      ckeyK8sSvcName: ""     # Ex. keycloak-ckey.default.svc.cluster.local
+      # Port on which ckey k8s service is accessible
+      ckeyK8sSvcPort: ""    # Ex. ckeyK8sSvcPort: 8443
+
+    # When searchguard is enabled without istio, ssl certificates should be configured below as directed.
+    # Create base64 encoding for keystore, keystorepasswd, truststore, truststorepasswd file and provide to below variables.
+    # base64 encoding for files  use below command
+    # base64 <filename>  | tr -d '\n'
+    base64_ES_RootCA: <base64-elasticsearch_root-ca.pem>
+    base64ServerCrt: <base64-kibana-crt>
+    base64ServerKey: <base64-kibana-key>
+    kibana:
+      es_ssl_verification_mode: certificate
+      # provide kibana other ssl properties here and mount the properties in sslsecretvolume section.
+      # secret_server_ssl_cert: <server crt key in the secret object>
+  ## in case of sane with keycloak uncomment below section and provide required correct parameters
+  #sane:
+    #keycloak_admin_user_name: <base64_keycloak_admin_username>
+    #keycloak_admin_password: <base64_keycloak_admin_password>
+    #keycloak_sane_user_password: <base64_default_password_for_saneuser>
+  kibana:
+    #please update the below repo to elk_k if you wish to use kibana centos8 based image. default is centos7 image.
+    image:
+      repo: elk_k_cos7
+    replicas: 1
+    resources:
+      limits:
+        cpu: "1000m"
+        memory: "2Gi"
+      requests:
+        cpu: "500m"
+        memory: "1Gi"
+    port: 5601
+    node_port: 30601
+
+    #Kibana process starts only after ES client pod is Ready. So configure initialDelaySeconds to be atleast more than 60sec that is configured for ES(for both livenessProbe and readinessProbe)
+    #If SG is enabled, the default configured initialDelaySeconds might not be sufficient. So increase according to your cluster. For example -  When SG is enabled, If ES initialDelaySeconds is 150 and then Kibana might have to be configured to 210 seconds.
+    
+    livenessProbe:
+      initialDelaySeconds: 150
+      periodSeconds: 10
+    readinessProbe:
+      initialDelaySeconds: 150
+      periodSeconds: 10
+    #To configure cutomized labels to pods. Uncomment the below line and give labels after 6 space indentation
+    #podLabels:
+      #resourcetype: pod
+
+    #User can configure the precreated SA specifically for this chart here. SA specified here takes precedence over the SA specified in global.
+    #If precreated SA is not provided at global and individual chart level and rbac.enabled is set to true, then rbac objects will be created by the chart.
+    serviceAccountName: ""
+
+    securityContext:
+      # Kibana chart runs as Kibana user with UID:1000
+      # fsGroup is the gid that is assigned for the volumemounts mounted to the pod(fsGroup ID is used for block storage)
+      fsGroup: 1000
+      # The supplementalGroups ID applies to shared storage volumes. Uncomment below line to set supplemetary group.
+      #supplementalGroups: [1000]
+      # Uncomment below lines to configure SELinux label to a container.
+      # For more refer to https://kubernetes.io/docs/tasks/configure-pod-container/security-context/
+      #seLinuxOptions:
+      #  level: "s1:c43,c250"
+
+    # Uncomment below lines to configure Kibana pod specific annotation. Use 8 indent space
+    #custom:
+      #annotations:
+
+    configMaps:
+      kibana_configmap_yml: |-
+        ---
+        # Donot change sever name and host. This is default configuration.
+        server.name: kibana
+        server.customResponseHeaders: { "X-Frame-Options": "DENY" }
+        #Set it to 'true' to help prevent the browser from allowing unsafe scripting. If true, it  will block access to Kibana for any browser that does not enforce even a rudimentary set of Content Security Policy protections.
+        csp.strict: true
+        #Enable server.ssl.supportedProtocols when SG is enabled.
+        #server.ssl.supportedProtocols: ["TLSv1.2"]
+        #searchguard cookie can be secured by setting the below parameter to true. Uncomment it when SG is enabled.
+        #searchguard.cookie.secure: true
+        # Whitelist basic headers and multi tenancy header
+        ##elasticsearch.requestHeadersWhitelist: [ "Authorization", "sgtenant", "x-forwarded-for", "x-proxy-user", "x-proxy-roles" ]
+        # uncomment below section for keycloak authentication and provide required correct parameters
+        #searchguard.auth.type: "openid"
+        #searchguard.openid.connect_url: "https://<keyclaok-ip>:<port>/auth/realms/<realm-name>/.well-known/openid-configuration"
+        #searchguard.openid.client_id: "<client-id>"
+        #searchguard.openid.client_secret: "<client-secret>"
+        #searchguard.openid.header: "Authorization"
+         ### for kibana service on ingress port is not required
+        #searchguard.openid.base_redirect_url: "https://<kibana-ip>:<port>"
+         ### Do not change root_ca file path as this is the default mount path.
+        #searchguard.openid.root_ca: "/etc/kibana/certs/keycloak-root-ca.pem"
+
+        # Uncomment below section for sane sso and provide required correct parameters
+        #csan.enabled: "true"
+        #csan.ssoproxy.url: https://<csan-ssoproxy-service-hostname>:<port>
+        #searchguard.auth.unauthenticated_routes: ["/api/status", "/csan/v1/sso"]
+        #csan.sco.url: http://system-credential-orchestrator-svc.credential.svc.cluster.local
+        #csan.sco.keycloak_entity: "ckey"
+        #csan.sco.keycloak_classifier: "realm-admin"
+        #csan.sco.sane_entity: "sane"
+        #csan.sco.sane_plugin_name: "sane-credential-plugin"
+        #csan.auth_type: 4
+
+    env:
+      # if searchguard is enabled (without istio) use https instead of http. Also, uncomment SSl and certificate parameters. Do not change certificate names. Please provide proper elasticsearch url to connect elasticsearch
+      # value is http://<elasticsearch_service_name>.<namespace>:9200. Namespace is required only when elasticsearch and kibana are in different namespace.
+      # When istio is enabled, elasticsearch url should be http://elasticsearch:9200 and SERVER_SSL_ENABLED is set to false.
+      - name: "ELASTICSEARCH_HOSTS"
+        value: "http://elasticsearch:9200"
+      - name: "LOG_INDICES"
+        value: '["log-*", journal]'
+      - name: "DEFAULT_FIELDS"
+        value: "log,message"
+      - name: "EXPORT_CHUNK_SIZE"
+        value: "500"
+      - name: "SCROLL_TIME"
+        value: "10m"
+      - name: "EXPORT_TIMEOUT"
+        value: "40s"
+      - name: "TIMESTAMP_FIELD"
+        value: "@timestamp"
+      #- name: "SERVER_SSL_ENABLED"
+      #  value: "true"
+      #- name: "SERVER_SSL_CERTIFICATE"
+      #  value: "/etc/kibana/certs/kibana.crt.pem"
+      #- name: "SERVER_SSL_KEY"
+      #  value: "/etc/kibana/certs/kibana.key.pem"
+    # Uncomment sslsecretvolume if additional certificates are required to be mounted in kibana pod. Configure certificate name as the key and base64-encoded certitificate as its value.
+    # Do not configure the certificate names(keys) in sslsecretvolume as kibana.crt.pem, kibana.key.pem, root-ca.pem and keycloak-root-ca.pem as these filenames are already used internally.
+    # The files configured here are mounted at /etc/kibana/certs into the pod with filenames as specified in the keys in sslsecretvolume. For ex. if configured as per below example, filepaths are /etc/kibana/certs/tls.crt.pem and /etc/kibana/certs/tls.key.pem.
+    #sslsecretvolume:
+      #tls.crt.pem: <base64-tls-crt>
+      #tls.key.pem: <base64-tls-key>
+
+    ## Node labels for pod assignment
+    #### ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#nodeselector
+    nodeSelector: {}
+    ## Toleration is asking the K8S schedule to ignore a taint
+    #### ref: https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
+    tolerations: []
+    ## Pod scheduling preferences.
+    ### ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
+    affinity: {}
+
+  customResourceNames:
+  #Provide lowercase alphanumeric characters, '-' or '.'
+    resourceNameLimit: 63
+    kibanaPod:
+      #when kibanaContainerName is not provided,<containerprefix>-(fullname) would be used.
+      #Fullname will be set to <ReleaseName>-<ChartName> by default.
+      kibanaContainerName: ""
+
+  #This section allows to configure user defined name for pods and containers(For container this will take effect only when customResourceName is not provided for container)
+  #Options include:
+  #nameOverride: fullname would become ReleaseName + nameOverride
+  #fullnameOverride: fullname would become fullnameOverride.
+  #If specified both, fullnameOverride would take the precedence.
+  nameOverride:
+  fullnameOverride:
+
+  ingress:
+    enabled: true
+    # If SG is enabled without istio i.e. SERVER_SSL_ENABLED is true, then uncomment 3 annotations. i.e ingress.class, ssl-passthrough, secure-backends.
+    annotations:
+      ingress.citm.nokia.com/sticky-route-services: $cookie_JSESSIONID|JSESSIONID ip_cookie
+      nginx.ingress.kubernetes.io/rewrite-target: /$1
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      #kubernetes.io/ingress.class: nginx
+      #nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+      #nginx.ingress.kubernetes.io/secure-backends: "true"
+
+    ## Kibana Ingress hostnames
+    ## May be provided if Ingress is enabled
+    #host: "*"
+    tls: []
+    #  - secretName: chart-example-tls
+    #    hosts:
+    #      - chart-example.local
+
+  service:
+    #if you are deploying more than one kibana in the same namespace change the service name
+    name: kibana
+    # to access kibana service via NodePort set service.type to NodePort and set ingress.enabled parameter to false
+    type: "ClusterIP"
+  kibanabaseurl:
+    url: /logviewer
+    #Do not change cg(capture group) parameter below unless you want to change/modify nginx rewrite-target for kibana ingress
+    cg: "/?(.*)"
+
+  # Set to true to enable istio
+  istio:
+    enabled: false
+    #Istio version specified at chart level takes precedence over global level.
+    #Accepts istio version in numeric X.Y format. Ex. 1.4/1.5
+    version:
+    virtual_svc:
+      hosts:
+      - "*"
+      #prefix will be same as kibanabaseurl configured.
+    gateway:
+      # if the virtual svc should bind to existing gateway, configure gateway name below
+      existing_gw_name: ""
+      # if gw doesnt exist, configure below parameters for gateway created with this chart
+      selector:
+        istio: ingressgateway
+      port:
+        number: 80
+        protocol: HTTP
+        name: http
+      hosts:
+      - "*"
+      tls: []
+
+  ##Following parameters are added for configmap specific restore. Enable below flag if you need to restore kibana configmap via helm restore
+  cbur:
+    enabled: false
+    #the maximum copy you want to save.
+    maxCopy: 5
+    #Modes supported now: "local","NETBKUP","AVAMAR","CEPHS3","AWSS3", case insensitive
+    backendMode: "local"
+    #It is used for scheduled backup task
+    cronJob: "0 23 * * *"
+    #Set below parameters to true for auto enabling cron job
+    autoEnableCron: false
+    #Set autoUpdateCron to true if cronjob should be automatically deleted/updated based on autoEnableCron or cronJob parameters
+    autoUpdateCron: false
+
+## Overwrite values for curator
+belk-curator:
+  searchguard:
+    enable: false
+    base64_ca_certificate: <base64_root-ca.pem>
+
+  # Set to true to enable istio
+  istio:
+    enabled: false
+    # Health check port of istio envoy proxy
+    envoy_health_chk_port: 15020
+
+  customResourceNames:
+    #Provide lowercase alphanumeric characters, '-' or '.'
+    resourceNameLimit: 63
+    curatorCronJobPod:
+      #when curatorContainerName is not provided,<containerprefix>-curator would be used by default.
+      curatorContainerName: ""
+    #If job/container names are not provided, then default names would be generated by the chart in following format:
+    #For job name: <podprefix>-<ReleaseName>-<string related to job>
+    #For job containernames: <containerprefix>-<string related to job>
+    deleteJob:
+      name: ""
+      deleteJobContainerName: ""
+
+  #This section allows to configure user defined name for pods and containers(For container this will take effect only when customResourceName is not provided for container)
+  #Options include:
+  #nameOverride: fullname would become <ReleaseName>-<nameOverride>
+  #fullnameOverride: fullname would become fullnameOverride
+  #If specified both, fullnameOverride would take the precedence.
+  nameOverride:
+  fullnameOverride:
+
+  curator:
+    #please update the below repo to elk_c if you wish to use curator centos8 based image. default is centos7 image.
+    image:
+      repo: elk_c_cos7
+    resources:
+      limits:
+        cpu: "120m"
+        memory: "120Mi"
+      requests:
+        cpu: "100m"
+        memory: "100Mi"
+    schedule: "0 1 * * *"
+ 
+    #User can configure the precreated SA specifically for this chart here. SA specified here takes precedence over the SA specified in global.
+    #If precreated SA is not provided at global and individual chart level and rbac.enabled is set to true, then rbac objects will be created by the chart.
+    serviceAccountName: ""
+
+    securityContext:
+      # Curator chart will run with UID:1000
+      # fsGroup is the gid that is assigned for the volumemounts mounted to the pod(fsGroup ID is used for block storage)
+      fsGroup: 1000
+      # The supplementalGroups ID applies to shared storage volumes. Uncomment below line to set supplemetary group.
+      #supplementalGroups: [1000]
+      # Uncomment below lines lines to configure SELinux label to a container.
+      # For more details refer to https://kubernetes.io/docs/tasks/configure-pod-container/security-context/
+      #seLinuxOptions:
+      #  level: "s0:c223,c111"
+
+    # Uncomment below lines to configure curator specific annotations. Use 8 space indentation
+    #custom:
+      #annotations:
+
+    #To configure cutomized labels to pods. Uncomment the below line and give labels after 6 space indentation
+    #podLabels:
+      #resourcetype: pod
+
+    ## Uncomment following section to modify cronjob spec parameters. Examples have been given.
+    ## Parameters of the same hierarchy should be added. Do not add parameters with nested hierarchy.
+    #jobSpec:
+    #  successfulJobsHistoryLimit: 5
+    #  failedJobsHistoryLimit: 3
+    #  concurrencyPolicy: Allow
+    ## Uncomment following section to modify cronjob template spec parameters. Examples have been given.
+    ## Parameters of the same hierarchy should be added. Do not add parameters with nested hierarchy.
+    #jobTemplateSpec:
+    #  backoffLimit: 3
+    #  activeDeadlineSeconds: 30
+    configMaps:
+      #Please configure preCreatedConfigmap if you want to use existing configmap for curator.The configmap must contain the files actions.yml,curator.yml
+      #Refer belk user guide for guidelines on how to create custom configmap.
+      preCreatedConfigmap : ""
+      # Delete indices older than 7 days
+      action_file_yml: |-
+        ---
+        actions:
+          1:
+            action: delete_indices
+            description: "Delete indices older than 7 (based on index name)"
+            options:
+              timeout_override:
+              continue_if_exception: False
+              disable_action: False
+              ignore_empty_list: True
+            filters:
+            - filtertype: age
+              source: name
+              direction: older
+              timestring: '%Y.%m.%d'
+              unit: days
+              unit_count: 7
+          ##When cbur is enabled for elasticsearch,following section can be uncommented to configure deletion of old snapshots.
+          ## Curator cronjob should be scheduled to run after backup cronjob.
+          #2:
+          #  action: delete_snapshots
+          #  description: "Delete snapshot older than 5 days (based on index name)"
+          #  options:
+          #    repository: es_backup
+          #    ignore_empty_list: True
+          #  filters:
+          #  - filtertype: age
+          #    source: name
+          #    direction: older
+          #    timestring: '%Y.%m.%d'
+          #    unit: days
+          #    unit_count: 5
+      # Having config_yaml WILL override the other config
+      config_yml: |-
+        ---
+        client:
+          # communicating elasticsearch via SG certificates
+          certificate: '/etc/elasticsearch-curator/certs/root-ca.pem'
+          #hosts is the elasticsearch service name and namespace is where the elasticsearch is deployed.
+          hosts:
+          #<elasticsearch_service_name.namespace>
+          - elasticsearch
+          #elasticsearch username and password.
+          http_auth: 'admin:admin'
+          master_only: 'false'
+          port: 9200
+          # ssl_no_validate property should be 'false' when you are using SG
+          ssl_no_validate: 'true'
+          timeout: '60'
+          url_prefix: ''
+          # use_ssl property should be true when you are using SG.
+          use_ssl: 'false'
+        logging:
+          blacklist:
+          - elasticsearch
+          - urllib3
+          logfile: ''
+          logformat: default
+          loglevel: INFO
+
+

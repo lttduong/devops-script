@@ -1,0 +1,4 @@
+---
+ - import_playbook: backup-restore-wsha/restore-replace-existing-wsha.yml
+ - import_playbook: backup-restore-wsha/reinstall-for-new-wsha.yml
+ - import_playbook: backup-restore-wsha/getinfo-wsha.yml

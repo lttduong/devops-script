@@ -1,0 +1,4 @@
+---
+  - import_playbook: was-install-offline/install_baseplatform.yml
+  - import_playbook: was-install-offline/install_was.yml
+  - import_playbook: was-install-offline/install_workbench.yml

@@ -1,0 +1,196 @@
+apiVersion: {{ template "getDeploymentAPI" . }}
+kind: Deployment
+metadata:
+  labels:
+    app: {{ template "name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    component: "{{ .Values.httpServer.name }}"
+    release: {{ .Release.Name }}
+  name: {{ .Release.Name }}-{{ .Values.httpServer.name }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ template "name" . }}
+  replicas: {{ .Values.httpServer.replicaCount }}
+  template:
+    metadata:
+      labels:
+        app: {{ template "name" . }}
+        component: "{{ .Values.httpServer.name }}"
+        release: {{ .Release.Name }}
+    spec:
+      ## Start of custom modification of original chart
+      ## Reported CSFID-3296 https://jiradc2.ext.net.nokia.com/browse/CSFID-3296
+      {{- if .Values.affinity }}
+      affinity:
+{{ toYaml .Values.affinity | indent 8 }}
+      {{- end }}
+      ## End of custom modification of original chart
+      initContainers:
+      - name: copy
+        image: "{{ .Values.global.registry }}/{{ .Values.httpServer.imageRepo }}:{{ .Values.httpServer.imageTag }}"
+        imagePullPolicy: "{{ .Values.httpServer.imagePullPolicy }}"
+        securityContext:
+          # nginx -> 1000
+          runAsUser: 1000
+        command: ['sh','-c','mkdir -p /tmp/webapp /tmp/conf /tmp/certificate; cd /tmp/webapp;
+          {{ if .Values.httpServer.webapp.url }} curl -k {{ if .Values.httpServer.webapp.proxy }} --proxy {{ .Values.httpServer.webapp.proxy }} {{ end -}} --output webapp.tar.gz {{ .Values.httpServer.webapp.url }}; tar -xvf webapp.tar.gz;rm webapp.tar.gz;{{ end -}} 
+          cd ../conf; {{ if .Values.httpServer.conf.url }} curl -k {{ if .Values.httpServer.webapp.proxy }} --proxy {{ .Values.httpServer.webapp.proxy }} {{ end -}}{{ .Values.httpServer.conf.url }} --output nginx.conf;{{ end -}} 
+          cd ../ssl; openssl req -nodes -x509 -newkey rsa:2048 -keyout tls.key -out tls.crt -days 365 -subj "/C=HU/ST=Budapest/L=Budapest/OU=NSW/CN=www.nokia.com";
+          ']
+        resources:
+{{ toYaml .Values.httpServer.resources | indent 10 }}
+        volumeMounts:
+        {{ if .Values.httpServer.webapp.url }}
+        - name: webapp-volume
+          mountPath: /tmp/webapp
+        {{- end }}
+        {{ if .Values.httpServer.conf.url }}
+        - name: conf-nginx-curl-volume
+          mountPath: /tmp/conf
+        {{- end }}
+        - name: tlskey
+          mountPath: /tmp/ssl
+        {{ if .Values.httpServer.defaultSecret }}
+        - name: default-secret
+          mountPath: /tmp/certificate
+        {{- end }}
+      volumes:
+        {{- if .Values.certManager.used }}
+        - name: tls-certificate-files-{{ template "httpserver.fullname" . }}
+          secret:
+            secretName: tls-{{ template "httpserver.fullname" . }}
+        {{- end }}
+        {{ if .Values.httpServer.conf.url }}
+        - name: conf-nginx-curl-volume
+          emptyDir: {}
+        {{- end }}
+        {{ if .Values.httpServer.webapp.url }}
+        - name: webapp-volume
+          emptyDir: {}
+        {{- end }}
+        {{- if (not .Values.httpServer.conf.url) }}
+        - name: conf-nginx-volume
+          configMap:
+            {{- if .Values.httpServer.configurationConfigMap }}
+            name: {{ .Values.httpServer.configurationConfigMap }}
+            {{- else if .Values.httpServer.servers }} 
+            name: http-config-map
+            {{- end }}
+        {{- end }}
+        - name: tlskey
+          {{- if .Values.defaultTlsKey }}
+          secret:
+            secretName: ingress-default-tls-certificate
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: default-secret
+          {{- if .Values.httpServer.defaultSecret }}
+          secret:
+            secretName: {{ .Values.httpServer.defaultSecret }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+      containers:
+        - name: {{ template "name" . }}-{{ .Values.httpServer.name }}
+          image: "{{ .Values.global.registry }}/{{ .Values.httpServer.imageRepo }}:{{ .Values.httpServer.imageTag }}"
+          imagePullPolicy: "{{ .Values.httpServer.imagePullPolicy }}"
+          securityContext:
+            # nginx -> 1000
+            runAsUser: 1000
+          env:
+            {{- if or .Values.httpServer.servers .Values.httpServer.configurationConfigMap }}
+            - name: nginx_conf
+              value: "{{ .Values.httpServer.filesPath.conf }}/nginx.conf"
+            {{- end }}
+            {{- if .Values.httpServer.conf.url }}
+            - name: nginx_conf
+              value: "{{ .Values.httpServer.filesPath.conf }}/nginx.conf"
+            {{- end }}
+            - name: modsecurity
+              value: "{{ .Values.httpServer.modsecurity.enabled }}"
+            - name: modsecurity_crs
+              value: "{{ .Values.httpServer.modsecurity.owaspCrs }}"
+            {{- if .Values.httpServer.extend }}
+            {{- range $key, $value := .Values.httpServer.extend.env }}
+            - name: {{ $key }}
+              value: "{{ $value }}"
+            {{- end }}
+            {{- end }}
+            - name: MY_POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: json_log
+              value: "{{ .Values.json_log }}"
+            - name: disable_monitoring_console
+              value: "{{ .Values.metrics }}"
+            - name: docker_debug
+              value: "{{ .Values.docker_debug }}"
+            - name: watchconf
+              value: "{{ .Values.httpServer.watch.config }}"
+            - name: watchtimer
+              value: "{{ .Values.httpServer.watch.timer }}"
+            {{- if .Values.certManager.used }}
+            - name: server_key
+              value: /opt/nginx/tls-cert-manager/tls.key
+            - name: server_crt
+              value: /opt/nginx/tls-cert-manager/tls.crt
+            {{- if (not (empty .Values.certManager.servername)) }}
+            - name: server_name
+              value: {{ default "" .Values.certManager.servername | quote }}
+            {{- end }}
+           {{- else }}
+           {{ if .Values.httpServer.defaultSecret }}
+            - name: server_key
+              value: /tmp/certificate/tls.key
+            - name: server_crt
+              value: /tmp/certificate/tls.crt
+           {{- end }}
+           {{- end }}
+{{- if (not .Values.docker_debug) }} 
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.httpServer.livenessProbePath }}
+              port: {{(index .Values.httpServer.expose 0).port }}
+              scheme: {{ .Values.httpServer.livenessScheme }}
+            initialDelaySeconds: {{ .Values.httpServer.livenessInitialDelaySeconds }}
+            timeoutSeconds: {{ .Values.httpServer.livenessTimeoutSeconds }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.httpServer.readinessProbePath }}
+              port: {{(index .Values.httpServer.expose 0).port }}
+              scheme: {{ .Values.httpServer.readinessScheme }}
+            initialDelaySeconds: {{ .Values.httpServer.readinessInitialDelaySeconds }}
+            timeoutSeconds: {{ .Values.httpServer.readinessTimeoutSeconds }}
+{{- end }}            
+          volumeMounts:
+            {{- if (not .Values.httpServer.conf.url) }} 
+            - name: conf-nginx-volume
+              mountPath: {{ .Values.httpServer.filesPath.conf }}
+            {{- end }}
+            {{ if .Values.httpServer.webapp.url }}
+            - name: webapp-volume
+              mountPath: {{ .Values.httpServer.filesPath.webapp }}
+            {{- end }}
+            {{ if .Values.httpServer.conf.url }}
+            - name: conf-nginx-curl-volume
+              mountPath: {{ .Values.httpServer.filesPath.conf }}
+            {{- end }}
+            - name: tlskey
+              mountPath: {{ .Values.httpServer.filesPath.tls }}
+            {{- if .Values.certManager.used }}
+            - name: tls-certificate-files-{{ template "httpserver.fullname" . }}
+              mountPath: /opt/nginx/tls-cert-manager
+              readOnly: true
+          {{- end }}
+        {{ if .Values.httpServer.defaultSecret }}
+            - name: default-secret
+              mountPath: /tmp/certificate
+        {{- end }}
+              
+          resources:
+{{ toYaml .Values.httpServer.resources | indent 12 }}
+      hostNetwork: {{ .Values.httpServer.hostNetwork }}
+      terminationGracePeriodSeconds: 60

@@ -1,0 +1,6 @@
+rabbitmq:
+  amqpSvc: false
+  dynamicConfig:
+    enabled: true
+    parameters: |-
+      set_policy ha-quorum "" '{"ha-mode": "exactly", "ha-params": <QUEUE_REPLICA_COUNT_PLACEHOLDER>, "ha-sync-mode": "automatic"}'

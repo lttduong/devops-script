@@ -1,0 +1,21 @@
+{{- if and ( not .Values.serviceAccountName ) .Values.rbac.enabled }}
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1beta1
+metadata:
+  name: {{ template "alarm.fullname" . }}
+  labels:
+    app: {{ template "alarm.name" . }}
+    chart: {{ .Chart.Name }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+    version: {{ .Chart.Version }}
+subjects:
+- kind: ServiceAccount
+  name: {{ template "alarm.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: Role
+  name: {{ template "alarm.fullname" . }}
+#  name: cluster-admin
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}

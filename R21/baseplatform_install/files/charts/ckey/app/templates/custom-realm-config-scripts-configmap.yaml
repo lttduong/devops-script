@@ -1,0 +1,72 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "keycloak.fullname" . }}-custom-realm-config-scripts
+  labels:
+    app: {{ template "keycloak.fullname" . }}
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+data:
+  configure-realm-settings.sh: |
+    #!/usr/bin/env bash
+    # debug
+    # set -x
+    # exit on failure
+    set -e
+    # exit on failed parameter expansion
+    set -u 
+    echo "Waiting 10 seconds for the Keycloak service"
+    sleep 10
+
+    echo "Configuring Keycloak's Master realm"
+
+    # Initialize needed variables:
+    KEYCLOAK_PASSWORD=$(sed "s/'/'\\\''/g" <<< "$KEYCLOAK_PASSWORD")
+
+    {{- if .Values.masterRealmConfigurationJob.overwritePasswordTimestamp }}
+    # This step is used to overwrite the password timestamp for the admin user. If this step doesn't take place, the admin will be required to update his password when he attempts to log in for the first time if the forceExpiredPasswordChange policy is set.
+
+    bash -c "/opt/keycloak/bin/configure-realm.sh set-password ${KEYCLOAK_USER} ${KEYCLOAK_PASSWORD}"
+    {{- end }}
+
+    {{- if .Values.masterRealmConfigurationJob.enableForgotPassword }}
+    bash -c "/opt/keycloak/bin/configure-realm.sh update-realm ${KEYCLOAK_USER} ${KEYCLOAK_PASSWORD} resetPasswordAllowed"
+    {{- end }}
+
+    {{- if .Values.masterRealmConfigurationJob.enableBruteForceProtection }}
+    bash -c "/opt/keycloak/bin/configure-realm.sh update-realm ${KEYCLOAK_USER} ${KEYCLOAK_PASSWORD} bruteForceProtection"
+    {{- end }}
+
+    {{- if .Values.masterRealmConfigurationJob.overwritePasswordPolicies }}
+    bash -c "/opt/keycloak/bin/configure-realm.sh update-realm ${KEYCLOAK_USER} ${KEYCLOAK_PASSWORD} passwordPolicy"
+    {{- end }}
+
+    {{- if .Values.masterRealmConfigurationJob.enableLoginEvents }}
+    bash -c "/opt/keycloak/bin/configure-realm.sh update-realm ${KEYCLOAK_USER} ${KEYCLOAK_PASSWORD} eventsEnabled"
+    {{- end }}
+
+    {{- if .Values.masterRealmConfigurationJob.enableAdminEvents }}
+    bash -c "/opt/keycloak/bin/configure-realm.sh update-realm ${KEYCLOAK_USER} ${KEYCLOAK_PASSWORD} adminEventsEnabled"
+    {{- end }}
+
+    {{- if .Values.masterRealmConfigurationJob.enableSSLRequireForAll }}
+    bash -c "/opt/keycloak/bin/configure-realm.sh update-realm ${KEYCLOAK_USER} ${KEYCLOAK_PASSWORD} sslRequired"
+    {{- end }}
+
+    {{- if .Values.masterRealmConfigurationJob.setNokiaLoginTheme }}
+    bash -c "/opt/keycloak/bin/configure-realm.sh update-realm ${KEYCLOAK_USER} ${KEYCLOAK_PASSWORD} loginTheme"
+    {{- end }}
+
+    bash -c "/opt/keycloak/bin/configure-realm.sh update-realm ${KEYCLOAK_USER} ${KEYCLOAK_PASSWORD} displayName"
+
+    echo "Done configuring master realm"
+    echo "Waiting 5 seconds before job cleanup"
+    sleep 5
+    {{ if .Values.istio.enabled }}
+    echo "Quiting istio proxy container in the job"
+    until curl --connect-timeout 5 http://127.0.0.1:15020/quitquitquit -X POST; do
+        echo "Waiting for istio proxy to be up ..."
+        sleep 2;
+    done;
+    {{ end }}
+    exit 0

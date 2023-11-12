@@ -1,0 +1,66 @@
+{{ if gt (int .Values.global.postrestore) 0 }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: "{{ template "zookeeper.name" . }}-zk-postrestore-job"
+  annotations:
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: {{ .Values.global.seccompAllowedProfileNames }}
+    seccomp.security.alpha.kubernetes.io/defaultProfileName: {{ .Values.global.seccompDefaultProfileName }}
+
+spec:
+  template:
+    metadata:
+      labels:
+        app: {{ .Chart.Name }}
+      annotations:
+        sidecar.istio.io/inject: "false"
+    spec:
+      {{- if .Values.global.rbacEnable }}
+      serviceAccountName: {{ template "zkserviceAccount.name" . }}
+      {{- end }}
+      {{- if eq .Values.security.enabled true }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: {{ .Values.security.runAsUser }}
+        fsGroup: {{ .Values.security.fsGroup }}
+      {{- end }}
+      restartPolicy: Never
+      containers:
+      - name: ckaf-zookeeper-zk-postrestore-pod
+        image: "{{ .Values.global.registry3 }}/{{ .Values.kubectlImage }}:{{ .Values.kubectlTag }}"
+        imagePullPolicy: IfNotPresent
+        {{- if eq .Values.security.enabled true }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          privileged: false
+          capabilities:
+            drop:
+              - all
+        {{- end }}
+        resources:
+{{ toYaml .Values.jobResources | indent 10 }}
+        command:
+        - sh
+        - -c
+        - |
+          sleep 5s
+          kubectl get cm {{ .Release.Name }}-zk-cbur-conf --namespace {{ .Release.Namespace }} -o yaml | sed 's/restore: "true"/restore: "false"/g' | kubectl replace -f - 
+          echo deleting zk pods
+          kubectl delete pods --namespace {{ .Release.Namespace }} -l app={{ .Chart.Name }},release={{ .Release.Name }} --wait=true --timeout=5m
+          echo waiting for zk pods to comeup
+          sleep 10s
+          while true
+          do
+              zk_pods=$(kubectl get sts --namespace {{ .Release.Namespace }} -l app={{ .Chart.Name }},release={{ .Release.Name }} --no-headers=true | awk '{ print$2 }')
+              if [ $(cut -d'/' -f2 <<< $zk_pods) == $(cut -d'/' -f1 <<< $zk_pods) ]
+              then
+                  echo All Zookeeper pods are up
+                  break
+              else
+                  echo  $(cut -d'/' -f1 <<< $zk_pods) of $(cut -d'/' -f2 <<< $zk_pods) pods are only up. Waiting for all ZK pods to come up
+              fi
+              sleep 10s
+          done
+
+          echo ZK postrestore done
+{{ end }}

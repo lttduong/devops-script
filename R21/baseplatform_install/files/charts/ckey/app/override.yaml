@@ -1,0 +1,56 @@
+preserve_keycloak_pvc: true
+
+probeDelays:
+  readinessProbeInitialDelay: 240
+  readinessProbeTimeoutSeconds: 10
+
+cbur:
+  enabled: false
+  maxiCopy: 3
+  autoUpdateCron: false
+
+dbPort: 3306
+
+cmdb:
+  enabled: false
+
+proxyAddressForwarding: true
+
+registry: 'csf-docker-delivered.repo.lab.pl.alcatel-lucent.com'
+
+externalTlsCertificate:
+  enabled: true
+
+masterRealmConfigurationJob:
+  enabled: false
+
+externalCMDBSSLCertificate:
+  enabled: True
+  secure_connection_type: 1
+
+externalKeycloakJavaClientTruststore:
+  enabled: true
+
+jdbcParams: ?autoReconnect=true&useSsl=true&enabledSslProtocolSuites=TLSv1.2&trustStore=/opt/keycloak/security/ssl/client_keystore.jks
+
+overrideEntryPoint: true
+
+customPreStartScript: |
+  #!/usr/bin/env bash
+  readonly CONFIG_FILE_HA="/opt/keycloak/standalone/configuration/standalone-ha.xml"
+  sed -i 's/<periodic-rotating-file-handler name="FILE" autoflush="true">/<periodic-size-rotating-file-handler name="FILE">/' "${CONFIG_FILE_HA}"
+  sed -i 's/named-formatter name="PATTERN"/pattern-formatter pattern="%d{HH:mm:ss,SSS} %-5p [%c] (%t) %s%E%n"/' "${CONFIG_FILE_HA}"
+  sed -i 's/<suffix value=".yyyy-MM-dd"\/>/<suffix value=""\/>\n                <rotate-size value="40000k"\/>\n                <max-backup-index value="10"\/>/' "${CONFIG_FILE_HA}"
+  sed -i 's/<\/periodic-rotating-file-handler>/<\/periodic-size-rotating-file-handler>/' "${CONFIG_FILE_HA}"
+
+#------------------------------------------------------------------------------
+# Keycloak Ingress Annotations
+#------------------------------------------------------------------------------
+ingress:
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    ingress.citm.nokia.com/sticky-route-services: ""
+    nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+    nginx.ingress.kubernetes.io/secure-backends: "true"
+    nginx.ingress.kubernetes.io/limit-rps: "50"
+    nginx.ingress.kubernetes.io/limit-connections: "35"

@@ -1,0 +1,640 @@
+#------------------------------------------------------------------------------
+# KEYCLOAK values
+#------------------------------------------------------------------------------
+
+# Keycloak image details
+global:
+  registry: csf-docker-delivered.repo.lab.pl.alcatel-lucent.com
+  registry1: registry1-docker-io.repo.lab.pl.alcatel-lucent.com
+  registry2: csf-docker-delivered.repo.lab.pl.alcatel-lucent.com
+  registry3: dsrbac-docker-releases.repo.lab.pl.alcatel-lucent.com
+  # If rbacEnable is true and no serviceAccountName is specified then role, rolebinding and service account is created by this chart
+  # If rbacEnable is true and an external serviceAccount is mentioned in serviceAccountName then this external serviceAccount is used during deployment
+  # If rbacEnable is false then no service account is used.
+  rbacEnable: true
+  serviceAccountName: ""
+  preheal: 0
+  postheal: 0
+  jobtimeout: 60
+  # If Istio version is greater than or equal to 1.5, the Policy resource will be replaced by PeerAuthentication resource
+  # Istio version follow format "X.Y"
+  istioVersion: "1.4"
+
+## Cluster domain (tail end of the hostname, e.g. ...namespace.svc.cluster.local)
+clusterDomain: "cluster.local"
+imageRepo: keycloak/4489/keycloak-ha
+imageTag: 11.0.0-1
+imagePullPolicy: IfNotPresent
+kubectlImage: "tools/kubectl"
+kubectlTag: "v1.17.6-nano"
+installUmLite: false
+
+# Keycloak number of replicas
+replicaCount: 1
+
+# Keycloak security context
+securityContext:
+  runAsUser: 1000
+  fsGroup: 1000
+  runAsNonRoot: true
+
+# This rbac section is deprecated. To enable/disable rbac use global.rbacEnable
+rbac:
+  create: true
+
+# Type of ip to support. Possible values: IPv4, IPv6
+ipType: IPv4
+
+# Keycloak server by default binds to the container IP address. You can start the server on 0.0.0.0 (IPv4) or [::] (IPv6) by setting the following value. This address would not be used for the private interface of the server and it is only for public and management interfaces. Note that if istio is enable, this option is not honored and it will be always overridden by "0.0.0.0".
+bindIP:
+
+# Enabled TLS Versions
+# To add more versions follow format and add it below 'tlsVersionList', each version must be printed on a new line.
+# Note: TLS version 1.0 is represented as TLSv1
+tlsVersionList: TLSv1.2
+
+# Flag for whether to create an initial user or not
+createInitialUser: true
+# Keycloak default credentials (these only get created if createInitialUser is set to true)
+keycloakUser: admin
+# If keycloakPassword is commented, generate random password
+keycloakPassword: Admin123!
+
+# Database information (all items below are mandatory)
+dbName: db4keycloak
+dbUser: keycloak
+# Keycloak requires that the db password be encoded using PicketBox
+picketBoxEncryptedDBPassword: -444d243c54645015207a6df87216de44
+jdbcParams: ?autoReconnect=true
+
+# Database address (the  dbAddress is ignored if cmdb.enabled: true)
+dbAddress: 127.0.0.1
+
+# Database port number (this variable is ignored if cmdb.enabled: true)
+dbPort: 3306
+
+# Keycloak Port Information
+managementHTTPPort: 9990
+managementHTTPSPort: 9993
+httpPort: 8080
+httpsPort: 8443
+
+# Health Check Port
+healthCheckPort: 8668
+dbAlarmCheckPeriod: 30000
+
+# Harmonized Alarms
+certExpiryAlarmPeriod: 10
+
+# RSYSLOG Details
+traceLevel: INFO
+syslogServerHost: 127.0.0.1
+syslogServerPort: 514
+
+
+# Node Affinity rules
+nodeAffinity:
+  enabled: false
+  key: is_worker
+  value: true
+
+# Toleration rules
+# tolerations:
+#   - key: 'is_control'
+#     operator: 'Equal'
+#     value: 'true'
+#     effect: 'NoExecute'
+#   - key: 'is_edge'
+#     operator: 'Equal'
+#     value: 'true'
+#     effect: 'NoExecute'
+#   - key: 'is_storage'
+#     operator: 'Equal'
+#     value: 'true'
+#     effect: 'NoExecute
+
+# Resources and Limits
+resources:
+  requests:
+    memory: 2048Mi
+    cpu: 250m
+  limits:
+    memory: 2048Mi
+    cpu: 500m
+
+# Initial Probe delays (in seconds). If DB schema initialization takes more than 600 seconds,then increase the liveness probe to accommodate it.
+probeDelays:
+  readinessProbeInitialDelay: 180
+  readinessProbeTimeoutSeconds: 1
+  readinessProbePeriodSeconds: 15
+
+  livenessProbeInitialDelay: 600
+  livenessProbeTimeoutSeconds: 5
+  livenessProbePeriodSeconds: 15
+
+# External java keystore that replaces the default keycloak.jks file with pre-loaded certificates. The values below only get used if enabled is set to true.
+externalKeycloakJavaKeystore:
+  enabled: False
+  keystoreSecretName: keycloak-java-keystore
+  keystorePassword: keycloak
+
+# External java truststore that replaces the default client_keycloak.jks file with pre-loaded certificates. The values below only get used if enabled is set to true.
+externalKeycloakJavaClientTruststore:
+  enabled: False
+  clientTruststoreSecretName: keycloak-java-client-truststore
+  clientTruststorePassword: keycloak
+
+# TLS Certificate: if enabled, the helm chart expects a secret with a mounted tls.crt file and a tls.key file
+# To keep this backwards compatible, the functionality below generates a new keycloak.jks keystore, imports the new certificate, and replaces the previous keycloak.jks file. If you plan to have mulitple certificates in keycloak.jks, please avoid using externalTlsCertificate; use externalKeycloakJavaKeystore instead and import your entire custom keycloak.jks file.
+externalTlsCertificate:
+  enabled: False
+  tlsSecretName: keycloak-server-cert
+
+# LDAPS Certificate: if enabled, the helm chart expects a secret with a mounted LDAPtls.crt file.
+externalLDAPSCertificate:
+  enabled: False
+  ldapsSecretName: keycloak-federated-ldaps-cert
+
+# CMDB Certificate: if enabled, the helm chart expects a secret with server-cert.pem, client-cert.pem and client-key.pem
+# The secure_connection_type attribute determines whether we want secure one-way or two-way communication with CMDB; Type '1' for one way, '2' for two way; By default, CMDB with SSL is disabled with '0'
+externalCMDBSSLCertificate:
+  enabled: False
+  secure_connection_type: 0
+  cmdbSSLSecretName: keycloak-secure-cmdb-cert
+
+# ---------------------------------------------------------------------
+# Expose all realms metrics to a single endpoint.
+#
+# prometheus.io/scrape - Allow CPRO's service discovery to scrape from 
+#                        this service. Accepted values: "true" or "false"
+# prometheus.io/path   - The single endpoint for CPRO to scrape from.
+#                        Despite containing a realm name, it collects 
+#                        metric from all realms. If master realm is
+#                        inacessible, then replace master with any other
+#                        realm in the CKEY instance.
+# ---------------------------------------------------------------------
+metric:
+  annotations:
+    prometheus.io/scrape: "false"
+    prometheus.io/path: "/auth/realms/master/metrics"
+
+# Proxy Address Forwarding
+proxyAddressForwarding: false
+
+# Preserve backup PVC on delete?
+preserve_keycloak_pvc: false
+
+# Resources for busybox container:
+initBusyBoxContainer:
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 250m
+    limits:
+      memory: 256Mi
+      cpu: 250m
+
+## Allows the specification of additional environment variables for Keycloak
+extraEnv: |
+  # - name: KEYCLOAK_LOGLEVEL
+  #   value: DEBUG
+  # - name: CACHE_OWNERS
+  #   value: "2"
+
+periodicSizeLogger:
+  # If set of false, the default periodic logger will be used.
+  enabled: false
+
+  # This sets the max size of the file. It rotates once the size is reached.
+  fileSize: "10k"
+
+  # The sets the rotation period for the file. .yyy-MM-dd indicates the file rotates per day.
+  timeRotation: ".yyyy-MM-dd"
+
+
+masterRealmConfigurationJob:
+  # If set to false, the job will not run and all the values in this section will not be used.
+  enabled: true
+
+  # This variable is needed when setting the passwordExpiry policy for the first time. If you set this to false, you will be required to manually update your password through the admin console.
+  overwritePasswordTimestamp: true
+
+  # For all the options below: setting an item to false means the job won't modify it in the master realm. If an item is set to true, the job will enable it in the master realm.
+
+  # Forgot Password Option
+  enableForgotPassword: true
+
+  # Brute Force Detection for Master realm
+  enableBruteForceProtection: true
+
+  # If the option below is set to true, the password policies that will be set are the following:
+  ### password expiry: 90 days
+  ### minimum length: 8
+  ### special charaters(minimum): 1
+  ### upper case characters(minimum): 1
+  ### lower case characters (minimum): 1
+  ### password history (not recently used): 3
+  ### password blacklist: linux.words from /opt/keycloak/standalone/data/password-blacklists
+  overwritePasswordPolicies: true
+
+  # Events
+  enableLoginEvents: true
+  enableAdminEvents: true
+
+  # SSL by default for all
+  enableSSLRequireForAll: true
+
+  # Set Nokia Login theme?
+  setNokiaLoginTheme: true
+
+customPreStartScript: |
+  # Custom script to run before starting servers
+  # e.g. Increase arjuna timeout
+  # /opt/keycloak/bin/jboss-cli.sh --commands='embed-server --server-config=standalone-ha.xml --remove-existing --std-out=echo, /subsystem=transactions:write-attribute(name="default-timeout", value="3600")'
+
+pushEventListenerData:
+  notificationReceiverList:
+
+genericEventListenerData:
+  notificationReceiverList:
+
+customAttributes:
+  # If set to false, the job will not run and all the values in this section will not be used.
+  enabled: false
+
+  attributes:
+
+# Customizable login banner messages; these messages will show up on the login banner if you have it enabled. For more information on the login banner, please consult our CKEY user guide.
+loginBannerTitle: "Login Banner"
+loginBannerWelcomeFirstNameMessage: "Welcome, {0}."
+loginBannerWelcomeUsernameMessage: "Welcome, {0}."
+loginBannerPreviousSuccessMessage: "Your last successful login was on {0}."
+loginBannerMainMessage: "You are about to access a private system. This system is for the use of authorized users only. All connections are logged. Any unauthorized access or access attempts may be punishable to the fullest extent possible under the applicable local legislation."
+loginBannerAcceptMessage: "OK"
+
+# Cors Header. Can be set to * or domain name. If empty cors header won't be set.
+corsHeaderDomain:
+
+#------------------------------------------------------------------------------
+# ISTIO values (only used if enabled: true)
+#------------------------------------------------------------------------------
+istio:
+  enabled: false
+  cni_enabled: false
+  gateway:
+    enabled: false
+    customized_selectors:
+      istio: ingressgateway
+      # add more key value pairs following yaml syntax similar as below
+      # key1: value1
+      # key2: value2
+    customized_server_tls_settings:
+      mode: PASSTHROUGH
+      # We provide PASSTHROUGH tls mode as a example here. Users can modify the gw and the vs to meet their specific needs
+      # Add key value pairs as specified in Istio specs: https://istio.io/latest/docs/reference/config/networking/gateway/#ServerTLSSettings
+      # For example:
+      # httpsRedirect: true
+      # mode: SIMPLE
+      # credentialName: keycloak-server-cert
+    hosts:
+    - "ckey.io"
+  virtualService:
+    # if istio.gateway.enabled is true, VirtualService will be enabled regardless of the `enabled` value and will be bound to default CKEY gateway.
+    # IMPORTANT: Binding multiple gateways or hosts to one VirtualService can behave unaccordingly.
+    # It is recommended to keep one host and one gateway to one virtual service
+    enabled: false
+    gateways:
+      # Provide existing gateways for CKEY Virtual Service to bind to. For example:
+      # - "ckey-gw"
+      # - "keycloak-gw"
+    hosts:
+      # Provide hosts that will be bind to this VirtualService. For example:
+      # - "ckey.io"
+      # - "keycloak.io"
+  mtls:
+    enabled: false
+    # mtls mode will only be honored if mtls is enabled
+    mode: PERMISSIVE
+#------------------------------------------------------------------------------
+# CBUR values (only used if enabled: true)
+#------------------------------------------------------------------------------
+
+cbur:
+  enabled: true
+  brPolicyWeight: 5
+  brCronSpec: "0 0 * * *"
+  brMaxiCopy: 5
+  # Ignore file changes during building tarball for target app's volumes.
+  ignoreFileChanged: true
+
+  image:
+    repository: "cbur/cbura"
+    tag: "1.0.3-983"
+    pullPolicy: "IfNotPresent"
+
+  securityContext:
+    runAsUser: 1000
+    runAsGroup: 1000
+
+  backupStorage:
+    size: 400Mi
+    class: ""
+
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 250m
+    limits:
+      memory: 256Mi
+      cpu: 250m
+
+  # If enabled automatically restart ckey pods after restore. 
+  # Required BCMT 20.03 or higher and CBUR restore plugin 20.03 or higher
+  brHookPostRestore:
+    enable: false
+    weight: 5
+    timeout: 600
+
+# Custom providers to be installed
+# Complete documentation can be found in Gitlab
+# customProviders:
+#   - type: hotModule
+#     configMap: sample-hot-module-configMap
+#     resources:
+#       - sample-jar
+#   - type: hotModule
+#     image: sample-hot-module-image
+customProviders:
+
+#------------------------------------------------------------------------------
+# CMDB values (only used if enabled: true) which will overwrite values.yaml in 
+# the cmdb helm chart
+#------------------------------------------------------------------------------
+
+cmdb:
+  # If cmdb is enabled, a sample cmdb database will get deployed
+  enabled: True
+  istio:
+    enabled: false
+
+  rbac_enabled: True
+
+  ## Cluster domain (tail end of the hostname) used in raw k8s installs
+  # E.g. myrel-cmdb-mysql.default.svc.cluster.local)
+  clusterDomain: "cluster.local"
+
+  ## Cluster Type is one of master-slave, master-master, galera, simplex
+  cluster_type: simplex
+  cluster_name: "my-cluster"
+
+  mariadb:
+    # if cmdb.enabled, make sure that MYSQL_DATABASE is the same as dbName above!
+    root_password: cjAwdHIwMHQ=
+
+    ## If root user should be allowed from all hosts
+    allow_root_all: false
+
+    ## The number of MariaDB pods to create
+    count: 1
+
+    ## Perform automatic tc-heuristic-recover of the database on pod restarts.
+    ## Set to one of the following (default will be ROLLBACK if not set)
+    ##   rollback - perform auto rollback of uncommitted transactions
+    ##   commit   - perform auto commit of uncommitted transactions
+    ##   none     - disable automatic tc-hauristic-recover
+    heuristic_recover: rollback
+
+    ## Enable/disable server audit logging.
+    ## If enabled, set events which will be logged.
+    ## ref: https://mariadb.com/kb/en/library/mariadb-audit-plugin-log-settings/
+    audit_logging:
+      enabled: true
+      events: "CONNECT,QUERY_DCL,QUERY_DDL"
+
+    ## If automatic rollback of the database should be performed on pod restarts
+    auto_rollback: true
+
+    ## Use TLS for data in flight to/from client
+    ## If using certificates, populate the certicate names in the certificates
+    ## section in the secret that is created and specify the secret resource
+    ## name in the certificates.secret name.  Note that the secret resource
+    ## containing all the certificate files must be pre-populated before
+    ## CMDB deployment.
+    use_tls: false
+    certificates:
+      ca_cert:     ca-cert.pem
+      ca_key:      ca-key.pem
+      client_cert: client-cert.pem
+      client_key:  client-key.pem
+      client_req:  client-req.pem
+      server_cert: server-cert.pem
+      server_key:  server-key.pem
+      server_req:  server-req.pem
+      secret:
+
+    # if cmdb.enabled, make sure that MYSQL_DATABASE is the same as dbName above!
+    databases:
+      - name: db4keycloak
+
+    users:
+      - name: keycloak
+        # base64 encoded
+        password: cjAwdHIwMHQ=
+        host: "%"
+        privilege: ALL
+        object: "db4keycloak.*"
+        # if use_tls set, require SSL/X509 or not
+        requires: ""
+
+    persistence:
+      accessMode: ReadWriteOnce
+      size: 20Gi
+      storageClass: ""
+      resourcePolicy: delete
+      preserve_pvc: false
+      backup:
+        enabled: true
+        storageClass: ""
+        accessMode: ReadWriteOnce
+        size: 20Gi
+        dir: /mariadb/backup
+
+    ## A customized mysqld.conf to import
+    mysqld_site_conf: |-
+      [mysqld]
+      userstat = on
+
+    ## Resources per MariaDB container (default values from CMDB chart are used)
+    resources:
+      requests:
+        memory: 256Mi
+        cpu: 250m
+      limits:
+        memory: 768Mi
+        cpu: 1
+
+    ## Node labels for mariadb pod assignment
+    ## Ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/
+    nodeAffinity:
+      enabled: true
+      key: is_worker
+      value: true
+
+  cbur:
+    resources:
+      requests:
+        memory: 256Mi
+        cpu: 250m
+      limits:
+        memory: 256Mi
+        cpu: 250m
+
+  admin:
+    resources:
+      requests:
+        memory: 256Mi
+        cpu: 250m
+      limits:
+        memory: 256Mi
+        cpu: 250m
+
+#------------------------------------------------------------------------------
+# Keycloak Ingress
+#------------------------------------------------------------------------------
+ingress:
+  ## If true, Keyclock Ingress will be created
+  ##
+  enabled: true
+
+  # The keycloak service port to use with ingress
+  keycloakServicePort: 8443
+
+  ## Keycloak Ingress annotations
+  ##
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/affinity: "cookie"
+    nginx.ingress.kubernetes.io/session-cookie-name: "route"
+    nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+    nginx.ingress.kubernetes.io/secure-backends: "true"
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      set_cookie_flag route HttpOnly secure SameSite;
+
+  ## Keyclock Ingress hostnames
+  ## May be provided if Ingress is enabled
+  ##
+  # hosts:
+  #   - "ckey.io"
+
+  ## Keyclock Ingress TLS configuration
+  ## Secrets must be manually created in the namespace
+  ##
+  # tls:
+  #   - secretName: keyclock-server-tls
+  #     hosts:
+  #       - "ckey.io"
+
+  ## Keyclock context
+  ## May be provided if Ingress is enabled
+  path: /auth
+
+#------------------------------------------------------------------------------
+# Keycloak Ingress for JBoss Management Console
+#------------------------------------------------------------------------------
+ingressManagement:
+  ## If true, Keyclock Ingress-management will be created
+  ##
+  enabled: false
+  # The keycloak management port to use with ingress
+  keycloakManagementPort: 9990
+  ## Keycloak Ingress annotations
+  ##
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/affinity: "cookie"
+    nginx.ingress.kubernetes.io/session-cookie-name: "route"
+    nginx.ingress.kubernetes.io/ssl-passthrough: "false"
+    nginx.ingress.kubernetes.io/secure-backends: "false"
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      set_cookie_flag route HttpOnly secure SameSite;
+
+  ## Keyclock Ingress hostnames
+  ## May be provided if Ingress is enabled
+  #
+  #hosts:
+  #   - "*"
+  ## Keyclock Ingress TLS configuration
+  ## Secrets must be manually created in the namespace
+  ##
+  # tls:
+  #   - secretName: keyclock-server-tls
+  #     hosts:
+  #       - keyclock.domain.com
+  ## Keyclock context
+  ## May be provided if Ingress is enabled
+  managementPath: /
+
+# ---------------------------------------------------------------------
+# Optionally, control the naming for resources. The default naming is
+# in the deployedHelmName-ChartName format.
+#
+# nameOverride     - This replaces the value in ChartName.
+# fullnameOverride - Replace the entire name with the supplied value.
+#                    This is useful to yield predictable service names.
+# ---------------------------------------------------------------------
+nameOverride: ""
+fullnameOverride: ""
+
+umLiteImage:
+  chartName: usermanagement-lite
+  tag: 0.0.293
+  pullPolicy: IfNotPresent
+  replicaCount: 2
+  version: 0.0.1
+
+umLiteEnv:
+  #Set the KeycloakServiceUrl to ingress URL as ex: https://clab433node07/auth
+  keycloakServiceUrl: https://<replace-with-ingress><replace-with-ingress-path>
+  loggingLevel: "info"
+  usersQueryMax: 200
+  groupsQueryMax: 20
+  usersToGroupQueryMax: 400
+  clientIdToUse: usermanagement-lite
+  isConfidentialClient: false
+  # Set ckeyAdminSecret only if isConfidentialClient is true. Should be set before deployment. eg. apaas-ckey
+  ckeyAdminSecret: <replace-with-admin-secret>
+
+umLiteIngress:
+  # The usermanagement-lite service port to use with ingress
+  enabled: true
+  servicePort: 8443
+  annotations: {}
+    # kubernetes.io/ingress.class: nginx
+    # kubernetes.io/tls-acme: "true"
+     #nginx.ingress.kubernetes.io/ssl-passthrough: "false"
+  path: /umlite
+  #hosts:
+  #  - usermanagement
+  #tls:
+  # - secretName: umlite-server-tls
+  #   hosts:
+  #      - usermanagement
+
+umLiteService:
+  name: umlite-svc
+  type: ClusterIP
+  http:
+    port: "8080"
+    externalPort: "80"
+  https:
+    port: "8443"
+    externalPort: "443"
+
+umLiteResources:
+  resources:
+    requests:
+      memory: 2048Mi
+      cpu: 250m
+    limits:
+      memory: 2048Mi
+      cpu: 500m

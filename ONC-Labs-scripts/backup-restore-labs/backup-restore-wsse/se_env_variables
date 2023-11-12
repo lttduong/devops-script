@@ -1,0 +1,13 @@
+    resourceGroup: open-wavehub-dev
+    newRG: "{{ lookup('env', 'rg') }}"
+    wsseVaultName: "{{ lookup('env', 'wsseVaultName') }}"
+    wsseStorageName: "{{ lookup('env', 'wsseStorageName') }}"
+    wsseRecoveryPoint: "{{ lookup('env', 'wsseRecoveryPoint') }}"
+    wsseName: "{{ lookup('env', 'wsseName') }}"
+    policyVault: "{{ lookup('env', 'policyVault') }}"
+    wsseProfile: "{{lookup('env', 'wsseProfile') }}"
+    retainTime: "{{lookup('env', 'retainTime') }}"
+    nfmtIp: "{{ lookup('env', 'nfmtIp') }}"
+    nfmtUsername: "{{ lookup('env', 'nfmtUsername') }}"
+    nfmtPassword: "{{ lookup('env', 'nfmtPassword') }}"
+

@@ -1,0 +1,12 @@
+---
+- name: "Replace start page placeholders"
+  include: replace_start_page_placeholders.yml
+
+- name: "Replace BTEL placeholders"
+  include: replace_btel_placeholders.yml
+
+- name: "Replace CKEY placeholders"
+  include: replace_ckey_placeholders.yml
+
+- name: "Replace CRMQ placeholders"
+  include: replace_crmq_placeholders.yml

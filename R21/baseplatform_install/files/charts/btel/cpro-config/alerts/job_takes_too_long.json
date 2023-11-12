@@ -1,0 +1,12 @@
+{
+  "alert": "JobCompletion",
+  "expr": "kube_job_execute_time > 3600",
+  "for": "0s",
+  "labels": {
+    "severity": "WARNING"
+  },
+  "annotations": {
+    "description": "Job {{$labels.namespace}}/{{$labels.k8s_job_name}} completion is taking more than 1h to complete",
+    "summary": "Job did not end within 1 hour"
+  }
+}

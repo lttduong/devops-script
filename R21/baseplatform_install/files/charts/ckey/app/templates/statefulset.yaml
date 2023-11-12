@@ -1,0 +1,597 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ template "keycloak.fullname" . }}
+  labels:
+    app: {{ template "keycloak.name" . }}
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+    csf-component: ckey
+    csf-subcomponent: keycloak
+## Start of custom modifications to original chart CSFS-27802
+    backup: "true"
+## End of custom modifications to original chart
+spec:
+  selector:
+    matchLabels:
+      app: {{ template "keycloak.name" . }}
+      release: "{{ .Release.Name }}"
+  replicas: {{ .Values.replicaCount }}
+  serviceName: {{ template "keycloak.fullname" . }}-headless
+  podManagementPolicy: Parallel
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: {{ template "keycloak.name" . }}
+        release: "{{ .Release.Name }}"
+      annotations:
+      {{- if .Values.istio.enabled }}
+        sidecar.istio.io/inject: "true"
+        traffic.sidecar.istio.io/excludeOutboundPorts: "7600"
+        traffic.sidecar.istio.io/excludeInboundPorts: "7600"
+        {{- if .Values.istio.mtls.enabled }}
+        sidecar.istio.io/rewriteAppHTTPProbers: "true"
+        {{- end }}
+      {{- else }}
+        sidecar.istio.io/inject: "false"
+      {{- end }}
+    spec:
+      ## Start of custom modification of original chart - moved to here from below
+      securityContext:
+          runAsUser: {{ .Values.securityContext.runAsUser | default 1000 }}
+          fsGroup: {{ .Values.securityContext.fsGroup | default 1000 }}
+          runAsNonRoot: {{ .Values.securityContext.runAsNonRoot | default true }}
+      {{- if .Values.global.rbacEnable }}
+      serviceAccountName: {{ template "ckeyServiceAccount" . }}
+      {{- end }}
+      ## End of custom modification of original chart
+      initContainers:
+        - name: security-hardening
+          image: "{{ .Values.global.registry1 }}/busybox"
+          imagePullPolicy: "{{ .Values.imagePullPolicy }}"
+          command: ["/bin/sh","-c"]
+          args:
+            - |
+              {{ if .Values.externalCMDBSSLCertificate.enabled }}
+              ## Start of custom modification of original chart
+              ## Add wait for certificate to be available - BASE-390
+              ## Behaviour of certs generation will be changed in cert-manager 0.16.0
+              wait_file () {
+                  pathname=${1}
+                  timeout=${2:-60}
+
+                  # wait up to timeout iterations for file to exist and have size
+                  for i in $(seq ${timeout}); do
+                      [[ -s ${pathname} ]] && return 0
+                      sleep 1
+                  done
+
+                  echo "${pathname}: file not found"
+                  return 1
+              }
+              wait_file /mariadb-ssl/server-cert.pem 15 || exit 1
+              chmod 770 /writable-mariadb-ssl;
+              cp /mariadb-ssl/* /writable-mariadb-ssl;
+              {{ end }}
+              {{ if .Values.externalTlsCertificate.enabled }}
+              chmod 770 /writable-server-certificates;
+
+              wait_file /server-certificates/ca.crt 15 || exit 1
+              wait_file /server-certificates/tls.crt 15 || exit 1
+              ## End of custom modification of original chart
+              cp /server-certificates/* /writable-server-certificates;
+              {{ end }}
+              {{ if .Values.externalLDAPSCertificate.enabled }}
+              chmod 770 /writable-ldaps-certificates;
+              cp /ldaps-certificates/* /writable-ldaps-certificates;
+              {{ end }}
+              chmod 770 /writable-keycloak-secret;
+              cp /keycloak-secret/* /writable-keycloak-secret;
+              echo "Finish security hardening init procedures";
+          resources:
+            requests:
+              memory: {{ .Values.initBusyBoxContainer.resources.requests.memory | default "256Mi" | quote }}
+              cpu: {{ .Values.initBusyBoxContainer.resources.requests.cpu | default "250m" | quote }}
+            limits:
+              memory: {{ .Values.initBusyBoxContainer.resources.limits.memory | default "256Mi" | quote }}
+              cpu: {{ .Values.initBusyBoxContainer.resources.limits.cpu | default "250m" | quote }}
+          volumeMounts:
+            {{ if .Values.externalCMDBSSLCertificate.enabled }}
+            - name: writable-cmdb-certificates
+              mountPath: /writable-mariadb-ssl
+            - name: cmdb-certificates
+              mountPath: /mariadb-ssl
+            {{ end }}
+            {{ if .Values.externalTlsCertificate.enabled }}
+            - name: writable-server-certificates
+              mountPath: /writable-server-certificates
+            - name: server-certificates
+              mountPath: /server-certificates
+            {{ end }}
+            {{ if .Values.externalLDAPSCertificate.enabled }}
+            - name: writable-ldaps-certificates
+              mountPath: /writable-ldaps-certificates
+            - name: ldaps-certificates
+              mountPath: /ldaps-certificates
+            {{ end }}
+            - name: keycloak-secret
+              mountPath: /keycloak-secret
+            - name: writable-keycloak-secret
+              mountPath: /writable-keycloak-secret
+## Start of custom modification of original chart - this won't convert to json in the middle of a list, moved up
+#      securityContext:
+#          runAsUser: {{ .Values.securityContext.runAsUser | default 1000 }}
+#          fsGroup: {{ .Values.securityContext.fsGroup | default 1000 }}
+#          runAsNonRoot: {{ .Values.securityContext.runAsNonRoot | default true }}
+#      {{- if .Values.global.rbacEnable }}
+#      serviceAccountName: {{ template "ckeyServiceAccount" . }}
+#      {{- end }}
+## End of custom modification of original chart
+      {{- $thisChart := . }}
+      {{- range .Values.customProviders }}
+      {{- if .image }}
+        - name: {{ .image | splitList "/" | last | splitList ":" | first }}
+          image: {{ .image }}
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+          args:
+            - -c
+            - |
+              {{- if eq .type "hotModule" }}
+              [ ! -d "/customProviders/hotModules" ] && mkdir -p /customProviders/hotModules
+              cp -R target/* /customProviders/hotModules
+              {{- else if eq .type "theme" }}
+              [ ! -d "/customProviders/themes" ] && mkdir -p /customProviders/themes
+              cp -R target/* /customProviders/themes
+              {{- else }}
+              cp -R target/* /customProviders
+              {{- end }}
+          volumeMounts:
+            - name: {{ template "keycloak.fullname" $thisChart }}-custom-providers
+              mountPath: /customProviders
+      {{- end }}
+      {{- end }}
+      ## Start of custom modification of original chart
+        - name: convert-cmdb-client-certs-to-jks
+          terminationMessagePolicy: FallbackToLogsOnError
+          command:
+            - certs_converter
+          args:
+            - --certs-dir=/input
+            - --output=/output
+            - --format=JKS
+            - --ks-pass={{ .Values.externalKeycloakJavaClientTruststore.clientTruststorePassword | default "keycloak" }}
+            - --ts-pass={{ .Values.externalKeycloakJavaClientTruststore.clientTruststorePassword | default "keycloak" }}
+          image: {{ .Values.global.registry }}/{{ .Values.global.certsConverter.image.name }}:{{ .Values.global.certsConverter.image.tag }}
+          imagePullPolicy: {{ .Values.imagePullPolicy }}
+          volumeMounts:
+            - name: cmdb-client-certs
+              mountPath: /input
+              readOnly: true
+            - name: keycloak-java-client-truststore
+              mountPath: /output
+        - name: rename-crmq-truststore
+          command:
+            - mv
+          args:
+            - /certs/truststore.jks
+            - /certs/client_keystore.jks
+          image: {{ .Values.global.registry }}/{{ .Values.global.certsConverter.image.name }}:{{ .Values.global.certsConverter.image.tag }}
+          imagePullPolicy: {{ .Values.imagePullPolicy }}
+          volumeMounts:
+            - name: keycloak-java-client-truststore
+              mountPath: /certs
+      ## End of custom modification of original chart
+      containers:
+        - name: {{ template "keycloak.fullname" . }}
+          image: "{{ .Values.global.registry2 }}/{{ .Values.imageRepo }}:{{ .Values.imageTag }}"
+          imagePullPolicy: "{{ .Values.imagePullPolicy }}"
+          env:
+            {{ if .Values.createInitialUser }}
+            - name: KEYCLOAK_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ template "keycloak.fullname" . }}
+                  key: keycloak-admin-user
+            {{ end }}
+            - name: CUSTOM_ATTRIBUTE
+              {{ if .Values.customAttributes }}
+              value: {{ .Values.customAttributes.enabled | default "false" | quote }}
+              {{ end }}
+            - name: DB_TYPE
+              value: "1"
+            - name: DB_IP
+              {{ if .Values.cmdb.enabled }}
+              value: {{ template "keycloak.cmdb.fullname" . }}.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}
+              {{ else }}
+              value: {{ .Values.dbAddress | default "127.0.0.1" | quote }}
+              {{ end }}
+            - name: DB_PORT
+              value: {{ .Values.dbPort | default "3306" | quote }}
+            - name: DB_NAME
+              value: {{ .Values.dbName | default "db4keycloak" | quote }}
+            - name: DB_USER
+              value: {{ .Values.dbUser | default "keycloak" | quote }}
+            - name: JDBC_PARAMS
+              value: {{ .Values.jdbcParams | default "?autoReconnect=true" | quote }}
+            - name: MANAGEMENT_HTTP_PORT
+              value: {{ .Values.managementHTTPPort | default "9990" | quote }}
+            - name: MANAGEMENT_HTTPS_PORT
+              value: {{ .Values.managementHTTPSPort | default "9993" | quote }}
+            - name: HTTP_PORT
+              value: {{ .Values.httpPort | default "8080" | quote }}
+            - name: HTTPS_PORT
+              value: {{ .Values.httpsPort | default "8443" | quote }}
+            - name: HEALTH_CHECK_PORT
+              value: {{ .Values.healthCheckPort | default "8668" | quote }}
+            - name: DB_ALARM_CHECK_PERIOD
+              value: {{ .Values.dbAlarmCheckPeriod | default "30000" | quote}}
+            - name: CERT_EXPIRY_ALARM_PERIOD
+              value: {{ .Values.certExpiryAlarmPeriod | default "10" | quote}}
+            - name: SERVICE_ID
+              value: {{ template "keycloak.fullname" . }}
+            - name: TRACE_LEVEL
+              value: {{ .Values.traceLevel | default "INFO" | quote }}
+            - name: SYSLOG_SERVER_HOST
+              value: {{ .Values.syslogServerHost | default "127.0.0.1" | quote }}
+            - name: SYSLOG_SERVER_PORT
+              value: {{ .Values.syslogServerPort | default "514" | quote }}
+            - name: TLS_VERSION_LIST
+              value: {{ .Values.tlsVersionList | default "TLSv1.2" | quote }}
+            - name: PERIODIC_SIZE_LOGGER_FLAG
+              {{ if .Values.periodicSizeLogger.enabled }}
+              value: "1"
+              {{ else }}
+              value: "0"
+              {{ end }}
+            - name: PERIODIC_SIZE_LOGGER_FILESIZE
+              value: {{ .Values.periodicSizeLogger.fileSize | default "10k" | quote }}
+            - name: PERIODIC_SIZE_LOGGER_ROTATIONTIME
+              value: {{ .Values.periodicSizeLogger.timeRotation | default ".yyyy-MM-dd" | quote }}
+            - name: CORS_HEADER_DOMAIN
+              value: {{ .Values.corsHeaderDomain | default "0" | quote }}
+            - name: IMPORT_JAVA_KEYSTORE_FLAG
+              {{ if .Values.externalKeycloakJavaKeystore.enabled }}
+              value: "1"
+              {{ else }}
+              value: "0"
+              {{ end }}
+              name: KEYCLOAK_INGRESS_CUSTOM_PATH
+              {{ if .Values.ingress.enabled }}
+              value: {{ .Values.ingress.path | default "/auth" | quote }}
+              {{ else }}
+              value: "/auth"
+              {{ end }}
+            - name: IMPORT_JAVA_CLIENT_TRUSTSTORE_FLAG
+              {{ if .Values.externalKeycloakJavaClientTruststore.enabled }}
+              value: "1"
+              {{ else }}
+              value: "0"
+              {{ end }}
+            - name: IMPORT_CERT_FLAG
+              {{ if .Values.externalTlsCertificate.enabled }}
+              value: "1"
+              {{ else }}
+              value: "0"
+              {{ end }}
+            - name: IMPORT_LDAPS_CERT_FLAG
+              {{ if .Values.externalLDAPSCertificate.enabled }}
+              value: "1"
+              {{ else }}
+              value: "0"
+              {{ end }}
+            - name: IMPORT_TWO_WAY_CMDB_CERT
+              {{ if eq .Values.externalCMDBSSLCertificate.secure_connection_type 2.0 }}
+              value: "1"
+              {{ else }}
+              value: "0"
+              {{ end }}
+            - name: IMPORT_ONE_WAY_CMDB_CERT
+              {{ if eq .Values.externalCMDBSSLCertificate.secure_connection_type 1.0 }}
+              value: "1"
+              {{ else }}
+              value: "0"
+              {{ end }}
+            - name: KEYCLOAK_BIND_IP
+            {{ if .Values.istio.enabled }}
+              {{ if (eq .Values.ipType "IPv4") }}
+              value: "0.0.0.0"
+              {{ else }}
+              value: "::/0"
+              {{ end }}
+            {{ else }}
+              value: {{ .Values.bindIP | default "0" | quote }}
+            {{ end }}
+            - name: IP_TYPE
+              value: {{ .Values.ipType | default "IPv4" | quote }}
+            - name: PROXY_ADDRESS_FORWARDING
+              value: {{ .Values.proxyAddressForwarding | default "false" | quote }}
+            - name: LB_BANNER_TITLE
+              value: {{ .Values.loginBannerTitle | default "Login Banner" | quote }}
+            - name: LB_WELCOME_FIRST_NAME_MSG
+              value: {{ .Values.loginBannerWelcomeFirstNameMessage | default "Welcome, {0}." | quote }}
+            - name: LB_WELCOME_USERNAME_MSG
+              value: {{ .Values.loginBannerWelcomeUsernameMessage | default "Welcome, {0}." | quote }}
+            - name: LB_PREVIOUS_SUCCESS_MSG
+              value: {{ .Values.loginBannerPreviousSuccessMessage | default "Your last successful login was on {0}." | quote }}
+            - name: LB_MAIN_MSG
+              value: {{ .Values.loginBannerMainMessage | default "You are about to access a private system. This system is for the use of authorized users only. All connections are logged. Any unauthorized access or access attempts may be punishable to the fullest extent possible under the applicable local legislation." | quote }}
+            - name: LB_ACCEPT_MSG
+              value: {{ .Values.loginBannerAcceptMessage | default "OK" | quote }}
+{{- with .Values.extraEnv }}
+{{ tpl . $ | indent 12 }}
+{{- end }}
+          readinessProbe:
+            httpGet:
+              {{ if .Values.ingress.enabled }}
+              path: {{ .Values.ingress.path | default "/auth" | quote }}
+              {{ else }}
+              path: "/auth"
+              {{ end }}
+              port: {{ .Values.httpPort | default 8080 }}
+            initialDelaySeconds: {{ .Values.probeDelays.readinessProbeInitialDelay | default 240 }}
+            timeoutSeconds: {{ .Values.probeDelays.readinessProbeTimeoutSeconds | default 1 }}
+            periodSeconds: {{ .Values.probeDelays.readinessProbePeriodSeconds | default 30 }}
+          livenessProbe:
+            httpGet:
+              {{ if .Values.ingress.enabled }}
+              path: {{ .Values.ingress.path | default "/auth" | quote }}
+              {{ else }}
+              path: "/auth"
+              {{ end }}
+              port: {{ .Values.httpPort | default 8080 }}
+            initialDelaySeconds: {{ .Values.probeDelays.livenessProbeInitialDelay | default 330 }}
+            timeoutSeconds: {{ .Values.probeDelays.livenessProbeTimeoutSeconds | default 5 }}
+            periodSeconds: {{ .Values.probeDelays.livenessProbePeriodSeconds | default 15 }}
+          resources:
+            requests:
+              memory: {{ .Values.resources.requests.memory | default "2048Mi" | quote }}
+              cpu: {{ .Values.resources.requests.cpu | default "250m" | quote }}
+            limits:
+              memory: {{ .Values.resources.limits.memory | default "2048Mi" | quote }}
+              cpu: {{ .Values.resources.limits.cpu | default "500m" | quote }}
+          volumeMounts:
+            - name: {{ template "keycloak.fullname" . }}-custom-providers
+              mountPath: /customProviders
+            {{- range .Values.customProviders }}
+            {{- if .configMap }}
+            {{- $configMap := .configMap }}
+            {{- if eq .type "hotModule" }}
+            {{- range .resources }}
+            - name: {{ $configMap }}
+              mountPath: /customProviders/hotModules/{{ . }}
+              subPath: {{ . }}
+            {{- end }}
+            {{- else if or (eq .type "moduleProvider") (eq .type "moduleDependency") }}
+            {{- range .moduleDetails.resources }}
+            - name: {{ $configMap }}
+              mountPath: /customProviders/{{ . }}
+              subPath: {{ . }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
+            - name: custom-ckey-scripts
+              mountPath: /ckey/custom-scripts
+              readOnly: true
+            {{- if .Values.cbur.enabled }}
+            - name: backup
+              mountPath: "/ckey/backup"
+            {{ end }}
+            {{ if .Values.externalKeycloakJavaKeystore.enabled }}
+            - name: keycloak-java-keystore
+              mountPath: /opt/etc/keycloak/keycloak_java_keystore/keycloak.jks
+              subPath: keycloak.jks
+              readOnly: true
+            {{ end }}
+            ## Start of custom modification of original chart
+            {{ if .Values.externalKeycloakJavaClientTruststore.enabled }}
+            - name: keycloak-java-client-truststore
+              mountPath: /opt/etc/keycloak/keycloak_java_client_truststore/
+              readOnly: true
+            {{ end }}
+            - name: profile-properties
+              mountPath: /opt/keycloak/standalone/configuration/profile.properties
+              subPath: profile.properties
+            ## End of custom modification of original chart
+            {{ if .Values.externalTlsCertificate.enabled }}
+            ## Start of custom modification of original chart - CSFS-29914 should be removed after next charts upgrade
+            - name: server-certificates
+              mountPath: /opt/etc/keycloak/server_ssl_certificates
+            ## End of custom modification of original chart
+            {{ end }}
+            {{ if .Values.externalLDAPSCertificate.enabled }}
+            ## Start of custom modification of original chart - CSFS-29914 should be removed after next charts upgrade
+            - name: ldaps-certificates
+              mountPath: /opt/etc/keycloak/ldaps_certificates
+            ## End of custom modification of original chart
+            {{ end }}
+            - name: push-listener-config-json
+              mountPath: /opt/etc/keycloak/push-listener-registry.json
+              subPath: push-listener-registry.json
+            - name: custom-attribute-config
+              mountPath: /opt/etc/keycloak/custom-attributes-config.conf
+              subPath: custom-attributes-config.conf
+            - name: notification-listener-config-json
+              mountPath: /opt/etc/keycloak/notification-listener-registry.json
+              subPath: notification-listener-registry.json
+            {{ if .Values.externalCMDBSSLCertificate.enabled }}
+            ## Start of custom modification of original chart - CSFS-29914 should be removed after next charts upgrade
+            - mountPath: /opt/keycloak/security/mariadb_ssl/
+              name: cmdb-certificates
+            ## End of custom modification of original chart
+            {{ end }}
+            ## Start of custom modification of original chart - CSFS-29914 should be removed after next charts upgrade
+            - mountPath: /opt/keycloak/security/keycloak-secret/
+              name: keycloak-secret
+            ## End of custom modification of original chart
+          ports:
+            - containerPort: {{ .Values.httpsPort | default 8443 }}
+              name: https-keycloak
+            - containerPort: {{ .Values.httpPort | default 8080 }}
+              name: http-keycloak
+            - containerPort: {{ .Values.managementHTTPSPort | default 9993 }}
+              name: https-mgmt
+            - containerPort: {{ .Values.managementHTTPPort | default 9990 }}
+              name: http-mgmt
+
+        {{- if .Values.cbur.enabled }}
+        - name: cbura-sidecar
+          image: "{{ .Values.global.registry }}/{{ .Values.cbur.image.repository }}:{{ .Values.cbur.image.tag }}"
+          imagePullPolicy: {{ .Values.cbur.image.PullPolicy }}
+          {{- if .Values.cbur.securityContext }}
+          securityContext:
+            runAsUser: {{ default 1000 .Values.cbur.securityContext.runAsUser }}
+            runAsGroup:  {{ default 1000 .Values.cbur.securityContext.runAsGroup }}
+          {{- end }}
+          volumeMounts:
+          - mountPath: /backup
+            name: "backup"
+          resources:
+            requests:
+              memory: {{ .Values.cbur.resources.requests.memory | default "256Mi" | quote }}
+              cpu: {{ .Values.cbur.resources.requests.cpu | default "250m" | quote }}
+            limits:
+              memory: {{ .Values.cbur.resources.limits.memory | default "256Mi" | quote }}
+              cpu: {{ .Values.cbur.resources.limits.cpu | default "250m" | quote }}
+        {{- end }}
+      volumes:
+        {{- range .Values.customProviders }}
+        {{- if .configMap }}
+        - name: {{ .configMap }}
+          configMap:
+            name: {{ .configMap }}
+        {{- end }}
+        {{- end }}
+        - name: {{ template "keycloak.fullname" . }}-custom-providers
+          emptyDir: {}
+        - name: custom-ckey-scripts
+          configMap:
+            name: {{ template "keycloak.fullname" . }}-custom-ckey-scripts
+            defaultMode: 0555
+        {{ if .Values.externalKeycloakJavaKeystore.enabled }}
+        - name: keycloak-java-keystore
+          secret:
+            secretName: {{ .Values.externalKeycloakJavaKeystore.keystoreSecretName }}
+        {{ end }}
+        ## Start of custom modification of original chart
+        {{ if .Values.externalKeycloakJavaClientTruststore.enabled }}
+        - name: keycloak-java-client-truststore
+          emptyDir: {}
+        - name: cmdb-client-certs
+          secret:
+            secretName: {{ .Values.global.config.cmdb.clientCertSecretName }}
+        {{ end }}
+        - name: profile-properties
+          configMap:
+            name: {{ template "keycloak.fullname" . }}-profile-properties
+        ## End of custom modification of original chart
+        {{ if .Values.externalTlsCertificate.enabled }}
+        - name: server-certificates
+          secret:
+            secretName: {{ .Values.externalTlsCertificate.tlsSecretName }}
+        - name: writable-server-certificates
+          emptyDir: {}
+        {{ end }}
+        {{ if .Values.externalLDAPSCertificate.enabled }}
+        - name: ldaps-certificates
+          secret:
+            secretName: {{ .Values.externalLDAPSCertificate.ldapsSecretName }}
+        - name: writable-ldaps-certificates
+          emptyDir: {}
+        {{ end }}
+        {{ if .Values.externalCMDBSSLCertificate.enabled }}
+        - name: cmdb-certificates
+          secret:
+            ## Start of custom modification of original chart: this hack is for one-way SSL communications only
+            secretName: {{ .Values.externalTlsCertificate.tlsSecretName }}
+            items:
+            - key: ca.crt
+              path: "server-cert.pem"
+            ## End of custom modification of original chart
+        - name: writable-cmdb-certificates
+          emptyDir: {}
+        {{ end }}
+        - name: push-listener-config-json
+          ## Start of custom modification of original chart
+          secret:
+            secretName: {{ template "keycloak.fullname" . }}-push-listener
+          ## End of custom modification of original chart
+            items:
+            - key: push-listener-registry.json
+              path: push-listener-registry.json
+        - name: custom-attribute-config
+          configMap:
+            name: {{ template "keycloak.fullname" . }}-custom-attributes
+            items:
+            - key: custom-attributes-config.conf
+              path: custom-attributes-config.conf
+
+        - name: notification-listener-config-json
+          configMap:
+            name: {{ template "keycloak.fullname" . }}-notification-listener
+            items:
+            - key: notification-listener-registry.json
+              path: notification-listener-registry.json
+        - name: keycloak-secret
+          secret:
+            secretName: {{ template "keycloak.fullname" . }}
+        - name: writable-keycloak-secret
+          emptyDir: {}
+    {{- if .Values.tolerations }}
+      tolerations:
+{{ toYaml .Values.tolerations | indent 8 }}
+    {{- end }}
+
+      affinity:
+      {{- if .Values.nodeAffinity.enabled }}
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: {{ .Values.nodeAffinity.key }}
+                operator: In
+                values:
+                - {{ quote .Values.nodeAffinity.value }}
+      {{- end }}
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - {{ template "keycloak.fullname" . }}
+              topologyKey: "kubernetes.io/hostname"
+          - weight: 50
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - {{ template "keycloak.fullname" . }}
+              topologyKey: "failure-domain.beta.kubernetes.io/zone"
+  {{- if .Values.cbur.enabled }}
+  volumeClaimTemplates:
+  - metadata:
+      name: backup
+    spec:
+      accessModes:
+        - "ReadWriteOnce"
+      resources:
+        requests:
+          storage: "{{ .Values.cbur.backupStorage.size }}"
+      {{- if .Values.cbur.backupStorage.class }}
+      storageClassName: {{ .Values.cbur.backupStorage.class }}
+      {{- else if .Values.compaas }}
+      {{- if .Values.compaas.storageClass }}
+      storageClassName: {{ .Values.compaas.storageClass }}
+      {{- end }}
+      {{- end }}
+  {{ end }}

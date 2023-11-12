@@ -1,0 +1,76 @@
+{{ if gt (int .Values.global.preheal ) 0 }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "es.preHealJob.name" . }}
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      securityContext:
+        fsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+      containers:
+      - name: {{ template "es.preHealContainer.name" . }}
+        image: {{.Values.global.registry}}/{{.Values.elasticsearch_master.image.repo}}:{{.Values.elasticsearch_master.image.tag}}
+        imagePullPolicy: IfNotPresent
+        {{- if and (.Values.searchguard.enable) (or (.Values.istio.enabled) (not .Values.searchguard.http_ssl)) }}
+        env:
+          - name: SG_INTERNAL_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: {{ template "elasticsearch.fullname" . }}
+                key: adminUsername
+          - name: SG_INTERNAL_PWD
+            valueFrom:
+              secretKeyRef:
+                name: {{ template "elasticsearch.fullname" . }}
+                key: adminPwd
+        {{- end }}
+        command:
+        - bash
+        - "-c"
+        - |
+          {{- if .Values.istio.enabled }}
+          sleep 15
+          {{- end }}
+          {{- if .Values.searchguard.enable }}
+          {{- if or (.Values.istio.enabled) (not .Values.searchguard.http_ssl) }}
+          clusterHealth=$(curl -u$SG_INTERNAL_USERNAME:$SG_INTERNAL_PWD -s --connect-timeout 1 --location http://{{ .Values.service.name}}.{{.Release.Namespace}}:9200/_cat/health | cut -d ' ' -f 4)
+          {{- else }}
+          clusterHealth=$(curl --insecure --cert /etc/elasticsearch/certs/admin.crt.pem --key /etc/elasticsearch/certs/admin.key.pem  -s --connect-timeout 1 --location https://{{ .Values.service.name}}.{{.Release.Namespace}}:9200/_cat/health | cut -d ' ' -f 4)
+          {{- end }}
+          {{- else }}
+          clusterHealth=$(curl -s --connect-timeout 1 --location http://{{ .Values.service.name}}.{{.Release.Namespace}}:9200/_cat/health | cut -d ' ' -f 4)
+          {{- end }}
+          echo "Cluster health is $clusterHealth"
+          if [ "${clusterHealth}" == "green" ]; then
+            echo "Cluster is in proper state."
+          elif [ "${clusterHealth}" == "yellow" -a {{.Values.esdata.replicas}} -eq 1 ]; then
+            echo "As only 1 data pod is running, cluster health is expected to be yellow. Please contact CSF-BELK team if support is needed."
+          else
+            echo "Please contact CSF-BELK team for support"
+          fi
+          echo "Pre-heal job completed "
+          {{- if .Values.istio.enabled }}
+          curl -X POST http://localhost:{{ .Values.istio.envoy_health_chk_port }}/quitquitquit
+          {{- end }}
+      {{- if and (.Values.searchguard.enable) (not .Values.istio.enabled) (.Values.searchguard.http_ssl) }}
+        volumeMounts:
+        - name: ssl
+          mountPath: "/etc/elasticsearch/certs/"
+          readOnly: true
+      volumes:
+      - name: ssl
+        secret:
+          ## Start of custom modification of original chart for CSFID-2092
+          secretName: {{ template "fullname" . }}-tls-client
+          items:
+          - key: tls.crt
+            path: admin.crt.pem
+          - key: tls.key
+            path: admin.key.pem
+          ## End of custom modification of original chart
+      {{- end }}
+{{- end }}

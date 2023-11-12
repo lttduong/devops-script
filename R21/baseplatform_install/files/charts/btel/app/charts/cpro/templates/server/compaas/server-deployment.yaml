@@ -1,0 +1,243 @@
+{{- if not .Values.ha.enabled -}}
+{{- if .Values.deployOnComPaaS }}
+apiVersion: {{ template "prometheus.apiVersionExtensionsV1Beta1orV1" . }}
+kind: Deployment
+metadata:
+  labels:
+    app: {{ template "prometheus.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    component: "{{ .Values.server.name }}"
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+{{- include "prometheus-labels" (tuple .Values.global.labels) | indent 4}}
+  name: {{ template "prometheus.server.DeploymentOrStsName" . }}
+{{- if .Values.global.annotations }}
+  annotations:
+{{- include "prometheus-annotations" (tuple .Values.global.annotations) | indent 4}}
+{{- end }}
+spec:
+  replicas: 1
+  {{- if .Values.server.strategy }}
+  strategy:
+{{ toYaml .Values.server.strategy | indent 4 }}
+  {{- end }}
+  {{- if semverCompare ">=1.16.0-0" .Capabilities.KubeVersion.GitVersion }}
+  selector:
+   matchLabels:
+    app: {{ template "prometheus.name" . }}
+    component: "{{ .Values.server.name }}"
+    release: {{ .Release.Name }}
+  {{- end }}
+  template:
+    metadata:
+    {{- if .Values.server.podAnnotations }}
+      annotations:
+{{ toYaml .Values.server.podAnnotations | indent 8 }}
+    {{- end }}
+{{- include "custom-annotations" (tuple .Values.custom.pod.annotations) | indent 8}}
+{{- if .Values.rbac.pspUseAppArmor }}
+{{- include "custom-annotations" (tuple .Values.custom.pod.apparmorAnnotations) | indent 8}}
+{{- end }}
+      labels:
+        app: {{ template "prometheus.name" . }}
+        component: "{{ .Values.server.name }}"
+        release: {{ .Release.Name }}
+        {{- include "custom-labels" (tuple .Values.custom.pod.labels) | indent 8}}
+    spec:
+{{- if .Values.server.schedulerName }}
+      schedulerName: "{{ .Values.server.schedulerName }}"
+{{- end }}
+      serviceAccountName: {{ template "prometheus.serviceAccountName" . }}
+      {{- if .Values.seLinuxOptions.enabled }}
+      securityContext:
+        seLinuxOptions:
+          level: {{ .Values.seLinuxOptions.level }}
+          role: {{ .Values.seLinuxOptions.role }}
+          type: {{ .Values.seLinuxOptions.type }}
+          user: {{ .Values.seLinuxOptions.user }}
+      {{- end }}
+      containers:
+        - name: {{ template "prometheus.server.configmapReloadContainerName" . }}
+          image: "{{ .Values.global.registry }}/{{ .Values.configmapReload.image.imageRepo }}:{{ .Values.configmapReload.image.imageTag }}"
+          imagePullPolicy: "{{ .Values.configmapReload.image.imagePullPolicy }}"
+          securityContext:
+            runAsUser: 1999
+          args:
+            - --volume-dir=/etc/config
+            {{- if .Values.certManager.used }}
+            - --volume-dir={{ .Values.server.etcdCertMountPath }}
+            {{- end }}
+            - --webhook-url=http://localhost:9090{{ template "server.routePrefixURL" . }}/-/reload
+          {{- range $key, $value := .Values.configmapReload.extraArgs }}
+            - --{{ $key }}={{ $value }}
+          {{- end }}
+          resources:
+{{ toYaml .Values.configmapReload.resources | indent 12 }}
+          volumeMounts:
+            {{- if .Values.certManager.used }}
+            - mountPath: {{ .Values.server.etcdCertMountPath }}
+              name: etcd-certs
+              readOnly: true
+            {{- end }}
+            - name: config-volume
+              mountPath: /etc/config
+              readOnly: true
+          {{- range .Values.configmapReload.extraConfigmapMounts }}
+            - name: {{ $.Values.configmapReload.name }}-{{ .name }}
+              mountPath: {{ .mountPath }}
+              readOnly: {{ .readOnly }}
+          {{- end }}
+        {{- if .Values.server.cbur.enabled }}
+        - name: cbura-sidecar
+          resources:
+{{ toYaml .Values.server.cbur.resources | indent 12 }}
+          image: "{{ .Values.global.registry }}/{{ .Values.server.cbur.image.imageRepo }}:{{ .Values.server.cbur.image.imageTag }}"
+          imagePullPolicy: "{{ .Values.server.cbur.image.imagePullPolicy }}"
+          securityContext:
+            runAsUser: 65534
+          volumeMounts:
+            - mountPath: /storage-volume
+              name: cbur-storage-volume
+        {{- end }}
+        - name: {{ template "prometheus.server.prometheusContainerName" . }}
+          image: "{{ .Values.global.registry1 }}/{{ .Values.server.image.imageRepo }}:{{ .Values.server.image.imageTag }}"
+          imagePullPolicy: "{{ .Values.server.image.imagePullPolicy }}"
+          securityContext:
+            runAsUser: 65534
+          args:
+          {{- if .Values.server.retention.time }}
+            - --storage.tsdb.retention.time={{ .Values.server.retention.time }}
+          {{- end }}
+          {{- if .Values.server.retention.size }}
+            - --storage.tsdb.retention.size={{ .Values.server.retention.size }}
+          {{- end }}
+            - --config.file=/etc/config/prometheus.yml
+            - --storage.tsdb.path={{ .Values.server.persistentVolume.mountPath2 }}
+            - --web.console.libraries=/etc/prometheus/console_libraries
+            - --web.console.templates=/etc/prometheus/consoles
+            - --web.enable-lifecycle
+          {{- range $key, $value := .Values.server.extraArgs }}
+            - --{{ $key }}={{ $value }}
+          {{- end }}
+          {{- range $key := .Values.server.extraKeys }}
+            - --{{ $key }}
+          {{- end }}
+          {{- if .Values.server.baseURL }}
+            - --web.external-url={{ .Values.server.baseURL }}
+          {{- end }}
+          {{- if ne .Values.server.prefixURL "" }}
+            - --web.route-prefix=/{{ .Values.server.prefixURL }}
+          {{- end }}
+          {{- if .Values.server.enableAdminApi }}
+            - --web.enable-admin-api
+          {{- end }}
+          ports:
+            - name: tcp-9090
+              containerPort: 9090
+          readinessProbe:
+            httpGet:
+              path: {{ template "server.routePrefixURL" . }}/-/ready
+              port: tcp-9090
+            initialDelaySeconds: 30
+            timeoutSeconds: 30
+          livenessProbe:
+            httpGet:
+              path: {{ template "server.routePrefixURL" . }}/-/healthy
+              port: tcp-9090
+            initialDelaySeconds: 30
+            timeoutSeconds: 30
+          resources:
+{{ toYaml .Values.server.resources | indent 12 }}
+          volumeMounts:
+            {{- if .Values.certManager.used }}
+            - mountPath: {{ .Values.server.etcdCertMountPath }}
+              name: etcd-certs
+              readOnly: true
+            {{- end }}
+            {{- if eq .Values.server.persistentVolume.mountPath "/prometheus" }}
+            - name: storage-volume-temp
+              mountPath: {{ .Values.server.persistentVolume.mountPath2 }}
+            {{- end }}
+            - name: config-volume
+              mountPath: /etc/config
+            - name: cbur-storage-volume
+              mountPath: /prometheus-backup
+            - name: storage-volume
+              mountPath: {{ .Values.server.persistentVolume.mountPath }}
+              subPath: "{{ .Values.server.persistentVolume.subPath }}"
+          {{- range .Values.server.extraHostPathMounts }}
+            - name: {{ .name }}
+              mountPath: {{ .mountPath }}
+              readOnly: {{ .readOnly }}
+          {{- end }}
+          {{- range .Values.server.extraConfigmapMounts }}
+            - name: {{ $.Values.server.name }}-{{ .name }}
+              mountPath: {{ .mountPath }}
+              readOnly: {{ .readOnly }}
+          {{- end }}
+          {{- range .Values.server.extraSecretMounts }}
+            - name: {{ .name }}
+              mountPath: {{ .mountPath }}
+              readOnly: {{ .readOnly }}
+          {{- end }}
+    {{- if .Values.server.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.server.nodeSelector | indent 8 }}
+    {{- end }}
+    {{- if .Values.server.tolerations }}
+      tolerations:
+{{ toYaml .Values.server.tolerations | indent 8 }}
+    {{- end }}
+    {{- if .Values.server.affinity }}
+      affinity:
+{{ toYaml .Values.server.affinity | indent 8 }}
+    {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.server.terminationGracePeriodSeconds }}
+      volumes:
+        {{- if .Values.certManager.used }}
+        - name: etcd-certs
+          secret:
+            secretName: {{ template "certManager.secretName" . }}
+            defaultMode: 400
+        {{- end }}
+        - name: storage-volume-temp
+          emptyDir: {}
+        - name: cbur-storage-volume
+          emptyDir: {}
+        - name: config-volume
+          configMap:
+            name: {{ if .Values.server.configMapOverrideName }}{{ .Release.Name }}-{{ .Values.server.configMapOverrideName }}{{- else }}{{ template "prometheus.server.fullname" . }}{{- end }}
+        - name: storage-volume
+        {{- if .Values.server.persistentVolume.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ if .Values.server.persistentVolume.existingClaim }}{{ .Values.server.persistentVolume.existingClaim }}{{- else }}{{ template "prometheus.server.fullname" . }}{{- end }}
+        {{- else }}
+          emptyDir: {}
+        {{- end -}}
+      {{- range .Values.server.extraHostPathMounts }}
+        - name: {{ .name }}
+          hostPath:
+            path: {{ .hostPath }}
+      {{- end }}
+      {{- range .Values.configmapReload.extraConfigmapMounts }}
+        - name: {{ $.Values.configmapReload.name }}-{{ .name }}
+          configMap:
+            name: {{ .configMap }}
+      {{- end }}
+      {{- range .Values.server.extraConfigmapMounts }}
+        - name: {{ $.Values.server.name }}-{{ .name }}
+          configMap:
+            name: {{ .configMap }}
+      {{- end }}
+      {{- range .Values.server.extraSecretMounts }}
+        - name: {{ .name }}
+          secret:
+            secretName: {{ .secretName }}
+      {{- end }}
+      {{- range .Values.configmapReload.extraConfigmapMounts }}
+        - name: {{ .name }}
+          configMap:
+            name: {{ .configMap }}
+      {{- end }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "alarm.fullname" . }}
+  labels:
+    app: {{ template "alarm.name" . }}
+    chart: {{ .Chart.Name }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+    version: {{ .Chart.Version }}
+spec:
+  type: {{ .Values.restServiceType }}
+  ports:
+  - name: http-restful
+    port: {{ .Values.restPort }}
+    targetPort: http-restful
+    protocol: TCP
+{{- if (and (eq .Values.restServiceType "NodePort") (not (empty .Values.restNodePort))) }}
+    nodePort: {{ .Values.restNodePort }}
+{{- end }}
+  selector:
+    app: {{ template "alarm.name" . }}
+    release: {{ .Release.Name }}

@@ -1,0 +1,198 @@
+apiVersion: {{ template "prometheus.apiVersionAppsV1Beta1orV1" . }}
+kind: StatefulSet
+metadata:
+  name: {{ template "gen3gppxml.stsName" . }}
+  labels:
+    app: {{ template "gen3gppxml.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+    {{- if .Values.global.labels }}
+{{ toYaml .Values.global.labels | indent 4}}
+    {{- end }}
+{{- if .Values.global.annotations }}
+  annotations:
+{{- include "gen3gpp-annotations" (tuple .Values.global.annotations) | indent 4}}
+{{- end }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  {{- if semverCompare ">=1.16.0-0" .Capabilities.KubeVersion.GitVersion }}
+  selector:
+   matchLabels:
+    app: {{ template "gen3gppxml.name" . }}
+    release: {{ .Release.Name }}
+  {{- if .Values.helm3 }}
+  serviceName: {{ template "gen3gppxml.fullname" . }}
+  {{- end }}
+  {{- end }}
+  updateStrategy:
+    type: RollingUpdate
+  volumeClaimTemplates:
+  - metadata:
+      name: gen3gppxml-data
+    spec:
+      accessModes: 
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: {{ .Values.persistentVolume.size }}
+      {{- if .Values.persistentVolume.storageClass }}
+      storageClassName: "{{ .Values.persistentVolume.storageClass }}"
+      {{- end }}
+  template:
+    metadata:
+      labels:
+        app: {{ template "gen3gppxml.name" . }}
+        release: {{ .Release.Name }}
+        {{- include "custom-labels" (tuple .Values.custom.pod.labels) | indent 8}}
+      annotations:
+{{- include "custom-annotations" (tuple .Values.custom.pod.annotations) | indent 8}}
+{{- if .Values.rbac.pspUseAppArmor }}
+{{- include "custom-annotations" (tuple .Values.custom.pod.apparmorAnnotations) | indent 8}}
+{{- end }}
+        sidecar.istio.io/inject: "{{ .Values.istio.enable }}"
+    spec:
+      securityContext:
+        fsGroup: 5678
+      {{- if .Values.seLinuxOptions.enabled }}
+        seLinuxOptions:
+          level: {{ .Values.seLinuxOptions.level }}
+          role: {{ .Values.seLinuxOptions.role }}
+          type: {{ .Values.seLinuxOptions.type }}
+          user: {{ .Values.seLinuxOptions.user }}
+      {{- end }}
+      serviceAccountName: {{ template "gen3gpp.serviceAccountName" . }}
+      volumes:
+        - name: env-configmap
+          configMap:
+            name: {{ template "gen3gppxml.fullname" . }}-env-configmap
+        - name: configs-configmap
+          configMap:
+            name: {{ template "gen3gppxml.fullname" . }}-configs-configmap
+        - name: secrets
+          secret:
+            secretName: {{ template "gen3gppxml.fullname" . }}-secrets
+        - name: secrets-sftp-passwd-key
+          secret:
+            secretName: {{ template "gen3gppxml.fullname" . }}-secrets-sftp-passwd-key
+      containers:
+        - name: {{ template "gen3gppxml.gen3gppxmlContainer" . }}
+          securityContext:
+            runAsUser: {{ .Values.containerSecurityContext.runAsUser }}
+            runAsGroup: 5678
+          image: "{{ .Values.global.registry }}/{{ .Values.image.imageRepo }}:{{ .Values.image.imageTag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          resources: 
+{{ toYaml .Values.resources | indent 12 }}
+          ports:
+            - name: tcp-http
+              containerPort: 8080
+            - name: tcp-https
+              containerPort: 8081
+          volumeMounts:
+          - name: env-configmap
+            mountPath: /etc/gen3gppxml/env/
+          - name: configs-configmap
+            mountPath: /etc/gen3gppxml/conf/
+          - name: secrets
+            mountPath: /etc/gen3gppxml/secret/
+          - name: gen3gppxml-data
+            mountPath: "/var/3gppxml"
+        - name: {{ template "gen3gppxml.sftpContainer" . }}
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+          image: "{{ .Values.global.registry }}/{{ .Values.sftp.image.repository}}:{{ .Values.sftp.image.tag}}"
+          imagePullPolicy: {{ .Values.sftp.image.pullPolicy }}
+          resources: 
+{{ toYaml .Values.sftp.resources | indent 12 }}
+          ports:
+            - name: tcp-proftpd
+              containerPort: {{ .Values.service.sftpPort }}
+          volumeMounts:
+          - name: secrets-sftp-passwd-key
+            mountPath: /etc/sftp/secret/
+          - name: gen3gppxml-data
+            mountPath: "/var/3gppxml"
+          env:
+            - name: "PROFTPD_USER"
+              value: {{ .Values.sftp.user}}
+{{- if .Values.sftp.authentication.passwd.enabled }}
+            - name: "PROFTPD_PASSWD"
+              value: {{ .Values.sftp.authentication.passwd.passwd }}
+{{- end }}
+            - name: "USERID"
+              value: "1234"
+            - name: "GROUPID"
+              value: "5678"
+            - name: "LOG_LEVEL"
+              value: "{{ .Values.sftp.logLevel }}"
+        - name: {{ template "gen3gppxml.configMapReloadContainer" . }}
+          securityContext:
+            runAsUser: {{ .Values.containerSecurityContext.runAsUser }}
+            runAsGroup: 5678
+          image: "{{ .Values.global.registry }}/{{ .Values.configmapReload.image.repository }}:{{ .Values.configmapReload.image.tag }}"
+          imagePullPolicy: {{ .Values.configmapReload.image.pullPolicy }}
+          args:
+            - --volume-dir=/etc/gen3gppxml/conf
+            - --webhook-url=http://localhost:8080/v1/configuration/reload
+          volumeMounts:
+          - name: configs-configmap
+            mountPath: "/etc/gen3gppxml/conf"
+            readOnly: true
+          resources: 
+{{ toYaml .Values.configmapReload.resources | indent 12 }}
+
+{{- if .Values.cbur.enabled }}
+        - name: cbura-sidecar
+          securityContext:
+            runAsUser: {{ .Values.containerSecurityContext.runAsUser }}
+            runAsGroup: 5678
+          image: "{{ .Values.global.registry2 }}/{{ .Values.cbur.image.repository }}:{{ .Values.cbur.image.tag }}"
+          imagePullPolicy: {{ .Values.cbur.image.pullPolicy }}
+          volumeMounts:
+          - name:  gen3gppxml-data
+            mountPath: /gen3gppxml-data
+          resources: 
+{{ toYaml .Values.cbur.resources | indent 12 }}
+{{- end }}
+
+{{- if .Values.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.nodeSelector | indent 8 }}
+{{- end }}
+{{- if .Values.tolerations }}
+      tolerations:
+{{ toYaml .Values.tolerations | indent 8 }}
+{{- end }}
+      affinity:
+        podAntiAffinity:
+{{- if eq .Values.antiAffinityMode "hard" }}
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - {{ template "gen3gppxml.name" . }}
+              - key: release
+                operator: In
+                values:
+                - {{ .Release.Name }}
+            topologyKey: "kubernetes.io/hostname"
+{{- else }}
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - {{ template "gen3gppxml.name" . }}
+                - key: release
+                  operator: In
+                  values:
+                  - {{ .Release.Name }}
+              topologyKey: "kubernetes.io/hostname"
+{{- end }}

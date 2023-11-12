@@ -1,0 +1,28 @@
+## Start of custom modification of original chart
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: base-platform-sso-logout
+  annotations:
+    kubernetes.io/ingress.class: {{ .Values.ingress.ingressClass }}
+    nginx.ingress.kubernetes.io/rewrite-target: /logout
+  {{- range $key, $value := .Values.ingress.annotations }}
+    {{ $key }}: {{ $value | quote }}
+  {{- end }}
+    nginx.ingress.kubernetes.io/limit-rps: "5"
+    nginx.ingress.kubernetes.io/limit-connections: "2"
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      access_by_lua_block {
+        require("keycloak").authenticate()
+      }
+spec:
+  rules:
+  - http:
+      paths:
+      - path: /logout
+        backend:
+        # Please note that this is the endpoint used by the resty.openidc lua library.
+        # User gets redirected here, but in authenticate() method redirects once again to initial destination.
+          serviceName: ckey-ckey
+          servicePort: 8443
+## End of custom modification of original chart

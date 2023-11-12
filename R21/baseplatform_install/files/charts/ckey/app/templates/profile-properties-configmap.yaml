@@ -1,0 +1,16 @@
+## Start of custom modification of original chart
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "keycloak.fullname" . }}-profile-properties
+  labels:
+    app: {{ template "keycloak.fullname" . }}
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+data:
+  profile.properties: |
+  {{- if .Values.fineGrainedPermissionsEnabled }}
+    feature.admin_fine_grained_authz=enabled
+  {{- end }}
+## End of custom modification of original chart

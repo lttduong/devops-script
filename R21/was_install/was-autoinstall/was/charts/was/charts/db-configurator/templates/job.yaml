@@ -1,0 +1,73 @@
+{{- if .Values.createDB.enabled }}
+{{- range $name, $entry := .Values.jobs }}
+{{- if .enabled }}
+{{ with $ }}
+---
+apiVersion: extensions/v1beta1
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name}}-{{ .Chart.Name }}-{{ tpl $entry.secretName $ }}-job
+  namespace: "{{ .Values.global.BP_CONFIG_NAMESPACE }}"
+  annotations:
+    "helm.sh/hook": {{ tpl ($entry.jobHook | default .Values.global.helmHooks.appdbconfig.hook) . | quote }}
+    "helm.sh/hook-weight": {{ tpl ($entry.jobHookWeight | default .Values.global.helmHooks.appdbconfig.weight) . | quote }}
+    "helm.sh/hook-delete-policy": "before-hook-creation"
+spec:
+  template:
+    metadata:
+      labels:
+        name: {{ .Chart.Name }}
+    spec:
+      securityContext:
+        runAsUser: 1773
+        runAsGroup: 1773
+        fsGroup: 1773
+      restartPolicy: Never
+      containers:
+      - name: {{ .Chart.Name }}-{{ $name }}
+        terminationMessagePolicy: FallbackToLogsOnError
+        image: {{ .Values.global.registry }}/{{ .Values.config.cmdb.configurator.image.name }}:{{ tpl .Values.config.cmdb.configurator.image.tag . }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        args: [ "mysql" ]
+        env:
+        - name: MYSQL_USER
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.config.cmdb.configurator.secretName }}
+              key: mariadb-user
+        - name: MYSQL_PWD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.config.cmdb.configurator.secretName }}
+              key: mariadb-password
+        - name: MYSQL_HOST
+          value: {{ (tpl .Values.global.mariadbExternalName .) | quote }}
+        - name: MYSQL_TCP_PORT
+          value: {{ .Values.global.mariadbPort | quote }}
+        - name: MYSQL_SQL_FILE
+          value: "/opt/scripts/script.sql"
+        - name: USE_CLEARTEXT
+          value: "0"
+        - name: MYSQL_SSL_CA_FILE_PATH
+          value: "/etc/my.cnf.d/ssl/ca.crt"
+        volumeMounts:
+        - name: script-volume
+          mountPath: "/opt/scripts/"
+        - name: {{ .Values.global.netguardConfiguration.caCert.secret }}
+          mountPath: "/etc/my.cnf.d/ssl"
+          readOnly: true
+      volumes:
+        - name: script-volume
+          secret:
+            secretName: {{ $.Release.Name}}-{{ $.Chart.Name}}-{{ tpl $entry.secretName $ }}-script
+        - name: {{ .Values.global.netguardConfiguration.caCert.secret }}
+          secret:
+            secretName: {{ .Values.global.netguardConfiguration.caCert.secret }}
+            items:
+            - key: ca.crt
+              path: ca.crt
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end -}}

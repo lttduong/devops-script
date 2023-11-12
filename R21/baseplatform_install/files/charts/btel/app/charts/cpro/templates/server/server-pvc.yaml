@@ -1,0 +1,44 @@
+{{- if not .Values.ha.enabled -}}
+{{- if .Values.server.persistentVolume.enabled -}}
+{{- if not .Values.server.persistentVolume.existingClaim -}}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+{{- if or .Values.global.annotations .Values.server.persistentVolume.annotations }}
+  annotations:
+{{- include "prometheus-annotations" (tuple .Values.global.annotations) | indent 4}}
+{{- with .Values.server.persistentVolume.annotations }}
+{{ toYaml . | indent 4 }}
+{{- end }}
+{{- end }}
+  labels:
+    app: {{ template "prometheus.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    component: "{{ .Values.server.name }}"
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+{{- include "prometheus-labels" (tuple .Values.global.labels) | indent 4}}
+  name: {{ template "prometheus.server.fullname" . }}
+spec:
+  accessModes:
+{{ toYaml .Values.server.persistentVolume.accessModes | indent 4 }}
+{{- if .Values.server.persistentVolume.storageClass }}
+{{- if (eq "-" .Values.server.persistentVolume.storageClass) }}
+  storageClassName: ""
+{{- else }}
+  storageClassName: "{{ .Values.server.persistentVolume.storageClass }}"
+{{- end }}
+{{- end }}
+  resources:
+    requests:
+      storage: "{{ .Values.server.persistentVolume.size }}"
+  ## Start of custom modification of original chart for CSFID-2996
+  {{- if .Values.server.persistence.createPv }}
+  selector:
+    matchLabels:
+{{ .Values.server.persistence.labels | indent 6 }}
+  {{- end }}
+  ## End of custom modification of original chart
+{{- end -}}
+{{- end -}}
+{{- end -}}

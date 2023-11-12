@@ -1,0 +1,53 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "gen3gppxml.fullname" . }}
+  labels:
+    app: {{ template "gen3gppxml.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+    {{- if .Values.global.labels }}
+{{ toYaml .Values.global.labels | indent 4}}
+    {{- end }}
+{{- if .Values.global.annotations }}
+  annotations:
+{{- include "gen3gpp-annotations" (tuple .Values.global.annotations) | indent 4}}
+{{- end }}
+spec:
+  type: {{ .Values.service.serviceType }}
+  ports:
+    - port: {{ .Values.service.sftpPort }}
+      targetPort: tcp-proftpd
+      name: tcp-proftpd
+      {{- if (and (eq .Values.service.serviceType "NodePort") (not (empty .Values.service.sftpNodePort))) }}
+      nodePort: {{ .Values.service.sftpNodePort }}
+      {{- end }}
+      {{- if (eq .Values.service.serviceType "ClusterIP") }}
+      nodePort: null
+      {{- end }}
+    - port: {{ .Values.service.restHttpPort }}
+      targetPort: tcp-http
+      name: tcp-http
+      # Start of custom modification of original chart file, CSFS-31348
+      {{- if (and (eq .Values.service.serviceType "NodePort") (not (empty .Values.service.restHttpNodePort))) }}
+      nodePort: {{ .Values.service.restHttpNodePort }}
+      {{- end }}
+      # End of custom modification of original chart file
+      {{- if (eq .Values.service.serviceType "ClusterIP") }}
+      nodePort: null
+      {{- end }}
+    - port: {{ .Values.service.restHttpsPort }}
+      targetPort: tcp-https
+      name: tcp-https
+      # Start of custom modification of original chart file, CSFS-31348
+      {{- if (and (eq .Values.service.serviceType "NodePort") (not (empty .Values.service.restHttpsNodePort))) }}
+      nodePort: {{ .Values.service.restHttpsNodePort }}
+      {{- end }}
+      # End of custom modification of original chart file
+      {{- if (eq .Values.service.serviceType "ClusterIP") }}
+      nodePort: null
+      {{- end }}
+  selector:
+    app: {{ template "gen3gppxml.name" . }}
+    release: {{ .Release.Name }}

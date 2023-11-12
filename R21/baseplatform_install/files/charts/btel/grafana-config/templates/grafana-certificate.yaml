@@ -1,0 +1,17 @@
+apiVersion: {{ .Values.certManager.api }}
+kind: Certificate
+metadata:
+  name: {{ .Chart.Name }}-grafana-cert
+  namespace: {{ .Release.Namespace }}
+spec:
+  secretName: {{ .Chart.Name }}-grafana-tls
+  issuerRef:
+    name: {{ default "ncms-ca-issuer" .Values.certManager.issuerRef.name }}
+    kind: {{ default "ClusterIssuer" .Values.certManager.issuerRef.kind }}
+  duration: {{ default "8760h" .Values.certManager.duration }}
+  renewBefore: {{ default "360h" .Values.certManager.renewBefore }}
+  commonName: {{ .Values.config.grafana.configurator.clientName }}
+  usages:
+    - client auth
+#  organization:
+#    - Nokia

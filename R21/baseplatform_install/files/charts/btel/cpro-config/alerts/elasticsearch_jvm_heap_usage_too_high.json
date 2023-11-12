@@ -1,0 +1,13 @@
+{
+  "alert": "ElasticSearchJVMHeapUsageTooHigh",
+  "expr": "es_jvm_mem_heap_used_bytes / es_jvm_mem_heap_max_bytes > 0.85",
+  "for": "15m",
+  "labels": {
+    "alert_id": "6001",
+    "alert_severity": "CRITICAL"
+  },
+  "annotations": {
+    "description": "Alarm - `Heap usage is over 85% for last 15m. Please check!`",
+    "summary": "Instance - {{ $labels.instance }}"
+  }
+}

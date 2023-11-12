@@ -1,0 +1,21 @@
+{{- if not .Values.global.configMapOverrideName -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    app: {{ template "cnot_configmap.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    component: "{{ .Values.cnot_configmap.name }}"
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+  name: {{ template "cnot_configmap.fullname" . }}-conf
+data:
+{{- range $key, $value := .Values.cnotFiles }}
+  {{ $key }}: |
+{{- if eq $key "app_conf_internal.properties" }}
+{{ $value | default "" | indent 4 }}
+{{ else }}
+{{ toYaml $value | default "" | indent 4 }}
+{{- end -}}
+{{- end -}}
+{{- end -}}

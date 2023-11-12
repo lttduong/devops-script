@@ -1,0 +1,20 @@
+{{- if .Values.cbur.enabled }}
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: {{ .Chart.Name }}-nfs-pvc-ro
+  labels:
+   app: {{ .Chart.Name }}
+   release: "{{ .Release.Name }}"
+   heritage: "{{ .Release.Service }}"
+   backup: "true"
+spec:
+  storageClassName: "" # static PV provisioning, refer to nfs-pv.yaml, enhancement https://jiradc2.int.net.nokia.com/browse/NSMC-1338
+  accessModes:
+    - ReadOnlyMany
+  resources:
+    requests:
+      storage: 1Mi # doesn't matter - NFS share (having its own size) is mounted
+  volumeName: {{ .Chart.Name }}-nfs-pv-ro
+{{- end}}

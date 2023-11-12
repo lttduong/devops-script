@@ -1,0 +1,227 @@
+image:
+  registry: {{ compaas.artifactoryUrl | default('csf-docker-candidates.repo.lab.pl.alcatel-lucent.com') }}
+  registry1: {{ compaas.artifactoryUrl | default('csf-docker-delivered.repo.lab.pl.alcatel-lucent.com') }}
+  registry2: {{ compaas.artifactoryUrl | default('csf-docker-delivered.repo.lab.pl.alcatel-lucent.com') }}
+  repository: "crmq/centos/rabbitmq_3.8.8-1.el8_erlang_23.0.3-1.el8"
+  tag: "9051"
+  pullPolicy: "IfNotPresent"
+
+rbac:
+  enabled: true
+  serviceAccountName:
+  serviceAccountNamePostDel:
+  serviceAccountNameScale:
+  serviceAccountNameAdminForgetnode:
+  test:
+    enabled: true
+    serviceAccountNameHelmTest:
+    helmTestSecret:
+
+istio:
+  enabled: {{ (istio.enabled) | default(model.properties.istio.enabled.default) }}
+  cni:
+    enabled: {{ (istio.cni.enabled) | default(model.properties.istio.cni.enabled.default) }}
+
+istioIngress:
+  enabled: {{ (istioIngress | default("")).enabled | default(model.properties.istioIngress.properties.enabled.default) }}
+  host: {{ (istioIngress | default("")).host | default(model.properties.istioIngress.properties.host.default) }}
+  port: {{ (istioIngress | default("")).port | default(model.properties.istioIngress.properties.port.default) }}
+  selector: {istio: ingressgateway}
+
+rabbitmq:
+  dynamicConfig:
+    enabled: {{ (rabbitmq.dynamicConfig | default("")).enabled | default(model.properties.rabbitmq.properties.dynamicConfig.properties.enabled.default) }}
+    timeout: {{ (rabbitmq.dynamicConfig | default("")).timeout | default(model.properties.rabbitmq.properties.dynamicConfig.properties.timeout.default) }}
+    parameters: {{ (rabbitmq.dynamicConfig | default("")).parameters | default(model.properties.rabbitmq.properties.dynamicConfig.properties.parameters.default) }}
+  username: {{ (rabbitmq | default("")).username | default(model.properties.rabbitmq.properties.username.default) }}
+  {% if (rabbitmq | default("")).password is defined %}
+  password: {{ (rabbitmq | default("")).password }}
+  {% else %}
+  #password:
+  {% endif %}
+  {% if (rabbitmq | default("")).erlangCookie is defined %}
+  erlangCookie: {{ (rabbitmq | default("")).erlangCookie }}
+  {% else %}
+  #erlangCookie:
+  {% endif %}
+  amqpPort: {{ (rabbitmq | default("")).amqpPort | default(model.properties.rabbitmq.properties.amqpPort.default) }}
+  amqpSvc: {{ (rabbitmq | default("")).amqpSvc | default(model.properties.rabbitmq.properties.amqpSvc.default) }}
+  {% if (rabbitmq | default("")).rabbitmqClusterNodeName is defined %}
+  rabbitmqClusterNodeName: {{ (rabbitmq | default("")).rabbitmqClusterNodeName }}
+  {% else %}
+  #rabbitmqClusterNodeName:
+  {% endif %}
+  plugins: |-
+    [{{ (rabbitmq | default("")).plugins | default(model.properties.rabbitmq.properties.plugins.default) }}].
+
+  configuration: |-
+    {{ (rabbitmq | default("")).configuration | default(model.properties.rabbitmq.properties.configuration.default) | indent }}
+
+  advancedConfig: |-
+    {{ (rabbitmq | default("")).advancedConfig | default(model.properties.rabbitmq.properties.advancedConfig.default) | indent }}
+
+  environment: |-
+    {{ (rabbitmq | default("")).environment | default(model.properties.rabbitmq.properties.environment.default) | indent }}
+  mqtt:
+    enabled: {{ (rabbitmq.mqtt | default("")).enabled | default(model.properties.rabbitmq.properties.mqtt.properties.enabled.default) }}
+    vhost: {{ (rabbitmq.mqtt | default("")).vhost | default(model.properties.rabbitmq.properties.mqtt.properties.vhost.default) }}
+    exchange: {{ (rabbitmq.mqtt | default("")).exchange | default(model.properties.rabbitmq.properties.mqtt.properties.exchange.default) }}
+    DefaultTcpPort: {{ (rabbitmq.mqtt | default("")).DefaultTcpPort | default(model.properties.rabbitmq.properties.mqtt.properties.DefaultTcpPort.default) }}
+    enabledSsl: {{ (rabbitmq.mqtt | default("")).enabledSsl | default(model.properties.rabbitmq.properties.mqtt.properties.enabledSsl.default) }}
+    DefaultsslPort: {{ (rabbitmq.mqtt | default("")).DefaultSslPort | default(model.properties.rabbitmq.properties.mqtt.properties.DefaultSslPort.default) }}
+
+  clustering:
+    address_type: {{ (rabbitmq.clustering | default("")).address_type | default(model.properties.rabbitmq.properties.clustering.properties.address_type.default) }}
+    k8s_domain: {{ (rabbitmq.clustering | default("")).k8s_domain | default(model.properties.rabbitmq.properties.clustering.properties.k8s_domain.default) }}
+
+  tls:
+    cacert: |
+    {{ (rabbitmq.tls | default("")).cacert | default(model.properties.rabbitmq.properties.tls.properties.cacert.default) | indent }}
+    cert: |
+    {{ (rabbitmq.tls | default("")).cert | default(model.properties.rabbitmq.properties.tls.properties.cert.default) | indent }}
+    key: |
+    {{ (rabbitmq.tls | default("")).key | default(model.properties.rabbitmq.properties.tls.properties.key.default) | indent }}
+    verify_option: {{ (rabbitmq.tls | default("")).verify_option | default(model.properties.rabbitmq.properties.tls.properties.verify_option.default) }}
+    fail_if_no_peer_cert: {{ (rabbitmq.tls | default("")).fail_if_no_peer_cert | default(model.properties.rabbitmq.properties.tls.properties.fail_if_no_peer_cert.default) }}
+    test: ""
+    ssl_port: {{ (rabbitmq.tls | default("")).ssl_port | default(model.properties.rabbitmq.properties.tls.properties.ssl_port.default) }}
+    certmanager:
+      used: false
+      # 8760h=One year
+      duration: "8760h"
+      # 360h=15 days
+      renewBefore: "360h"
+      issuerName: "ca-k8s"
+      issuerType: "ClusterIssuer"
+      commonName:
+      ipAddresses:
+      keySize: 3072
+      domain: svc.cluster.local
+
+  management:
+    enabled: {{ (rabbitmq.management | default("")).enabled | default(model.properties.rabbitmq.properties.management.properties.enabled.default) }}
+    port: {{ (rabbitmq.management | default("")).port | default(model.properties.rabbitmq.properties.management.properties.port.default) }}
+    cacert: |
+    {{ (rabbitmq.management | default("")).cacert | default(model.properties.rabbitmq.properties.management.properties.cacert.default) | indent }}
+    cert: |
+    {{ (rabbitmq.management | default("")).cert | default(model.properties.rabbitmq.properties.management.properties.cert.default) | indent }}
+    key: |
+    {{ (rabbitmq.management | default("")).key | default(model.properties.rabbitmq.properties.management.properties.key.default) | indent }}
+    certmanager:
+      used: false
+      # 8760h=One year
+      duration: "8760h"
+      # 360h=15 days
+      renewBefore: "360h"
+      issuerName: "ca-k8s"
+      issuerType: "ClusterIssuer"
+      commonName:
+      ipAddresses:
+      keySize: 3072
+      domain: svc.cluster.local
+  
+  prometheus:
+    enabled: {{ (rabbitmq.prometheus | default("")).enabled | default(model.properties.rabbitmq.properties.prometheus.properties.enabled.default) }}
+    port: {{ (rabbitmq.prometheus | default("")).port | default(model.properties.rabbitmq.properties.prometheus.properties.port.default) }}
+
+  backuprestore:
+    enabled: {{ (rabbitmq.backuprestore | default("")).enabled | default(model.properties.rabbitmq.properties.backuprestore.properties.enabled.default) }}
+    backendMode: "{{ (rabbitmq.backuprestore | default("")).backendMode | default(model.properties.rabbitmq.properties.backuprestore.properties.backendMode.default) }}"
+    cronJob: "{{ (rabbitmq.backuprestore | default("")).cronJob | default(model.properties.rabbitmq.properties.backuprestore.properties.cronJob.default) }}"
+    brOption: {{ (rabbitmq.backuprestore | default("")).brOption | default(model.properties.rabbitmq.properties.backuprestore.properties.brOption.default) }}
+    maxCopy: {{ (rabbitmq.backuprestore | default("")).maxCopy | default(model.properties.rabbitmq.properties.backuprestore.properties.maxCopy.default) }}
+    agent:
+      imageRepo: cbur/cbura
+      imageTag: 1.0.3-983
+      imagePullPolicy: IfNotPresent
+
+  rsyslog:
+    enabled: {{ (rabbitmq.rsyslog | default("")).enabled | default(model.properties.rabbitmq.properties.rsyslog.properties.enabled.default) }}
+    repository: crmq/rsyslog/rsyslog_8.37.0-13.el8
+    tag: "20200519124430257-646"
+    imagePullPolicy: IfNotPresent
+    level: {{ (rabbitmq.rsyslog | default("")).level | default(model.properties.rabbitmq.properties.rsyslog.properties.level.default) }}
+    transport: {{ (rabbitmq.rsyslog | default("")).transport | default(model.properties.rabbitmq.properties.rsyslog.properties.transport.default) }}
+
+  clog:
+    bcmt:
+      enabled: {{ (rabbitmq.clog | default("")).enabled | default(model.properties.rabbitmq.properties.clog.properties.enabled.default) }}
+    syslog:
+      port: 2514
+      format: "rfc5424"
+      level: {{ (rabbitmq.clog | default("")).level | default(model.properties.rabbitmq.properties.clog.properties.level.default) }}
+      transport: {{ (rabbitmq.clog | default("")).transport | default(model.properties.rabbitmq.properties.clog.properties.transport.default) }}
+
+  console:
+    enabled: false
+    level: info
+      
+  thirdPartyPlugin:
+  {% if (rabbitmq.thirdPartyPlugin is defined) and rabbitmq.thirdPartyPlugin %}
+  {% for item in rabbitmq.thirdPartyPlugin %}
+    - name: {{ item }}
+      path: https://repo.lab.pl.alcatel-lucent.com/csf-generic-delivered/CRMQ/CommunityPlugins
+  {% endfor %}
+  {% endif %}
+
+serviceType: "ClusterIP"
+
+persistence:
+  reservePvc: {{ (persistence | default("")).reservePvc | default(model.properties.persistence.properties.reservePvc.default) }}
+  reservePvcForScalein: {{ (persistence | default("")).reservePvcForScalein | default(model.properties.persistence.properties.reservePvcForScalein.default) }}
+  data:
+    enabled: {{ (persistence.data | default("")).enabled | default(model.properties.persistence.properties.data.properties.enabled.default) }}
+    storageClass: {{ compaas.storageClass | default("default") }}
+    accessMode: {{ (persistence.data | default("")).accessMode | default(model.properties.persistence.properties.data.properties.accessMode.default) }}
+    size: {{ (persistence.data | default("")).size | default(model.properties.persistence.properties.data.properties.size.default) }}
+  log:
+    enabled: {{ (persistence.log | default("")).enabled | default(model.properties.persistence.properties.log.properties.enabled.default) }}
+    storageClass: {{ compaas.storageClass | default("default") }}
+    accessMode: {{ (persistence.log | default("")).accessMode | default(model.properties.persistence.properties.log.properties.accessMode.default) }}
+    size: {{ (persistence.log | default("")).size | default(model.properties.persistence.properties.log.properties.size.default) }}
+
+kubectlImage:
+  repository: tools/kubectl
+  tag: v1.17.5-nano
+
+helmTestImage:
+  repository: crmq-test/rabbitmq-test
+  tag: 20200423073313149-178
+
+resources:
+  requests:
+    memory: {{ (resources | default("")).memory | default(model.properties.resources.properties.memory.default) }}
+    cpu: {{ (resources | default("")).cpu | default(model.properties.resources.properties.cpu.default) }}
+  limits:
+    memory: {{ (resources | default("")).memoryLimit | default(model.properties.resources.properties.memoryLimit.default) }}
+    cpu: {{ (resources | default("")).cpuLimit | default(model.properties.resources.properties.cpuLimit.default) }}
+
+replicas: {{ (replicas) | default(model.properties.replicas.default) }}
+
+## Node labels and tolerations for pod assignment
+## ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#nodeselector
+## ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#taints-and-tolerations-beta-feature
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+## annotations for rabbitmq pods
+podAnnotations: {}
+
+svcAnnotations: { {{ (svcAnnotations) | default(model.properties.svcAnnotations.default) }} }
+
+livenessProbe:
+  enabled: {{ (livenessProbe | default("")).enabled | default(model.properties.livenessProbe.properties.enabled.default) }}
+  initialDelaySeconds: {{ (livenessProbe | default("")).initialDelaySeconds | default(model.properties.livenessProbe.properties.initialDelaySeconds.default) }}
+  timeoutSeconds: {{ (livenessProbe | default("")).timeoutSeconds | default(model.properties.livenessProbe.properties.timeoutSeconds.default) }}
+  failureThreshold: {{ (livenessProbe | default("")).failureThreshold | default(model.properties.livenessProbe.properties.failureThreshold.default) }}
+
+readinessProbe:
+  enabled: {{ (readinessProbe | default("")).enabled | default(model.properties.readinessProbe.properties.enabled.default) }}
+  initialDelaySeconds: {{ (readinessProbe | default("")).initialDelaySeconds | default(model.properties.readinessProbe.properties.initialDelaySeconds.default) }}
+  timeoutSeconds: {{ (readinessProbe | default("")).timeoutSeconds | default(model.properties.readinessProbe.properties.timeoutSeconds.default) }}
+  periodSeconds: {{ (readinessProbe | default("")).periodSeconds | default(model.properties.readinessProbe.properties.periodSeconds.default) }}
+
+ingress:
+  enabled: {{ (ingress | default("")).enabled | default(model.properties.ingress.properties.enabled.default) }}
+  hostName:  {{ (ingress | default("")).hostName | default(model.properties.ingress.properties.hostName.default) }}

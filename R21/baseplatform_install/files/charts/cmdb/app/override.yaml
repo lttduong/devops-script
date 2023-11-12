@@ -1,0 +1,48 @@
+certManager:
+  apiVersion: "cert-manager.io/v1alpha2"
+mariadb:
+  use_tls: true
+  repl_use_ssl: true
+  certificates:
+    secret: cmgr
+    ca_cert: cacert.pem
+  audit_logging:
+    enabled: true
+    events: "CONNECT,QUERY_DML_NO_SELECT,QUERY_DCL,QUERY_DDL"
+  mysqld_site_conf: |-
+    [mysqld]
+    userstat = on
+    lower_case_table_names = 1
+    skip_name_resolve = 1
+    max_connections=2000
+    expire_logs_days = 1
+    master_retry_count = 0
+
+    plugin_load_add=simple_password_check
+    strict_password_validation = 1
+    simple_password_check_minimal_length = 8
+    simple_password_check_digits = 1
+    simple_password_check_letters_same_case = 1
+    simple_password_check_other_characters = 1
+    [mariadb]
+    rpl_semi_sync_master_enabled = ON
+    rpl_semi_sync_slave_enabled = ON
+    rpl_semi_sync_master_wait_point = AFTER_SYNC
+  metrics:
+    enabled: true
+    annotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/scheme: http
+      prometheus.io/path: /metrics
+  ## Grafana dashboard
+  dashboard:
+    enabled: true
+displayPasswords: "never"
+cbur:
+  ## CSFS-12078: set jobhookenable to false when using celery
+  jobhookenable: false
+  ignoreFileChanged: true
+maxscale:
+  maxscale_ssl: true
+  sql:
+    promotion: [ "SET GLOBAL rpl_semi_sync_master_enabled=ON;", "SET GLOBAL rpl_semi_sync_slave_enabled=OFF;"]

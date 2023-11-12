@@ -1,0 +1,29 @@
+{{- if and (.Values.istio.enable) (not .Values.istio.cni_enable) (.Values.rbac.enabled)  }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ template "gen3gppxml.fullname" . }}-istio-role
+  namespace: "{{.Release.Namespace}}"
+  labels:
+    app: {{ template "gen3gppxml.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+    {{- if .Values.global.labels }}
+{{ toYaml .Values.global.labels | indent 4}}
+    {{- end }}
+{{- if .Values.global.annotations }}
+  annotations:
+{{- include "gen3gpp-annotations" (tuple .Values.global.annotations) | indent 4}}
+{{- end }}
+rules:
+- apiGroups:
+  - extensions
+  resourceNames:
+  - {{ template "gen3gppxml.fullname" . }}-psp
+  resources:
+  - podsecuritypolicies
+  verbs:
+  - use
+{{- end }}
+

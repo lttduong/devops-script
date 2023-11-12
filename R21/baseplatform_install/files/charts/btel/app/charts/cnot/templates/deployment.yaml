@@ -1,0 +1,236 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: {{ template "cnot.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    component: "{{ .Values.cnot.name }}"
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+  name: {{ default "" .Values.global.podNamePrefix }}{{ template "cnot.fullname" . }}
+spec:
+  replicas: {{ .Values.cnot.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ template "cnot.name" . }}
+      component: "{{ .Values.cnot.name }}"
+      release: {{ .Release.Name }}
+  {{- if .Values.cnot.strategy }}
+  strategy:
+{{ toYaml .Values.cnot.strategy | indent 4 }}
+  {{- end }}
+  template:
+    metadata:
+      annotations:
+      {{- if .Values.istio.enabled }}
+        sidecar.istio.io/inject: "true"
+        sidecar.istio.io/rewriteAppHTTPProbers: "true"
+      {{- else }}
+        sidecar.istio.io/inject: "false"
+      {{- end }}
+      {{- if .Values.cnot.podAnnotations }}
+{{ toYaml .Values.cnot.podAnnotations | indent 8 }}
+      {{- end }}
+      labels:
+        app: {{ template "cnot.name" . }}
+        component: "{{ .Values.cnot.name }}"
+        release: {{ .Release.Name }}
+    spec:
+      ## Start of custom modification of original chart
+      ## Reported CSFID-3309 https://jiradc2.ext.net.nokia.com/browse/CSFID-3309
+    {{- if .Values.cnot.affinity }}
+      affinity:
+{{ toYaml .Values.cnot.affinity | indent 8 }}
+    {{- end }}
+      ## End of custom modification of original chart
+      ## Start of custom modification of original chart for CSFID-2993
+      initContainers:
+        - name: {{ template "cnot.fullname" . }}-init
+          image: {{ .Values.global.registry }}/{{ .Values.global.certsConverter.image.name }}:{{ .Values.global.certsConverter.image.tag }}
+          imagePullPolicy: {{.Values.cnot.image.ImagePullPolicy}}
+          command: ["certs_converter"]
+          args: ["--certs-dir={{ .Values.volumes.path.certs }}",
+                 "--output={{ .Values.volumes.path.keys }}",
+                 "--format=JKS"]
+          env:
+            - name: TS_PASS
+              value: password
+            - name: KS_PASS
+              value: password
+          volumeMounts:
+            - name: {{ template "cnot.fullname" . }}-tls
+              mountPath: {{ .Values.volumes.path.certs }}
+              readOnly: true
+            - name: cnot-truststore
+              mountPath: {{ .Values.volumes.path.keys }}
+          securityContext:
+##            fsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+      ## End of custom modification of original chart
+{{- if .Values.cnot.schedulerName }}
+      schedulerName: "{{ .Values.cnot.schedulerName }}"
+{{- end }}
+      serviceAccountName: {{ template "cnot.serviceAccountName" . }}
+      containers:
+        - name: {{ default "" .Values.global.containerNamePrefix }}{{ template "cnot.name" . }}-configmap-reload
+          image: "{{ .Values.global.registry }}/{{ .Values.configmapReload.image.imageRepo }}:{{ .Values.configmapReload.image.imageTag }}"
+          imagePullPolicy: "{{ .Values.configmapReload.image.pullPolicy }}"
+          securityContext:
+            runAsUser: 65534
+          resources:
+{{ toYaml .Values.configmapReload.resources | indent 12 }}
+          args:
+            - --volume-dir=/usr/local/cnot/etc/conf
+            - --volume-dir=/usr/local/cnot/etc/templates
+          {{ if .Values.wildfly.ipv6Enabled }}
+            - --webhook-url=http://::1:8080/api/cnot/v1/reload
+          {{- else }}
+            - --webhook-url=http://127.0.0.1:8080/api/cnot/v1/reload
+          {{- end }}
+          {{- range $key, $value := .Values.configmapReload.extraArgs }}
+            - --{{ $key }}={{ $value }}
+          {{- end }}
+          volumeMounts:
+            - name: config-volume
+              mountPath: /usr/local/cnot/etc/conf
+              readOnly: true
+            - name: template-volume
+              mountPath: /usr/local/cnot/etc/templates
+              readOnly: true
+        - name: {{ default "" .Values.global.containerNamePrefix }}{{ template "cnot.name" . }}-{{ .Values.cnot.name }}
+          image: "{{ .Values.global.registry }}/{{ .Values.cnot.image.imageRepo }}:{{ .Values.cnot.image.imageTag }}"
+          imagePullPolicy: "{{ .Values.cnot.image.pullPolicy }}"
+          securityContext:
+            runAsUser: 7777
+          resources:
+{{ toYaml .Values.cnot.resources | indent 12 }}
+          env:
+            {{ if .Values.wildfly.ipv6Enabled }}
+            - name: ipv6
+              value: "true"
+            {{- else }}
+            - name: ipv6
+              value: "false"
+            {{- end }}
+            {{ if .Values.wildfly.https.enabled }}
+            - name: servercert
+              value: /usr/local/cnot/wildfly/secret/server/server.pem
+            - name: serverkey
+              value: /usr/local/cnot/wildfly/secret/server/server.key
+            - name: httpconnector
+              value: "false"
+            {{- else }}
+            - name: httpconnector
+              value: "true"
+            {{- end }}
+            - name: authEnabled
+              value: "{{ .Values.wildfly.authByKeycloak.enabled }}"
+            {{ if .Values.wildfly.authByKeycloak.enabled }}
+            - name: keycloakserver
+              value: "{{ .Values.wildfly.authByKeycloak.keycloakserver }}"
+            {{- end }}
+            - name: customcli
+              value: /usr/local/cnot/wildfly/bin/wildfly_hook.cli
+            - name: runcmd
+              value: /usr/local/cnot/bin/pre_start.sh
+            - name: deflog
+              value: "true"
+            {{- range $key, $value := .Values.cnot.extraEnv }}
+            - name: {{ $key }}
+              value: "{{ $value }}"
+            {{- end }}
+          envFrom:
+            {{ if .Values.wildfly.https.enabled }}
+            - secretRef:
+                name: {{ template "cnot.fullname" . }}-pwd
+            {{- end }}
+          args: []
+          ports:
+            - containerPort: 8080
+              name: http-8080
+            - containerPort: 8443
+              name: https-8443
+          readinessProbe:
+            httpGet:
+              {{ if .Values.wildfly.https.enabled }}
+              scheme: HTTPS
+              port: 8443
+              {{- else }}
+              scheme: HTTP
+              port: 8080
+              {{- end }}
+              path: /api/cnot/v1/ready
+            initialDelaySeconds: 60
+            timeoutSeconds: 30
+          livenessProbe:
+            httpGet:
+              {{ if .Values.wildfly.https.enabled }}
+              scheme: HTTPS
+              port: 8443
+              {{- else }}
+              scheme: HTTP
+              port: 8080
+              {{- end }}
+              path: /api/cnot/v1/healthy
+            initialDelaySeconds: 300
+            timeoutSeconds: 30
+          volumeMounts:
+            {{ if .Values.wildfly.https.enabled }}
+            - name: tls
+              readOnly: true
+              mountPath: "/usr/local/cnot/wildfly/secret/server"
+            {{- end }}
+            - name: wildfly-hook
+              mountPath: "/usr/local/cnot/wildfly/bin"
+            - name: config-volume
+              mountPath: /usr/local/cnot/etc/conf
+            - name: template-volume
+              mountPath: /usr/local/cnot/etc/templates
+            - name: trustcerts
+              readOnly: true
+              mountPath: "/usr/local/cnot/etc/secret/outbound"
+            ## Start of custom modification of original chart for CSFID-2993
+            - name: cnot-truststore
+              mountPath: "/opt/wildfly/standalone/configuration/application.keystore"
+              subPath: "keystore.jks"
+            ## End of custom modification of original chart
+      volumes:
+        {{ if .Values.wildfly.https.enabled }}
+        - name: tls
+          secret:
+            ## Start of custom modification of original chart for CSFID-2993
+            secretName: {{ template "cnot.fullname" . }}-tls
+            items:
+            - key: tls.crt
+              path: server.pem
+            - key: tls.key
+              path: server.key
+        - name: cnot-truststore
+          emptyDir: {}
+        - name: {{ template "cnot.fullname" . }}-tls
+          secret:
+            secretName: {{ template "cnot.fullname" . }}-tls
+            ## End of custom modification of original chart
+        {{- end }}
+        - name: trustcerts
+          secret:
+            secretName: {{ if .Values.global.cnotOutboundTrustCertsName }}{{ .Values.global.cnotOutboundTrustCertsName }}{{- else }}{{ .Release.Name }}-cnot-configmap-trustcerts {{- end }}
+        - name: wildfly-hook
+          configMap:
+            name: {{ template "cnot.fullname" . }}-wildfly-hook
+        - name: config-volume
+          configMap:
+            name: {{ if .Values.global.configMapOverrideName }}{{ .Values.global.configMapOverrideName }}{{- else }}{{ .Release.Name }}-cnot-configmap-conf {{- end }}
+        - name: template-volume
+          configMap:
+            name: {{ if .Values.global.templateOverrideName }}{{ .Values.global.templateOverrideName }}{{- else }}{{ .Release.Name }}-cnot-configmap-templates {{- end }}
+    {{- if .Values.cnot.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.cnot.nodeSelector | indent 8 }}
+    {{- end }}
+    {{- if .Values.cnot.tolerations }}
+      tolerations:
+{{ toYaml .Values.cnot.tolerations | indent 8 }}
+    {{- end }}
+

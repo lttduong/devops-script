@@ -1,0 +1,99 @@
+{{- if ne .Values.dbschematool.operation "skip" }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Values.global.releaseNamePrefix }}nos-dbschematool-{{ template "name" . }}
+  labels:
+    app: nos-dbschematool-{{ template "name" . }}
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "0"
+spec:
+  template:
+    spec:
+      securityContext:
+        runAsUser: 1000
+        fsGroup: 1000
+{{- if .Values.global.jobNodeAffinityRuleTemplate }}
+{{ tpl .Values.global.jobNodeAffinityRuleTemplate . | indent 6 }}
+{{- end }}
+      initContainers:
+{{ tpl .Values.certsConverter.initContainersTemplate . | indent 8 }}
+      containers:
+      - name: nos-dbschematool-{{ .Release.Name }}
+        image: "{{ .Values.global.registry }}/{{ .Values.dbschematool.image }}:{{ tpl .Values.dbschematool.imageTag . }}"
+        imagePullPolicy: "{{ .Values.dbschematool.imagePullPolicy }}"
+        terminationMessagePolicy: FallbackToLogsOnError
+        env:
+          - name: "DB_HOST"
+            value: {{ tpl .Values.global.mariadbExternalName . | quote }}
+          - name: "DB_PORT"
+            value: {{ .Values.global.mariadbPort | quote }}
+          - name: "DB_USER"
+            valueFrom:
+              secretKeyRef:
+                name: {{ tpl .Values.global.nosdbSecret . }}
+                key: username
+          - name: "DB_PASS"
+            valueFrom:
+              secretKeyRef:
+                name: {{ tpl .Values.global.nosdbSecret . }}
+                key: password
+          - name: "DB_TRUSTSTORE"
+            value: "{{ .Values.certsConverter.truststorefile }}"
+          - name: "DB_TRUSTPASS"
+            value: "{{ .Values.certsConverter.jkspass }}"
+          - name: "DB_OPERATION"
+            value: {{ .Values.dbschematool.operation | quote }}
+          - name: "keycloakFrameworkSecret"
+            valueFrom:
+              secretKeyRef:
+                name: {{ tpl .Values.encryptedProperties.secrets.ckeyFrameworkSecret.secretName . }}
+                key: clientSecret
+          - name: "keycloakRealm"
+            value: {{ .Values.keycloak.realm }}
+          - name: "keycloakAddress"
+            value: "https://{{ .Values.global.BP_RELEASE_NAME_PREFIX }}ckey-ckey.{{ .Values.global.BP_NAMESPACE }}.{{ tpl .Values.global.svcDnsDomain . }}:8443/auth"
+          - name: "keycloakFrameworkClient"
+            value: {{ .Values.keycloak.frameworkClient }}
+        volumeMounts:
+          - name: extprops
+            mountPath: "/opt/nokia/dbschematool/extProps"
+{{- if .Values.encryptionKey.enabled }}
+          - name: "{{ .Values.encryptionKey.secretName }}-volume"
+            mountPath: "/opt/nokia/dbschematool/config/enc-{{ .Values.encryptionKey.version }}.properties"
+            subPath: "enc-{{ .Values.encryptionKey.version }}.properties"
+{{- if .Values.encryptionKey.previous.password }}
+          - name: "{{ .Values.encryptionKey.previous.secretName }}-volume"
+            mountPath: "/opt/nokia/dbschematool/config/enc-{{ .Values.encryptionKey.previous.version }}.properties"
+            subPath: "enc-{{ .Values.encryptionKey.previous.version }}.properties"
+{{- end }}
+{{- end }}
+{{ tpl .Values.certsConverter.volumeMountsTemplate . | indent 10 }}
+        resources:
+          requests:
+            memory: {{ .Values.dbschematool.requests.memory | default "512Mi" | quote }}
+            cpu: {{ .Values.dbschematool.requests.cpu | default "250m" | quote }}
+          limits:
+            memory: {{ .Values.dbschematool.limits.memory | default "2048Mi" | quote }}
+            cpu: {{ .Values.dbschematool.limits.cpu | default "500m" | quote }}
+      restartPolicy: Never
+      volumes:
+        - name: extprops
+          configMap:
+            name:  {{ tpl .Values.global.extendedPropertiesConfigMapName . }}
+{{- if .Values.encryptionKey.enabled }}
+        - name: "{{ .Values.encryptionKey.secretName }}-volume"
+          secret:
+            secretName: "{{ .Values.encryptionKey.secretName }}"
+{{- if .Values.encryptionKey.previous.password }}
+        - name: "{{ .Values.encryptionKey.previous.secretName }}-volume"
+          secret:
+            secretName: "{{ .Values.encryptionKey.previous.secretName }}"
+{{- end }}
+{{- end }}
+{{ tpl .Values.certsConverter.volumesTemplate . | indent 8 }}
+{{- end }}

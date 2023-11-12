@@ -1,0 +1,27 @@
+{{- if .Values.cbur.enabled }}
+apiVersion: "cbur.bcmt.local/v1"
+kind: BrPolicy
+metadata:
+  name: {{ template "gen3gppxml.stsName" . }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ template "gen3gppxml.name" . }}
+      release: {{ .Release.Name }}
+  volumes:
+  - gen3gppxml-data
+  backend:
+    mode: {{ .Values.cbur.backendMode }}
+  autoEnableCron: {{ .Values.cbur.autoEnableCron | default false }}
+  autoUpdateCron: {{ .Values.cbur.autoUpdateCron | default false }}
+  cronSpec: '{{ .Values.cbur.cronJob }}'
+  k8sType: statefulset
+  maxiCopy: {{ .Values.cbur.maxCopy }}
+  hooks:
+  - name: {{ template "gen3gppxml.gen3gppxmlContainer" . }}
+    commands:
+      preBackupCmd: ["sh", "-c", "echo preBackup"]
+      postBackupCmd: ["sh", "-c", "echo postBackup"]
+      preRestoreCmd: ["sh", "-c", "echo preRestore"]
+      postRestoreCmd: ["sh", "-c", "echo postRestore"]
+{{- end }}

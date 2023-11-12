@@ -1,0 +1,50 @@
+---
+- name: Setup to install WSHA
+  hosts: localhost
+  connection: local
+  collections:
+   - azure.azcollection
+
+  vars:
+   resourceGroup: open-wavehub-dev
+   wshaName: "{{ lookup('env', 'wshaname') }}"
+   vaultName: "{{lookup('env', 'vaultname') }}"
+   containerName: "{{ lookup('env', 'containerName') }}"
+   retainTime: "{{lookup('env', 'retainTime') }}"
+   policyVault: "{{ lookup('env', 'policyVault') }}"
+
+  tasks:
+    - name: Undelete backup if VM is soft deleted
+      shell: sudo  az backup protection undelete --container-name wsse12951cid1666 --item-name wsse12951cid1666 --resource-group open-wavehub-dev --vault-name WSSEBackupVault --backup-management-type AzureIaasVM --workload-type VM
+      ignore_errors: yes
+
+    - name: Resume backup if VM is disabled
+      shell: sudo  az backup protection resume --vault-name "{{ vaultName }}" --resource-group "{{ resourceGroup }}" --container-name "{{ wshaName }}" --backup-management-type AzureIaasVM --item-name "{{ wshaName }}" --policy-name "{{ policyVault }}"
+      ignore_errors: yes
+        
+    - name: Backup for new wsha
+      shell: sudo az backup protection backup-now --resource-group "{{ resourceGroup }}" --vault-name "{{ vaultName }}" --container-name "{{ wshaName }}" --item-name "{{ wshaName }}" --backup-management-type AzureIaaSVM --retain-until "{{ retainTime }}"
+    
+    - name: Get Job Backup Name after triggering backup wsha component 
+      shell: sudo az backup job list --resource-group "{{ resourceGroup }}" --vault-name "{{ vaultName }}" --query [0].name | sed 's/"//g' > ./wshaJobBackupKey.txt
+
+    - name: Disable backup of VM
+      shell: sudo az backup protection disable --resource-group "{{ resourceGroup }}" --vault-name "{{ vaultName }}" --container-name "{{ wshaName}}" --item-name "{{ wshaName }}" --backup-management-type AzureIaaSVM -y
+
+    - name: Pause 8 minutes to create recovery point
+      pause: 
+        minutes: 8
+
+    - name: Show Recovery Point 
+      shell: sudo az backup recoverypoint list --resource-group "{{ resourceGroup }}" --vault-name "{{ vaultName }}" --backup-management-type AzureIaasVM --container-name "{{ wshaName }}" --item-name "{{ wshaName }}" --query [0].name --output tsv > ./wshaPoint.txt
+
+    - name: Show out
+      shell: awk '{if(NR==1) print $1}' ./wshaPoint.txt
+      register: wshaPoint
+    
+    - name: Print out Recovery Point has just backed up 
+      debug:
+        msg: "This is Recovery Point : {{ wshaPoint.stdout }} "
+
+
+

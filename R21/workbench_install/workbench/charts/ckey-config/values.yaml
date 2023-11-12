@@ -1,0 +1,24 @@
+image:
+  nameAndTag: "overridden-by-installer"
+secretName: ckey-configurator-config
+configDir: /import/config
+dataDir: /import/data
+realm: netguard
+restartPolicy: Never
+
+importConfig:
+  enabled: true
+
+secrets:
+  netguardFrameworkSecret:
+    enabled: "true"
+    secretName: "{{ .Values.global.releaseNamePrefix }}ckey-netguard-framework-client-secret"
+    secretValue: "{{ .Values.global.config.ckey.client.secret.netguardFrameworkSecret }}"
+  netguardNetworkAccessSecret:
+    enabled: "{{ .Values.enableNA }}"
+    secretName: "{{ .Values.global.releaseNamePrefix }}ckey-netguard-network-access-client-secret"
+    secretValue: "{{ .Values.global.config.ckey.client.secret.netguardNetworkAccessSecret }}"
+  netguardNetworkAccessAgentSecret:
+    enabled: "{{ .Values.enableNA }}"
+    secretName: "{{ .Values.global.releaseNamePrefix }}ckey-netguard-network-access-agent-client-secret"
+    secretValue: "{{ .Values.global.config.ckey.client.secret.netguardNetworkAccessAgentSecret }}"

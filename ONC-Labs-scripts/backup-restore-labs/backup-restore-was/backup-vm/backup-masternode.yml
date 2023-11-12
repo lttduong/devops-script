@@ -1,0 +1,24 @@
+---
+- name: Setup to Back Up Master Node
+  hosts: localhost
+  connection: local
+  collections:
+   - azure.azcollection
+
+  vars_files:
+  - env_variables
+
+  tasks:
+  - name: Resume backup if VM is disabled
+    shell: sudo  az backup protection resume --vault-name "{{ vaultName }}" --resource-group "{{ resourceGroup }}" --container-name "{{ masterName }}" --backup-management-type AzureIaasVM --item-name "{{ masterName }}" --policy-name "{{ policyVault }}"
+    ignore_errors: yes
+
+  - name: Backup for new wsha
+    shell: sudo az backup protection backup-now --resource-group "{{ resourceGroup }}" --vault-name "{{ vaultName }}" --container-name "{{ masterName }}" --item-name "{{ masterName }}" --backup-management-type AzureIaaSVM --retain-until "{{ retainTime }}"
+
+  - name: Get Job Backup Name after triggering backup master VM 
+    shell: sudo az backup job list --resource-group "{{ resourceGroup }}" --vault-name "{{ vaultName }}" --query [0].name | sed 's/"//g' > ../../wasJobBackupKey.txt
+
+  - name: Disable backup of VM
+    shell: sudo az backup protection disable --resource-group "{{ resourceGroup }}" --vault-name "{{ vaultName }}" --container-name "{{ masterName }}" --item-name "{{ masterName }}" --backup-management-type AzureIaaSVM -y
+

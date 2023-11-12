@@ -1,0 +1,4 @@
+edge_node: onc-was-master
+worker_node:
+  onc-was-worker
+  onc-was-master

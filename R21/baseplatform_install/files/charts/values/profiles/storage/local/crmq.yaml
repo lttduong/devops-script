@@ -1,0 +1,28 @@
+persistence:
+  crmq:
+    localPv: true
+    path: /var/netguard_local_storage/crmq/data
+    resourcePolicy: Delete
+
+  data:
+    storageClass: default
+    enabled: true
+
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: bp-crmq-message-queue
+          operator: In
+          values:
+          - "true"
+  podAntiAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+    - labelSelector:
+        matchExpressions:
+        - key: app
+          operator: In
+          values:
+          - crmq
+      topologyKey: "kubernetes.io/hostname"

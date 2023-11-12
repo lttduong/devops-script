@@ -1,0 +1,21 @@
+## Start of custom modification of original chart
+{{- if .Values.cbur.enabled }}
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: {{ template "fullname" . }}-nfs-pvc
+  labels:
+   app: {{ template "fullname" . }}
+   release: "{{ .Release.Name }}"
+   heritage: "{{ .Release.Service }}"
+   backup: "true"
+spec:
+  storageClassName: "" # static PV provisioning, refer to nfs-pv.yaml, enhancement https://jiradc2.int.net.nokia.com/browse/NSMC-1338
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 1Mi # doesn't matter - NFS share (having its own size) is mounted
+{{- end}}
+# End of custom modification of original chart

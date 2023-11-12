@@ -1,0 +1,20 @@
+---
+- name: Backup Items for Cluster
+  hosts: localhost
+  connection: local
+  collections:
+   - azure.azcollection
+
+  vars:
+   resource_group: open-wavehub-dev
+   new_rg: "{{ lookup('env', 'rg') }}"
+   nmaster: "{{ lookup('env', 'mastername') }}"
+   nworker: "{{ lookup('env', 'workername') }}"
+   vault_name: "{{ lookup('env', 'vaultname') }}"
+
+  tasks:
+   - name: Enable backup for masternode
+     shell: sudo az backup protection enable-for-vm --resource-group "{{ resource_group }}" --vault-name "{{ vault_name }}" --vm $(az vm show -g "{{ new_rg }}" -n "{{ nmaster }}" --query id | tr -d '"') --policy-name "{{ policy }}"
+
+   - name: Enable backup for workernode
+     shell: sudo az backup protection enable-for-vm --resource-group "{{ resource_group }}" --vault-name "{{ vault_name }}" --vm $(az vm show -g "{{ new_rg }}" -n "{{ nworker }}" --query id | tr -d '"') --policy-name "{{ policy }}"

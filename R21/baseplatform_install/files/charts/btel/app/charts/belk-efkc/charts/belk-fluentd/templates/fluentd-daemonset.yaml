@@ -1,0 +1,172 @@
+{{- if eq .Values.fluentd.kind "DaemonSet" }}
+apiVersion: apps/v1
+kind: DaemonSet 
+metadata:
+  name: {{ template "fluentd.daemonset.name" .  }}
+  labels:
+    k8s-app: {{ template "fluentd.fullname" .  }}-es
+    version: v1.22
+    kubernetes.io/cluster-service: "true"
+    addonmanager.kubernetes.io/mode: Reconcile
+  annotations:
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: {{ .Values.global.seccompAllowedProfileNames }}
+    seccomp.security.alpha.kubernetes.io/defaultProfileName: {{ .Values.global.seccompDefaultProfileName }}
+{{- if .Values.fluentd.custom }}
+{{- if .Values.fluentd.custom.annotations }}
+{{- include "fluentd.csf-toolkit-helm.annotations" (tuple .Values.fluentd.custom.annotations) | indent 4}}
+{{- end }}
+{{- end }}
+spec:
+  updateStrategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      k8s-app: {{ template "fluentd.fullname" . }}-es
+      kubernetes.io/cluster-service: "true"
+      version: v1.22
+  template:
+    metadata:
+      labels:
+        k8s-app: {{ template "fluentd.fullname" .  }}-es
+        kubernetes.io/cluster-service: "true"
+        version: v1.22
+        {{- if .Values.fluentd.podLabels }}
+        {{- include "fluentd.custom-labels" (tuple .Values.fluentd.podLabels) | indent 8}}
+        {{- end }}
+      annotations:
+        scheduler.alpha.kubernetes.io/critical-pod: ''
+        checksum/config: {{ include (print $.Template.BasePath "/fluentd_configmap.yaml") . | sha256sum }}
+    spec:
+      {{- if .Values.fluentd.affinity }}
+      affinity:
+{{ toYaml .Values.fluentd.affinity | indent 8 }}
+      {{- end }}
+      {{- if .Values.fluentd.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.fluentd.nodeSelector | indent 8 }}
+      {{- end }}
+      tolerations:
+      {{- if .Values.fluentd.tolerations }}
+{{ toYaml .Values.fluentd.tolerations | indent 8 }}
+      {{- else }}
+      - operator: 'Exists'
+        effect: 'NoExecute'
+      {{- end }}
+      {{- if .Values.fluentd.enable_root_privilege }}
+      serviceAccountName: {{ default ( default (printf "%s-serviceaccount" ( include "fluentd.fullname" . )) .Values.global.serviceAccountName ) .Values.fluentd.serviceAccountName }}
+      {{- else }}
+      serviceAccountName: {{ default ( default "" .Values.global.serviceAccountName ) .Values.fluentd.serviceAccountName }}
+      {{- end }}
+      securityContext:
+        {{- if not .Values.fluentd.enable_root_privilege }}
+        runAsNonRoot: true
+        runAsUser: 999
+        {{- end }}
+        {{- if .Values.fluentd.securityContext.fsGroup }}
+        fsGroup: {{ .Values.fluentd.securityContext.fsGroup }}
+        {{- end }}
+        {{- if .Values.fluentd.securityContext.supplementalGroups }}
+        supplementalGroups: {{ .Values.fluentd.securityContext.supplementalGroups }}
+        {{- end }}
+        {{- if .Values.fluentd.securityContext.seLinuxOptions }}
+        seLinuxOptions:
+{{ toYaml .Values.fluentd.securityContext.seLinuxOptions | indent 9 }}
+        {{- end }}
+      containers:
+      - name: {{ template "fluentd.daemonset.container" .  }}
+        image: {{ .Values.global.registry }}/{{.Values.fluentd.image.repo}}:{{.Values.fluentd.image.tag}}
+        imagePullPolicy: {{.Values.fluentd.ImagePullPolicy}}
+        {{- if .Values.fluentd.securityContext.privileged }}
+        securityContext:
+          privileged: {{.Values.fluentd.securityContext.privileged}}
+        {{- end }}
+        livenessProbe:
+          exec:
+            command:
+              - "/bin/sh"
+              - "-c"
+              - "[[ $( pgrep -f [r]uby | wc -l ) == 2 ]]"
+          initialDelaySeconds: {{ .Values.fluentd.livenessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.fluentd.livenessProbe.periodSeconds }}
+          timeoutSeconds: {{ .Values.fluentd.livenessProbe.timeoutSeconds }}
+          successThreshold: {{ .Values.fluentd.livenessProbe.successThreshold }}
+          failureThreshold: {{ .Values.fluentd.livenessProbe.failureThreshold }}
+        readinessProbe:
+          exec:
+            command:
+            - "/bin/sh"
+            - "-c"
+            - "[[ $( pgrep -f [r]uby | wc -l ) == 2 ]]"
+          initialDelaySeconds: {{ .Values.fluentd.readinessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.fluentd.readinessProbe.periodSeconds }}
+          timeoutSeconds: {{ .Values.fluentd.readinessProbe.timeoutSeconds }}
+          successThreshold: {{ .Values.fluentd.readinessProbe.successThreshold }}
+          failureThreshold: {{ .Values.fluentd.readinessProbe.failureThreshold }}
+        ports:
+          {{- if .Values.fluentd.forward_service.enabled }}  
+          - name: tcp-forwarder
+            containerPort: {{ .Values.fluentd.forward_service.port }}
+            protocol: TCP
+          {{- end }}
+          {{- if .Values.fluentd.service.enabled }}
+          - name: tcp-metrics
+            containerPort: {{ .Values.fluentd.service.metricsPort }}
+            protocol: TCP
+          {{- end }}
+        resources:
+{{ toYaml .Values.fluentd.resources | indent 10 }}
+        env:
+          - name: HOST
+            valueFrom:
+              fieldRef:
+                fieldPath: spec.nodeName
+          - name: SYSTEM
+            value: "{{.Values.fluentd.EnvVars.system}}"
+          - name: SYSTEMID
+            value: "{{.Values.fluentd.EnvVars.systemId}}"
+        volumeMounts:
+        {{- if .Values.fluentd.volume_mount_enable }}
+{{ toYaml .Values.fluentd.volumeMounts | indent 8 }}
+        {{- end }}
+        {{- if .Values.fluentd.fluentd_certificates.enabled }}
+        - name: ssl
+          mountPath: "/etc/td-agent/certs"
+          readOnly: true
+        {{- end }}
+        ## Start of custom modification of original chart for CSFID-2092
+        - name: {{ template "fluentd.fullname" . }}-tls-client
+          mountPath: "/etc/td-agent/certs"
+          readOnly: true
+        - name: {{ template "fluentd.fullname" . }}-tls-clientamqp
+          mountPath: "/etc/td-agent/certsamqp"
+          readOnly: true
+        ## End of custom modification of original chart
+        - name: config-volume 
+          mountPath: /etc/td-agent/ 
+      volumes:
+      {{- if .Values.fluentd.fluentd_certificates.enabled }}
+      - name: ssl
+        secret:
+          secretName: {{ template "fluentd.fullname" . }}
+          items:
+{{- range $key, $val := .Values.fluentd.fluentd_certificates.data }}
+          - key: {{  $key }}
+            path: {{ $key }}
+{{- end }}
+      {{- end }}
+      ## Start of custom modification of original chart for CSFID-2092
+      - name: {{ template "fluentd.fullname" . }}-tls-client
+        secret:
+          secretName: {{ template "fluentd.fullname" . }}-tls-client
+      - name: {{ template "fluentd.fullname" . }}-tls-clientamqp
+        secret:
+          secretName: {{ template "fluentd.fullname" . }}-tls-clientamqp
+      ## End of custom modification of original chart
+      {{- if .Values.fluentd.volume_mount_enable }}
+{{ toYaml .Values.fluentd.volumes | indent 6 }}
+      {{- end }}
+      - name: config-volume 
+        configMap:
+          name: {{ template "fluentd.fullname" .  }}-config
+{{- end }}
+

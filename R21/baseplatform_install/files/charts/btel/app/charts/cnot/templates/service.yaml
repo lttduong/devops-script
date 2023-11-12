@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: Service
+metadata:
+{{- if .Values.cnot.service.annotations }}
+  annotations:
+{{ toYaml .Values.cnot.service.annotations | indent 4 }}
+{{- end }}
+  labels:
+    app: {{ template "cnot.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    component: "{{ .Values.cnot.name }}"
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+{{- if .Values.cnot.service.labels }}
+{{ toYaml .Values.cnot.service.labels | indent 4 }}
+{{- end }}
+  name: {{ template "cnot.fullname" . }}
+spec:
+  ports:
+    - name: http-8080
+      port: {{ .Values.cnot.service.servicePort }}
+      protocol: TCP
+      targetPort: 8080
+    ## Start of custom modification of original chart file, CSFS-31351
+    {{- if (and (eq .Values.cnot.service.type "NodePort") (not (empty .Values.cnot.service.nodePort))) }}
+    ## End of custom modification of original chart file
+      nodePort: {{ .Values.cnot.service.nodePort }}
+    {{- end }}
+    - name: https-8443
+      port: {{ .Values.cnot.service.servicePortHTTPS }}
+      protocol: TCP
+      targetPort: 8443
+    ## Start of custom modification of original chart file
+    {{- if (and (eq .Values.cnot.service.type "NodePort") (not (empty .Values.cnot.service.nodePortHTTPS))) }}
+    ## End of custom modification of original chart file
+      nodePort: {{ .Values.cnot.service.nodePortHTTPS }}
+    {{- end }}
+  selector:
+    app: {{ template "cnot.name" . }}
+    component: "{{ .Values.cnot.name }}"
+    release: {{ .Release.Name }}
+  type: "{{ .Values.cnot.service.type }}"

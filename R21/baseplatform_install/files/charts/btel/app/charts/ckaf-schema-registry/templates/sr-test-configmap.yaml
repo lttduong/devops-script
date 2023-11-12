@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "schema-registry.name" . }}-sr-test
+  labels:
+    app: {{ .Chart.Name }}
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: {{ .Release.Name | quote }}
+    heritage: {{ .Release.Service | quote }}
+  annotations:
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: {{ .Values.global.seccompAllowedProfileNames }} 
+    seccomp.security.alpha.kubernetes.io/defaultProfileName: {{ .Values.global.seccompDefaultProfileName }}
+data:
+ config.cfg: |
+  [schema_registry]
+  service_name = {{ template "schema-registry.name" . }}-ckaf-schema-registry
+  #service string will be .default.svc.cluster.local if default namespace is used
+  service_string = .{{ .Release.Namespace }}.svc.cluster.local
+  port = {{ .Values.servicePort }}
+  #Security value can be either enabled or disabled
+  security = {{ .Values.sr_ssl.enabled }}
+  subject = kafka-value

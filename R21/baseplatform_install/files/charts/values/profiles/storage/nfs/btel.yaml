@@ -1,0 +1,35 @@
+belk:
+  persistence:
+    storageClassName: nfs-client
+  belk-elasticsearch:
+    elasticsearch_master:
+      persistence:
+        createPv: false
+    esdata:
+      persistence:
+        createPv: false
+
+calm:
+  persistence:
+    createPv: false
+    storageClass: nfs-client
+
+cpro:
+  alertmanager:
+    persistence:
+      createPv: false
+      storageClass: nfs-client
+  server:
+    persistence:
+      createPv: false
+      storageClass: nfs-client
+
+grafana:
+  persistence:
+    createPv: false
+    storageClass: nfs-client
+
+gen3gppxml:
+  persistence:
+    createPv: false
+    storageClass: nfs-client

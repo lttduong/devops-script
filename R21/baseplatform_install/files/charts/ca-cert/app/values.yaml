@@ -1,0 +1,3 @@
+caCertEncoded: change_it
+global:
+  caCertName: netguard-ca

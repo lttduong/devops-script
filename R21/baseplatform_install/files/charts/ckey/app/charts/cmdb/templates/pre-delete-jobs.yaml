@@ -1,0 +1,47 @@
+{{- if not (eq (default "enable" .Values.hooks.preDeleteJob) "disable") }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "cmdb.fullname" . }}-pre-delete
+  labels:
+    {{- include "cmdb-admin.labels" . | indent 4 }}
+  annotations:
+    "helm.sh/hook": pre-delete
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": {{ .Values.hooks.deletePolicy | quote }}
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        {{- include "cmdb-admin.labels" . | indent 8 }}
+        type: admin
+      {{- if .Values.istio.enabled }}
+      annotations:
+        sidecar.istio.io/inject: "true"
+      {{- end }}
+    spec:
+      {{- include "cmdb-admin.secctx" . | nindent 6 }}
+      {{- include "cmdb.simplex-job-sa" . | nindent 6 }}
+      restartPolicy: Never
+
+      containers:
+      - name: pre-delete-admin
+        {{- include "cmdb-admin.image" . | indent 8 }}
+        args: [ "delete" ]
+        env:
+        - name: CLUSTER_TYPE
+          value: "{{ .Values.cluster_type }}"
+        - name: CLUSTER_NAME
+          value: "{{ .Values.cluster_name | default .Release.Name | trunc 32 }}"
+        - name: HOOK_TYPE
+          value: "pre"
+        {{- if gt (int .Values.admin.preDeleteTimeout) 0 }}
+        - name: HOOK_TIMEOUT
+          value: "{{ .Values.admin.preDeleteTimeout }}"
+        {{- end }}
+        {{- include "cmdb-k8s.env" . | nindent 8 }}
+        {{- include "cmdb-admin.service" . | nindent 8 }}
+        resources:
+{{ toYaml .Values.admin.resources | indent 10 }}
+{{- end }}

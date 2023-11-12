@@ -1,0 +1,45 @@
+---
+#- name: "Installing BP namespace"
+#  include: install_namespace.yml
+#
+- name: "Installing egress"
+  include: install_egress.yml
+
+- name: "Installing OS CA certificate "
+  include: install_config_ca_certificate.yml
+
+- name: "Validate geo redundancy cmdb connection"
+  include: validate_geo_redundancy_cmdb_connection.yml
+
+- name: "Installing start page"
+  include: install_startpage.yml
+
+- name: "Installing rabbitmq"
+  include: install_rabbitmq.yml
+
+- name: "Installing mariaDB"
+  include: install_database.yml
+
+- name: "Installing keycloak"
+  include: install_keycloak.yml
+
+- name: "Configuring keycloak"
+  include: configure_keycloak.yml
+
+- name: "Installing ingress controller"
+  include: install_ingress.yml
+
+- name: "Waiting for independent components"
+  include: wait_for_independent_components.yml
+
+- name: "Installing virtual IP address"
+  include: install_virtual_ips.yml
+
+- name: "Installing geo redundancy settings"
+  include: install_geo_redundancy_settings.yml
+
+#- name: "Installing BTEL"
+#  include: install_btel.yml
+
+#- name: "Installing geo redundancy BTEL"
+#  include: install_geo_redundancy_btel.yml

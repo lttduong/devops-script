@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<system name="NetAct">
+        <configuration>
+                <jndiConfig>
+                        <attribute key="java.naming.factory.initial" value="com.sun.jndi.rmi.registry.RegistryContextFactory"/>
+                        <attribute key="java.naming.provider.url" value="rmi://localhost:9998"/>
+                </jndiConfig>
+            <loggerConfig> 
+                    <attribute key="com.nokia.j2ssp.comp.cfs.util.CFSLoggerImpl.bufferSize" value="100"/>
+                    <attribute key="com.nokia.j2ssp.comp.cfs.util.CFSLoggerImpl.logName" value="/var/log/cbam/alma-cfs.log"/>
+                    <attribute key="com.nokia.j2ssp.comp.cfs.util.CFSLoggerImpl.debugLogName" value="/var/log/cbam/alma-cfs-debug.log"/>
+            </loggerConfig>
+        </configuration>
+        <serviceBindings>
+                <service name="com.nokia.j2ssp.comp.esymac.api.FaultManager" factory="com.nokia.j2ssp.comp.esymac.api.FaultManagerFactory" compIDs="esymacID01"/>
+            <service name="com.nokia.j2ssp.comp.esymac.api.PerformanceManager" factory="com.nokia.j2ssp.comp.esymac.api.PerformanceManagerFactory" compIDs="esymacID01"/>
+            <service name="com.nokia.j2ssp.comp.esymac.api.GUI" factory="com.nokia.j2ssp.comp.esymac.api.GUIFactory" compIDs="esymacID01"/>
+            <service name="com.nokia.j2ssp.comp.esymac.api.XMIB" factory="com.nokia.j2ssp.comp.esymac.api.XMIBFactory" compIDs="esymacID01"/>
+            <service name="com.nokia.j2ssp.service.frmwk.LifecycleManager" factory="com.nokia.j2ssp.comp.cfs.LifecycleManagerFactoryImpl"/>
+                <service name="java.util.prefs.Preferences" factory="com.nokia.j2ssp.comp.cfs.config.CFSPreferencesConnectorFactory" compIDs="config"/>
+            <service name="com.nokia.j2ssp.service.event.EventDispatcher" factory="com.nokia.j2ssp.comp.cfs.event.EventDispatcherFactoryImpl" compIDs="logger"/>
+            <service name="com.nokia.j2ssp.comp.esymac.api.cm.ConfigurationManager" factory="com.nokia.j2ssp.comp.esymac.api.cm.ConfigurationManagerFactory" compIDs="esymacID01"/>
+            <service name="com.nokia.j2ssp.comp.esymac.api.cm.ConfigurationNBI" factory="com.nokia.j2ssp.comp.esymac.api.cm.ConfigurationNBIFactory" compIDs="esymacID01"/>
+         <service name="com.nokia.j2ssp.comp.esymac.api.OMAgent" factory="com.nokia.j2ssp.comp.esymac.api.OMAgentFactory" compIDs="esymacID01"/>
+        </serviceBindings>
+    <process name="Comp">
+            <localComponents>
+                    <component name="logger" class="com.nokia.j2ssp.comp.cfs.event.EventServicesImpl"/>
+                    <component name="esymacID01" class="com.nokia.j2ssp.comp.esymac.em.EsymacMain"/>
+                    <config name="config" class="com.nokia.j2ssp.comp.cfs.config.CFSConfigComponent"/>
+            </localComponents>
+   </process>
+</system>

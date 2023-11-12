@@ -1,0 +1,605 @@
+#------------------------------------------------------------------------------
+# KEYCLOAK values
+#------------------------------------------------------------------------------
+
+# Keycloak image details
+global:
+  registry: "{{ (compaas.artifactoryUrl | default("csf-docker-delivered.repo.lab.pl.alcatel-lucent.com")) }}"
+  registry1: "registry1-docker-io.repo.lab.pl.alcatel-lucent.com"
+  registry2: "{{ (compaas.artifactoryUrl | default("csf-docker-delivered.repo.lab.pl.alcatel-lucent.com")) }}"
+  registry3: "dsrbac-docker-releases.repo.lab.pl.alcatel-lucent.com"
+  # If rbacEnable is true and no serviceAccountName is specified then role, rolebinding and service account is created by this chart
+  # If rbacEnable is true and an external serviceAccount is mentioned in serviceAccountName then this external serviceAccount is used during deployment
+  # If rbacEnable is false then no service account is used.
+  rbacEnable: true
+  serviceAccountName: ""
+  preheal: 0
+  postheal: 0
+  jobtimeout: 60
+  # If Istio version is greater than or equal to 1.5, the Policy resource will be replaced by PeerAuthentication resource
+  # Istio version follow format "X.Y"
+  istioVersion: "1.4"
+
+## Cluster domain (tail end of the hostname, e.g. ...namespace.svc.cluster.local)
+clusterDomain: "cluster.local"
+imageRepo: keycloak/4489/keycloak-ha
+imageTag: 11.0.0-1
+imagePullPolicy: IfNotPresent
+kubectlImage: "tools/kubectl"
+kubectlTag: "v1.17.6-nano"
+installUmLite: {{ (installUMLiteFlag | default("")).installUmLite | default(model.properties.installUMLiteFlag.properties.installUmLite.default) }}
+
+# Keycloak number of replicas
+replicaCount: {{ (imageInfo | default("")).replicaCount | default(model.properties.imageInfo.properties.replicaCount.default) }}
+
+# Keycloak security context
+securityContext:
+  runAsUser: 1000
+  fsGroup: 1000
+  runAsNonRoot: true
+
+# This rbac section is deprecated. To enable/disable rbac use global.rbacEnable
+rbac:
+  create: true
+
+# Type of ip to support. Possible values: IPv4, IPv6
+ipType: {{ (iptypeInfo | default("")).ipType | default(model.properties.iptypeInfo.properties.ipType.default) }}
+
+# Keycloak server by default binds to the container IP address. You can start the server on 0.0.0.0 (IPv4) or [::] (IPv6) by setting the following value. This address would not be used for the private interface of the server and it is only for public and management interfaces. Note that if istio is enable, this option is not honored and it will be always overridden by "0.0.0.0".
+bindIP: {{ (bindingInfo | default("")).bindIP | default(model.properties.bindingInfo.properties.bindIP.default) }}
+
+# Enabled TLS Versions
+# To add more versions follow format and add it below 'tlsVersionList', each version must be printed on a new line.
+# Note: TLS version 1.0 is represented as TLSv1
+tlsVersionList: {{ (tlsAdditionalInfo | default("")).tlsVersionList | default(model.properties.tlsAdditionalInfo.properties.tlsVersionList.default) }}
+
+# Flag for whether to create an initial user or not
+createInitialUser: {{ (userInfo | default("")).createInitialUser | default(model.properties.userInfo.properties.createInitialUser.default) }}
+# Keycloak default credentials (these only get created if createInitialUser is set to true)
+keycloakUser: {{ (userInfo | default("")).keycloakUser | default(model.properties.userInfo.properties.keycloakUser.default) }}
+# If keycloakPassword is commented, generate random password
+keycloakPassword: {{ (userInfo | default("")).keycloakPassword | default(model.properties.userInfo.properties.keycloakPassword.default) }}
+
+# Database information (all items below are mandatory)
+dbName: {{ (dbInfo | default("")).dbName | default(model.properties.dbInfo.properties.dbName.default) }}
+dbUser: {{ (dbInfo | default("")).dbUser | default(model.properties.dbInfo.properties.dbUser.default) }}
+# Keycloak requires that the db password be encoded using PicketBox
+picketBoxEncryptedDBPassword: {{ (dbInfo | default("")).picketBoxEncryptedDBPassword | default(model.properties.dbInfo.properties.picketBoxEncryptedDBPassword.default) }}
+jdbcParams: {{ (dbInfo | default("")).jdbcParams | default(model.properties.dbInfo.properties.jdbcParams.default) }}
+
+# Database address (the  dbAddress is ignored if cmdb.enabled: true)
+dbAddress: {{ (dbInfo | default("")).dbAddress | default(model.properties.dbInfo.properties.dbAddress.default) }}
+
+# Database port number (this variable is ignored if cmdb.enabled: true)
+dbPort: {{ (dbInfo | default("")).dbPort | default(model.properties.dbInfo.properties.dbPort.default) }}
+
+# Keycloak Port Information
+managementHTTPPort: {{ (portInfo | default("")).managementHTTPPort | default(model.properties.portInfo.properties.managementHTTPPort.default) }}
+managementHTTPSPort: {{ (portInfo | default("")).managementHTTPSPort | default(model.properties.portInfo.properties.managementHTTPSPort.default) }}
+httpPort: {{ (portInfo | default("")).httpPort | default(model.properties.portInfo.properties.httpPort.default) }}
+httpsPort: {{ (portInfo | default("")).httpsPort | default(model.properties.portInfo.properties.httpsPort.default) }}
+
+# Health Check Port
+healthCheckPort: {{ (portInfo | default("")).healthCheckPort | default(model.properties.portInfo.properties.healthCheckPort.default) }}
+dbAlarmCheckPeriod: {{ (portInfo | default("")).dbAlarmCheckPeriod | default(model.properties.portInfo.properties.dbAlarmCheckPeriod.default) }}
+
+# Harmonized Alarms
+certExpiryAlarmPeriod: 10
+
+# RSYSLOG Details
+traceLevel: {{ (rsyslogInfo | default("")).traceLevel | default(model.properties.rsyslogInfo.properties.traceLevel.default)  }}
+syslogServerHost: {{ (rsyslogInfo | default("")).syslogServerHost | default(model.properties.rsyslogInfo.properties.syslogServerHost.default)  }}
+syslogServerPort: {{ (rsyslogInfo | default("")).syslogServerPort | default(model.properties.rsyslogInfo.properties.syslogServerPort.default)  }}
+
+# Resources and Limits
+resources:
+  requests:
+    memory: {{ (resourcesInfo | default("")).memory | default(model.properties.resourcesInfo.properties.memory.default) }}
+    cpu: {{ (resourcesInfo | default("")).cpu | default(model.properties.resourcesInfo.properties.cpu.default) }}
+  limits:
+    memory: {{ (resourcesInfo | default("")).memory | default(model.properties.resourcesInfo.properties.memory.max) }}
+    cpu: {{ (resourcesInfo | default("")).cpu | default(model.properties.resourcesInfo.properties.cpu.max) }}
+
+# Initial Probe delays (in seconds). If DB schema initialization takes more than 600 seconds,then increase the liveness probe to accommodate it.
+probeDelays:
+  readinessProbeInitialDelay: {{ (probesInfo | default("")).readinessProbeInitialDelay | default(model.properties.probesInfo.properties.readinessProbeInitialDelay.default) }}
+  readinessProbeTimeoutSeconds: {{ (probesInfo | default("")).readinessProbeTimeoutSeconds | default(model.properties.probesInfo.properties.readinessProbeTimeoutSeconds.default) }}
+  readinessProbePeriodSeconds: {{ (probesInfo | default("")).readinessProbePeriodSeconds | default(model.properties.probesInfo.properties.readinessProbePeriodSeconds.default) }}
+
+  livenessProbeInitialDelay: {{ (probesInfo | default("")).livenessProbeInitialDelay | default(model.properties.probesInfo.properties.livenessProbeInitialDelay.default) }}
+  livenessProbeTimeoutSeconds: {{ (probesInfo | default("")).livenessProbeTimeoutSeconds | default(model.properties.probesInfo.properties.livenessProbeTimeoutSeconds.default) }}
+  livenessProbePeriodSeconds: {{ (probesInfo | default("")).livenessProbePeriodSeconds | default(model.properties.probesInfo.properties.livenessProbePeriodSeconds.default) }}
+
+# External java keystore that replaces the default keycloak.jks file with pre-loaded certificates. The values below only get used if enabled is set to true.
+externalKeycloakJavaKeystore:
+  enabled: {{ (keystoreInfo | default("")).enabled | default(model.properties.keystoreInfo.properties.enabled.default) }}
+  keystoreSecretName: {{ (keystoreInfo | default("")).keystoreSecretName | default(model.properties.keystoreInfo.properties.keystoreSecretName.default) }}
+  keystorePassword: {{ (keystoreInfo | default("")).keystorePassword | default(model.properties.keystoreInfo.properties.keystorePassword.default) }}
+
+# External java truststore that replaces the default client_keycloak.jks file with pre-loaded certificates. The values below only get used if enabled is set to true.
+externalKeycloakJavaClientTruststore:
+  enabled: {{ (clientTruststoreInfo | default("")).enabled | default(model.properties.clientTruststoreInfo.properties.enabled.default) }}
+  clientTruststoreSecretName: {{ (clientTruststoreInfo | default("")).clientTruststoreSecretName | default(model.properties.clientTruststoreInfo.properties.clientTruststoreSecretName.default) }}
+  clientTruststorePassword: {{ (clientTruststoreInfo | default("")).clientTruststorePassword | default(model.properties.clientTruststoreInfo.properties.clientTruststorePassword.default) }}
+
+# TLS Certificate: if enabled, the helm chart expects a secret with a mounted tls.crt file and a tls.key file
+# To keep this backwards compatible, the functionality below generates a new keycloak.jks keystore, imports the new certificate, and replaces the previous keycloak.jks file. If you plan to have mulitple certificates in keycloak.jks, please avoid using externalTlsCertificate; use externalKeycloakJavaKeystore instead and import your entire custom keycloak.jks file.
+externalTlsCertificate:
+  enabled: {{ (certificateInfo | default("")).enabled | default(model.properties.certificateInfo.properties.enabled.default) }}
+  tlsSecretName: {{ (certificateInfo | default("")).tlsSecretName | default(model.properties.certificateInfo.properties.tlsSecretName.default) }}
+
+# LDAPS Certificate: if enabled, the helm chart expects a secret with a mounted LDAPtls.crt file.
+externalLDAPSCertificate:
+  enabled: {{ (ldapsCertificateInfo | default("")).enabled | default(model.properties.ldapsCertificateInfo.properties.enabled.default) }}
+  ldapsSecretName: {{ (ldapsCertificateInfo | default("")).ldapsCertificateSecretName | default(model.properties.ldapsCertificateInfo.properties.ldapsCertificateSecretName.default) }}
+
+# CMDB Certificate: if enabled, the helm chart expects a secret with server-cert.pem, client-cert.pem and client-key.pem
+# The secure_connection_type attribute determines whether we want secure one-way or two-way communication with CMDB; Type '1' for one way, '2' for two way; By default, CMDB with SSL is disabled with '0'
+externalCMDBSSLCertificate:
+  enabled: {{ (cmdbCertificateInfo | default("")).enabled | default(model.properties.cmdbCertificateInfo.properties.enabled.default) }}
+  secure_connection_type: {{ (cmdbCertificateInfo | default("")).secure_connection_type | default(model.properties.cmdbCertificateInfo.properties.secure_connection_type.default) }}
+  cmdbSSLSecretName: {{ (cmdbCertificateInfo | default("")).cmdbSSLSecretName | default(model.properties.cmdbCertificateInfo.properties.cmdbSSLSecretName.default) }}
+
+# ---------------------------------------------------------------------
+# Expose all realms metrics to a single endpoint.
+#
+# prometheus.io/scrape - Allow CPRO's service discovery to scrape from 
+#                        this service. Accepted values: "true" or "false"
+# prometheus.io/path   - The single endpoint for CPRO to scrape from.
+#                        Despite containing a realm name, it collects 
+#                        metric from all realms. If master realm is
+#                        inacessible, then replace master with any other
+#                        realm in the CKEY instance.
+# ---------------------------------------------------------------------
+metric:
+  annotations:
+    prometheus.io/scrape: {{ (metric | default("")).annotations.prometheusIoScrape | default (model.properties.metric.properties.annotations.properties.prometheusIoScrape.default) }}
+    prometheus.io/path: {{ (metric | default("")).annotations.prometheusIoPath | default(model.properties.metric.properties.annotations.properties.prometheusIoPath.default) }}
+
+# Proxy Address Forwarding
+proxyAddressForwarding: {{ (proxyAdditionalInfo | default("")).proxyAddressForwarding | default(model.properties.proxyAdditionalInfo.properties.proxyAddressForwarding.default) }}
+
+# Preserve backup PVC on delete?
+preserve_keycloak_pvc: {{ (keycloakPersistenceInfo | default("")).preserveKeycloakPVC | default(model.properties.keycloakPersistenceInfo.properties.preserveKeycloakPVC.default) }}
+
+# Resources for busybox container:
+initBusyBoxContainer:
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 250m
+    limits:
+      memory: 256Mi
+      cpu: 250m
+
+## Allows the specification of additional environment variables for Keycloak
+extraEnv: |
+  # - name: KEYCLOAK_LOGLEVEL
+  #   value: DEBUG
+  # - name: CACHE_OWNERS
+  #   value: "2"
+
+periodicSizeLogger:
+  # If set of false, the default periodic logger will be used.
+  enabled: {{ (periodicSizeLogger | default("")).enabled | default(model.properties.periodicSizeLogger.properties.enabled.default) }}
+
+  # This sets the max size of the file. It rotates once the size is reached.
+  fileSize: {{ (periodicSizeLogger | default("")).fileSize | default(model.properties.periodicSizeLogger.properties.fileSize.default) }}
+
+  # The sets the rotation period for the file. .yyy-MM-dd indicates the file rotates per day.
+  timeRotation: {{ (periodicSizeLogger | default("")).timeRotation | default(model.properties.periodicSizeLogger.properties.timeRotation.default) }}
+
+masterRealmConfigurationJob:
+  # If set to false, the job will not run and all the values in this section will not be used.
+  enabled: {{ (masterRealmConfigurationJobInfo | default("")).enabled | default(model.properties.masterRealmConfigurationJobInfo.properties.enabled.default) }}
+
+  # This variable is needed when setting the passwordExpiry policy for the first time. If you set this to false, you will be required to manually update your password through the admin console.
+  overwritePasswordTimestamp: {{ (masterRealmConfigurationJobInfo | default("")).overwritePasswordTimestamp | default(model.properties.masterRealmConfigurationJobInfo.properties.overwritePasswordTimestamp.default) }}
+
+  # For all the options below: setting an item to false means the job won't modify it in the master realm. If an item is set to true, the job will enable it in the master realm.
+
+  # Forgot Password Option
+  enableForgotPassword: {{ (masterRealmConfigurationJobInfo | default("")).enableForgotPassword | default(model.properties.masterRealmConfigurationJobInfo.properties.enableForgotPassword.default) }}
+
+  # Brute Force Detection for Master realm
+  enableBruteForceProtection: {{ (masterRealmConfigurationJobInfo | default("")).enableBruteForceProtection | default(model.properties.masterRealmConfigurationJobInfo.properties.enableBruteForceProtection.default) }}
+
+  # If the option below is set to true, the password policies that will be set are the following:
+  ### password expiry: 90 days
+  ### minimum length: 8
+  ### special charaters(minimum): 1
+  ### upper case characters(minimum): 1
+  ### lower case characters (minimum): 1
+  ### password history (not recently used): 3
+  ### password blacklist: linux.words from /opt/keycloak/standalone/data/password-blacklists
+  overwritePasswordPolicies: {{ (masterRealmConfigurationJobInfo | default("")).overwritePasswordPolicies | default(model.properties.masterRealmConfigurationJobInfo.properties.overwritePasswordPolicies.default) }}
+
+  # Events
+  enableLoginEvents: {{ (masterRealmConfigurationJobInfo | default("")).enableLoginEvents | default(model.properties.masterRealmConfigurationJobInfo.properties.enableLoginEvents.default) }}
+  enableAdminEvents: {{ (masterRealmConfigurationJobInfo | default("")).enableAdminEvents | default(model.properties.masterRealmConfigurationJobInfo.properties.enableAdminEvents.default) }}
+
+  # SSL by default for all
+  enableSSLRequireForAll: {{ (masterRealmConfigurationJobInfo | default("")).enableSSLRequireForAll | default(model.properties.masterRealmConfigurationJobInfo.properties.enableSSLRequireForAll.default) }}
+
+  # Set Nokia Login theme?
+  setNokiaLoginTheme: {{ (masterRealmConfigurationJobInfo | default("")).setNokiaLoginTheme | default(model.properties.masterRealmConfigurationJobInfo.properties.setNokiaLoginTheme.default) }}
+
+customPreStartScript: |-
+  # Custom script to run before starting servers
+  # e.g. Increase arjuna timeout
+  # /opt/keycloak/bin/jboss-cli.sh --commands='embed-server --server-config=standalone-ha.xml --remove-existing --std-out=echo, /subsystem=transactions:write-attribute(name="default-timeout", value="3600")'
+  {{ (customPreStartScript | default("")).script | default(model.properties.customPreStartScript.properties.script.default) | indent(2) }}
+
+pushEventListenerData:
+  notificationReceiverList: {{ (pushEventListenerDataInfo | default("")).ReceiverList | default(model.properties.pushEventListenerDataInfo.properties.ReceiverList.default) }}
+
+genericEventListenerData:
+  notificationReceiverList: {{ (genericEventListenerDataInfo | default("")).ReceiverList | default(model.properties.genericEventListenerDataInfo.properties.ReceiverList.default) }}
+
+customAttributes:
+  # If set to false, the job will not run and all the values in this section will not be used.
+  enabled: {{ (customAttributeInfo | default("")).enabled | default(model.properties.customAttributeInfo.properties.enabled.default) }}
+
+  attributes: {{ (customAttributeInfo | default("")).Attributes | default(model.properties.customAttributeInfo.properties.Attributes.default) }}
+
+# Customizable login banner messages; these messages will show up on the login banner if you have it enabled. For more information on the login banner, please consult our CKEY user guide.
+loginBannerTitle: {{ (customLoginBannerInfo | default("")).loginBannerTitle | default(model.properties.customLoginBannerInfo.properties.loginBannerTitle.default) }}
+loginBannerWelcomeFirstNameMessage: {{ (customLoginBannerInfo | default("")).loginBannerWelcomeFirstNameMessage | default(model.properties.customLoginBannerInfo.properties.loginBannerWelcomeFirstNameMessage.default) }}
+loginBannerWelcomeUsernameMessage: {{ (customLoginBannerInfo | default("")).loginBannerWelcomeUsernameMessage | default(model.properties.customLoginBannerInfo.properties.loginBannerWelcomeUsernameMessage.default) }}
+loginBannerPreviousSuccessMessage: {{ (customLoginBannerInfo | default("")).loginBannerPreviousSuccessMessage | default(model.properties.customLoginBannerInfo.properties.loginBannerPreviousSuccessMessage.default) }}
+loginBannerMainMessage: {{ (customLoginBannerInfo | default("")).loginBannerMainMessage | default(model.properties.customLoginBannerInfo.properties.loginBannerMainMessage.default) }}
+loginBannerAcceptMessage: {{ (customLoginBannerInfo | default("")).loginBannerAcceptMessage | default(model.properties.customLoginBannerInfo.properties.loginBannerAcceptMessage.default) }}
+
+# Cors Header. Can be set to * or domain name. If empty cors header won't be set.
+corsHeaderDomain: {{ (corsHeaderInfo | default("")).corsHeaderDomain | default(model.properties.corsHeaderInfo.properties.corsHeaderDomain.default) }}
+
+#------------------------------------------------------------------------------
+# ISTIO values (only used if enabled: true)
+#------------------------------------------------------------------------------
+istio:
+  enabled: {{ (istio | default("")).enabled | default(model.properties.istio.properties.enabled.default) }}
+  cni_enabled: {{ (istio | default("")).cni_enabled | default(model.properties.istio.properties.cni_enabled.default) }}
+  # We provide PASSTHROUGH tls mode as a example here. Users can modify the gw and the vs to meet their specific needs
+  gateway:
+    enabled: {{ (istio | default("")).gateway.enabled | default(model.properties.istio.properties.gateway.properties.enabled.default) }}
+    
+    customized_selectors:
+      {{ ((istio | default("")).gateway | default("")).customized_selectors | default(model.properties.istio.properties.gateway.properties.customized_selectors.default) | indent(blank=true, width=6) }}
+
+    hosts:
+    - {{ ((istio | default("")).gateway | default("")).hosts | default(model.properties.istio.properties.gateway.properties.hosts.default) }}
+
+
+#------------------------------------------------------------------------------
+# CBUR values (only used if enabled: true)
+#------------------------------------------------------------------------------
+
+cbur:
+  enabled: true
+  brPolicyWeight: 5
+  brCronSpec: "0 0 * * *"
+  brMaxiCopy: 5
+  # Ignore file changes during building tarball for target app's volumes.
+  ignoreFileChanged: true
+
+  image:
+    repository: "cbur/cbura"
+    tag: "1.0.3-983"
+    pullPolicy: "IfNotPresent"
+
+  securityContext:
+    runAsUser: 1000
+    runAsGroup: 1000
+
+  backupStorage:
+    size: 400Mi
+    class: ""
+
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 250m
+    limits:
+      memory: 256Mi
+      cpu: 250m
+
+  # If enabled automatically restart ckey pods after restore. 
+  # Required BCMT 20.03 or higher and CBUR restore plugin 20.03 or higher
+  brHookPostRestore:
+    enable: {{ (cburBrHookPostRestore | default("")).enable | default(model.properties.cburBrHookPostRestore.properties.enable.default) }}
+    weight: 5
+    timeout: 600
+
+# Custom providers to be installed
+# Complete documentation can be found in Gitlab
+# customProviders:
+#   - type: hotModule
+#     configMap: sample-hot-module-configMap
+#     resources:
+#       - sample-jar
+#   - type: hotModule
+#     image: sample-hot-module-image
+customProviders:
+
+#------------------------------------------------------------------------------
+# CMDB values (only used if enabled: true) which will overwrite values.yaml in 
+# the cmdb helm chart
+#------------------------------------------------------------------------------
+
+cmdb:
+  # If cmdb is enabled, a sample cmdb database will get deployed
+  enabled: {{ (cmdbInfo | default("")).enabled | default(model.properties.cmdbInfo.properties.enabled.default) }}
+  istio:
+    enabled: false
+
+  rbac_enabled: True
+
+  ## Cluster domain (tail end of the hostname) used in raw k8s installs
+  # E.g. myrel-cmdb-mysql.default.svc.cluster.local)
+  clusterDomain: "cluster.local"
+
+  ## Cluster Type is one of master-slave, master-master, galera, simplex
+  cluster_type: {{ (cmdbInfo | default("")).cluster_type | default(model.properties.cmdbInfo.properties.cluster_type.default) }}
+  cluster_name: {{ (cmdbInfo | default("")).cluster_name | default(model.properties.cmdbInfo.properties.cluster_name.default) }}
+
+  mariadb:
+    # if cmdb.enabled, make sure that MYSQL_DATABASE is the same as dbName above!
+    root_password: {{ (cmdbInfo | default("")).root_password | default(model.properties.cmdbInfo.properties.root_password.default) }}
+
+    ## If root user should be allowed from all hosts
+    allow_root_all: {{ (cmdbInfo | default("")).allow_admin_from_all | default(model.properties.cmdbInfo.properties.allow_admin_from_all.default) }}
+
+    ## The number of MariaDB pods to create
+    count: {{ (cmdbInfo | default("")).cluster_size | default(model.properties.cmdbInfo.properties.cluster_size.default) }}
+
+    ## Perform automatic tc-heuristic-recover of the database on pod restarts.
+    ## Set to one of the following (default will be ROLLBACK if not set)
+    ##   rollback - perform auto rollback of uncommitted transactions
+    ##   commit   - perform auto commit of uncommitted transactions
+    ##   none     - disable automatic tc-hauristic-recover
+    heuristic_recover: {{ (cmdbInfo | default("")).heuristic_recover | default(model.properties.cmdbInfo.properties.heuristic_recover.default) }}
+
+    ## Enable/disable server audit logging.
+    ## If enabled, set events which will be logged.
+    ## ref: https://mariadb.com/kb/en/library/mariadb-audit-plugin-log-settings/
+    {% if (cmdbInfo | default("")).audit_logging is defined %}
+    audit_logging:
+      enabled: {{ (cmdbInfo | default("")).audit_logging.enabled | default(model.properties.cmdbInfo.properties.audit_logging.properties.enabled.default) }}
+      events: {{ (cmdbInfo | default("")).audit_logging.events | default(model.properties.cmdbInfo.properties.audit_logging.properties.events.default) }}
+    {%- endif %}
+
+    ## If automatic rollback of the database should be performed on pod restarts
+    auto_rollback: {{ (cmdbInfo | default("")).auto_rollback | default(model.properties.cmdbInfo.properties.auto_rollback.default) }}
+
+    ## Use TLS for data in flight to/from client
+    ## If using certificates, populate the certicate names in the certificates
+    ## section in the secret that is created and specify the secret resource
+    ## name in the certificates.secret name.  Note that the secret resource
+    ## containing all the certificate files must be pre-populated before
+    ## CMDB deployment.
+    use_tls: {{ (cmdbInfo | default("")).use_tls | default(model.properties.cmdbInfo.properties.use_tls.default) }}
+    certificates:
+      ca_cert:     ca-cert.pem
+      ca_key:      ca-key.pem
+      client_cert: client-cert.pem
+      client_key:  client-key.pem
+      client_req:  client-req.pem
+      server_cert: server-cert.pem
+      server_key:  server-key.pem
+      server_req:  server-req.pem
+      secret:
+
+    # if cmdb.enabled, make sure that MYSQL_DATABASE is the same as dbName above!
+    databases:
+      - name: {{ (cmdbInfo | default("")).mysql_database | default(model.properties.cmdbInfo.properties.mysql_database.default) }}
+
+    users:
+      - name: {{ (cmdbInfo | default("")).mysql_user | default(model.properties.cmdbInfo.properties.mysql_user.default) }}
+        # base64 encoded
+        password: {{ (cmdbInfo | default("")).mysql_password | default(model.properties.cmdbInfo.properties.mysql_password.default) }}
+        host: "%"
+        privilege: ALL
+        object: "{{ (cmdbInfo | default("")).mysql_database | default(model.properties.cmdbInfo.properties.mysql_database.default) }}.*"
+        # if use_tls set, require SSL/X509 or not
+        requires: "{{ (cmdbInfo | default("")).requires | default(model.properties.cmdbInfo.properties.requires.default) }}"
+
+    persistence:
+      accessMode: {{ (cmdbInfo | default("")).accessMode | default(model.properties.cmdbInfo.properties.accessMode.default) }}
+      size: {{ (cmdbInfo | default("")).size | default(model.properties.cmdbInfo.properties.size.default) }}
+      storageClass: {{ (cmdbInfo | default("")).storageClass | default(model.properties.cmdbInfo.properties.storageClass.default) }}
+      resourcePolicy: {{ (cmdbInfo | default("")).resourcePolicy | default(model.properties.cmdbInfo.properties.resourcePolicy.default) }}
+      preserve_pvc: {{ (cmdbInfo | default("")).preserve_pvc | default(model.properties.cmdbInfo.properties.preserve_pvc.default) }}
+      backup:
+        enabled: {{ (cmdbInfo | default("")).backupPersistenceEnabled | default(model.properties.cmdbInfo.properties.backupPersistenceEnabled.default) }}
+        storageClass: {{ (cmdbInfo | default("")).backupStorageClass | default(model.properties.cmdbInfo.properties.backupStorageClass.default) }}
+        accessMode: {{ (cmdbInfo | default("")).backupAccessMode | default(model.properties.cmdbInfo.properties.backupAccessMode.default) }}
+        size: {{ (cmdbInfo | default("")).backupSize | default(model.properties.cmdbInfo.properties.backupSize.default) }}
+        dir: {{ (cmdbInfo | default("")).backupDir | default(model.properties.cmdbInfo.properties.backupDir.default) }}
+
+    ## A customized mysqld.conf to import
+    mysqld_site_conf: |-
+    {%- if (admin | default("")).mysqld is defined %}
+
+      {{ admin.mysqld }}
+    {%- else %}
+
+      [mysqld]
+      userstat = on
+    {%- endif %}
+
+
+    ## Resources per MariaDB container (default values from CMDB chart are used)
+    resources:
+      requests:
+        memory: {{ (cmdbInfo | default("")).memory | default(model.properties.cmdbInfo.properties.memory.default) }}
+        cpu: {{ (cmdbInfo | default("")).cpu | default(model.properties.cmdbInfo.properties.cpu.default) }}
+      limits:
+        memory: {{ (cmdbInfo | default("")).memory | default(model.properties.cmdbInfo.properties.memory.default) }}
+        cpu: {{ (cmdbInfo | default("")).cpu | default(model.properties.cmdbInfo.properties.cpu.default) }}
+
+    ## Node labels for mariadb pod assignment
+    ## Ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/
+    nodeAffinity:
+      enabled: false
+      key: is_worker
+      value: true
+
+  cbur:
+    resources:
+      requests:
+        memory: 256Mi
+        cpu: 250m
+      limits:
+        memory: 256Mi
+        cpu: 250m
+
+  admin:
+    resources:
+      requests:
+        memory: 256Mi
+        cpu: 250m
+      limits:
+        memory: 256Mi
+        cpu: 250m
+
+#------------------------------------------------------------------------------
+# Keycloak Ingress
+#------------------------------------------------------------------------------
+ingress:
+  ## Do not create ingress config during ckey private deployment
+  ##
+  enabled: {{ (istio | default("")).enabled | default(model.properties.istio.properties.enabled.default) }}
+
+  # The keycloak service port to use with ingress
+  keycloakServicePort: 8443
+
+  ## Keycloak Ingress annotations
+  ##
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/affinity: "cookie"
+    nginx.ingress.kubernetes.io/session-cookie-name: "route"
+    nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+    nginx.ingress.kubernetes.io/secure-backends: "true"
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      set_cookie_flag route HttpOnly secure SameSite;
+
+  ## Keyclock Ingress hostnames
+  ## May be provided if Ingress is enabled
+  ##
+  # hosts:
+  #   - "ckey.io"
+
+  ## Keyclock Ingress TLS configuration
+  ## Secrets must be manually created in the namespace
+  ##
+  # tls:
+  #   - secretName: keyclock-server-tls
+  #     hosts:
+  #       - "ckey.io"
+
+  ## Keyclock context
+  ## May be provided if Ingress is enabled
+  path: /auth
+
+#------------------------------------------------------------------------------
+# Keycloak Ingress for JBoss Management Console
+#------------------------------------------------------------------------------
+ingressManagement:
+  ## If true, Keyclock Ingress-management will be created
+  ##
+  enabled: false
+  # The keycloak management port to use with ingress
+  keycloakManagementPort: 9990
+  ## Keycloak Ingress annotations
+  ##
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/affinity: "cookie"
+    nginx.ingress.kubernetes.io/session-cookie-name: "route"
+    nginx.ingress.kubernetes.io/ssl-passthrough: "false"
+    nginx.ingress.kubernetes.io/secure-backends: "false"
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      set_cookie_flag route HttpOnly secure SameSite;
+
+  ## Keyclock Ingress hostnames
+  ## May be provided if Ingress is enabled
+  #
+  #hosts:
+  #   - "*"
+  ## Keyclock Ingress TLS configuration
+  ## Secrets must be manually created in the namespace
+  ##
+  # tls:
+  #   - secretName: keyclock-server-tls
+  #     hosts:
+  #       - keyclock.domain.com
+  ## Keyclock context
+  ## May be provided if Ingress is enabled
+  managementPath: /
+
+# ---------------------------------------------------------------------
+# Optionally, control the naming for resources. The default naming is
+# in the deployedHelmName-ChartName format.
+#
+# nameOverride     - This replaces the value in ChartName.
+# fullnameOverride - Replace the entire name with the supplied value.
+#                    This is useful to yield predictable service names.
+# ---------------------------------------------------------------------
+nameOverride: {{ (serviceInfo | default("")).nameOverride | default(model.properties.serviceInfo.properties.nameOverride.default) }}
+fullnameOverride: {{ (serviceInfo | default("")).fullnameOverride | default(model.properties.serviceInfo.properties.fullnameOverride.default) }}
+
+umLiteImage:
+  chartName: usermanagement-lite
+  tag: 0.0.293
+  pullPolicy: IfNotPresent
+  replicaCount: {{ (umLiteImage | default("")).replicaCount | default(model.properties.umLiteImage.properties.replicaCount.default) }}
+  version: 0.0.1
+
+umLiteEnv:
+  #Set the KeycloakServiceUrl to ingress URL as ex: https://clab433node07/auth
+  keycloakServiceUrl: {{ (umLiteEnv | default("")).keycloakServiceUrl | default(model.properties.umLiteEnv.properties.keycloakServiceUrl.default) }}
+  loggingLevel: {{ (umLiteEnv | default("")).loggingLevel | default(model.properties.umLiteEnv.properties.loggingLevel.default) }}
+  usersQueryMax: {{ (umLiteEnv | default("")).usersQueryMax | default(model.properties.umLiteEnv.properties.usersQueryMax.default) }}
+  groupsQueryMax: {{ (umLiteEnv | default("")).groupsQueryMax | default(model.properties.umLiteEnv.properties.groupsQueryMax.default) }}
+  usersToGroupQueryMax: {{ (umLiteEnv | default("")).usersToGroupQueryMax | default(model.properties.umLiteEnv.properties.usersToGroupQueryMax.default) }}
+  clientIdToUse: usermanagement-lite
+  isConfidentialClient: {{ (umLiteEnv | default("")).isConfidentialClient | default(model.properties.umLiteEnv.properties.isConfidentialClient.default) }}
+  # Set ckeyAdminSecret only if isConfidentialClient is true. Should be set before deployment. eg. apaas-ckey
+  ckeyAdminSecret: {{ (umLiteEnv | default("")).ckeyAdminSecret | default(model.properties.umLiteEnv.properties.ckeyAdminSecret.default) }}
+
+umLiteIngress:
+  # The usermanagement-lite service port to use with ingress
+  # Do not create ingress config during ckey private deployment
+  enabled: false
+  servicePort: 8443
+  annotations: {}
+    # kubernetes.io/ingress.class: nginx
+    # kubernetes.io/tls-acme: "true"
+     #nginx.ingress.kubernetes.io/ssl-passthrough: "false"
+  path: /umlite
+  #hosts:
+  #  - usermanagement
+  #tls:
+  # - secretName: umlite-server-tls
+  #   hosts:
+  #      - usermanagement
+
+umLiteService:
+  name: umlite-svc
+  type: ClusterIP
+  http:
+    port: "8080"
+    externalPort: "80"
+  https:
+    port: "8443"
+    externalPort: "443"
+
+umLiteResources:
+  resources:
+    requests:
+      memory: {{ (umLiteResources | default("")).memory | default(model.properties.umLiteResources.properties.memory.default) }}
+      cpu: {{ (umLiteResources | default("")).cpu | default(model.properties.umLiteResources.properties.cpu.default) }}
+    limits:
+      memory: {{ (umLiteResources | default("")).memory | default(model.properties.umLiteResources.properties.memory.max) }}
+      cpu: {{ (umLiteResources | default("")).cpu | default(model.properties.umLiteResources.properties.cpu.max) }}

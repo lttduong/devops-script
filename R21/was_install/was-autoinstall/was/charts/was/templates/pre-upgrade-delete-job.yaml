@@ -1,0 +1,33 @@
+{{- $releaseName := .Release.Name -}}
+{{- $servicePort := .Values.ui.httpsPort -}}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Chart.Name }}-pre-upgrade-delete
+  annotations:
+    # This is what defines this resource as a hook. Without this line, the
+    # job is considered part of the release.
+    "helm.sh/hook": pre-upgrade
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded
+spec:
+  template:
+    metadata:
+      name: "{{ .Release.Name }}"
+    spec:
+      serviceAccountName: {{ .Chart.Name }}-pre-upgrade-sa
+      restartPolicy: Never
+      containers:
+      - name: upgrade-delete-job
+        image: "{{ .Values.global.registry }}/{{ .Values.global.kubectl.image.repo }}:{{ .Values.global.kubectl.image.tag }}"
+        command:
+        - sh
+        - -c
+        - |
+          kubectl delete job {{ template "name" . }}-workflow-deployer --namespace {{ .Release.Namespace }} --ignore-not-found=true
+          kubectl delete configmap process-variable-config-configmap --namespace {{ .Release.Namespace }} --ignore-not-found=true
+          kubectl delete configmap {{ template "name" . }}-application-properties --namespace {{ .Release.Namespace }} --ignore-not-found=true
+          kubectl delete configmap {{ template "name" . }}-keycloak --namespace {{ .Release.Namespace }} --ignore-not-found=true
+          kubectl delete deployment {{ template "fullname" . }}-ui --namespace {{ .Release.Namespace }} --ignore-not-found=true
+          kubectl delete ingress {{ printf "%s.%s.%.0f" .Release.Namespace $releaseName $servicePort }}-ui --namespace {{ .Release.Namespace }} --ignore-not-found=true

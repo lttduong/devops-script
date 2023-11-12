@@ -1,0 +1,68 @@
+{{- if .Values.istio.enable }}
+{{- if .Values.istioIngress.enabled }} 
+{{- if eq .Values.istioIngress.gatewayName "" }}
+apiVersion: networking.istio.io/v1alpha3
+kind: Gateway
+metadata:
+  name: {{ template "grafana.fullname" . }}-istio-gateway
+  labels:
+    app: {{ template "grafana.name" . }}
+    chart: {{ template "grafana.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+    {{- if .Values.global.labels }}
+{{ toYaml .Values.global.labels | indent 4}}
+    {{- end }}
+{{- if .Values.global.annotations }}
+  annotations:
+{{- include "grafana-annotations" (tuple .Values.global.annotations) | indent 4}}
+{{- end }}
+spec:
+  {{- if .Values.istioIngress.selector }}
+  selector:
+{{ toYaml .Values.istioIngress.selector | indent 4 }}
+  {{- end }}
+  servers:
+  {{- if .Values.istioIngress.tls.enabled }}
+  - hosts:
+    - '{{ .Values.istioIngress.host }}'
+    port:
+      name: http
+      number: {{ .Values.istioIngress.httpPort }}
+      protocol: HTTP
+    tls:
+      httpsRedirect: true # sends 301 redirect for http requests
+  - hosts:
+    - '{{ .Values.istioIngress.host }}'
+    port:
+      name: https
+      number: {{ .Values.istioIngress.tls.httpsPort }}
+      protocol: HTTPS
+    tls:
+      {{- if eq .Values.istioIngress.tls.mode "PASSTHROUGH" }}
+      mode: PASSTHROUGH
+      {{- else if eq .Values.istioIngress.tls.mode "SIMPLE" }}
+      credentialName : {{ .Values.istioIngress.tls.credentialName}}
+      mode: SIMPLE
+      {{- else if eq .Values.istioIngress.tls.mode "MUTUAL" }}
+      credentialName : {{ .Values.istioIngress.tls.credentialName}}
+      mode: MUTUAL
+      {{- else if eq .Values.istioIngress.tls.mode "ISTIO_MUTUAL" }}
+      {{- if eq .Values.istioIngress.tls.credentialName "" }}
+      mode: ISTIO_MUTUAL
+      {{- else}}
+      mode: ISTIO_MUTUAL
+      credentialName : {{ .Values.istioIngress.tls.credentialName}}   
+      {{- end }}
+      {{- end }}
+  {{- else }}
+  - hosts:
+    - '{{ .Values.istioIngress.host }}'
+    port:
+      name: http
+      number: {{ .Values.istioIngress.httpPort }}
+      protocol: HTTP
+  {{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

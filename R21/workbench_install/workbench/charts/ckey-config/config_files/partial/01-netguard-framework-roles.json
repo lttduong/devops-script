@@ -1,0 +1,70 @@
+{
+  "policy": "SKIP",
+  "roles": 
+  { 
+    "client": {
+      "netguard-framework": [
+        {
+          "name": "framework-view-others-logs",
+          "composite": false,
+          "clientRole": true
+        },
+        {
+          "name": "framework-clear-alarms",
+          "composite": false,
+          "clientRole": true
+        },
+        {
+          "name": "framework-manage-fileservers",
+          "composite": false,
+          "clientRole": true
+        },
+        {
+          "name": "framework-view-all-logs",
+          "composite": false,
+          "clientRole": true
+        },
+        {
+          "name": "framework-view-fileservers",
+          "composite": false,
+          "clientRole": true
+        },
+        {
+          "name": "framework-delegate-roles",
+          "composite": false,
+          "clientRole": true
+        },
+        {
+          "name": "framework-view-own-logs",
+          "composite": false,
+          "clientRole": true
+        },
+        {
+          "name": "framework-view-alarms",
+          "composite": false,
+          "clientRole": true
+        },
+        {
+          "name": "framework-manage-log-archiving",
+          "composite": false,
+          "clientRole": true
+        },
+        {
+          "name": "framework-manage-role-access-control",
+          "composite": false,
+          "clientRole": true
+        },
+        {
+          "name": "framework-view-users",
+          "composite": false,
+          "clientRole": true
+        },
+        {
+          "name": "framework-terminate-user-sessions",
+          "composite": false,
+          "clientRole": true
+        }
+      ]
+    }
+  }
+}

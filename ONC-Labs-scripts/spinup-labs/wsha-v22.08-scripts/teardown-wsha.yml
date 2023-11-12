@@ -1,0 +1,66 @@
+- name: Tear down WSHA VM
+  hosts: localhost
+  connection: local
+  collections:
+   - azure.azcollection
+
+  vars:
+    resourceGroup: open-wavehub-dev
+    wshaName: "{{ lookup('env', 'wshaName') }}"
+    newRG: "{{ lookup('env', 'rg') }}"
+    location: "{{ lookup('env', 'region') }}"
+    wshaVaultName: "{{ lookup('env', 'wshaVaultName') }}"
+
+  tasks:
+  - name: Get NIC name
+    shell: sudo az vm nic list --vm-name "{{ wshaName }}" -g "{{ newRG }}" --query [0].id | awk -F '[/]' '{print $9}' | sed 's/"//'
+    register: nicname
+
+  - name: show NIC
+    set_fact:
+      cardnic: "{{ nicname.stdout }}"
+
+  - name: Get OS Disk of VM
+    shell: sudo az vm show -d -g "{{ newRG }}" -n "{{ wshaName }}" --query "storageProfile.osDisk.managedDisk.id" | awk -F '[/]' '{print $9}' | sed 's/"//'
+    register: diskname
+
+  - name: show osDisk
+    set_fact:
+     osdisk: "{{ diskname.stdout }}"
+
+  - name: Get name ip configuration of NIC
+    shell: sudo az network nic ip-config list -g "{{ newRG }}" --nic-name "{{ cardnic }}" --query [0].name
+    register: ipconf
+
+  - name: show NIC
+    set_fact:
+      ip_config_name: "{{ ipconf.stdout }}"
+
+  - name: Detach public ip of vm
+    shell: sudo az network nic ip-config update --name "{{ ip_config_name }}" --resource-group "{{ newRG }}" --nic-name "{{ cardnic }}" --public-ip-address ''
+
+  - name: Remove a VM with all resource that were autocreated
+    azure_rm_virtualmachine:
+      resource_group: "{{ newRG }}"
+      name: "{{ wshaName }}"
+      remove_on_absent: all_autocreated
+      state: absent
+
+  - name: Remove NIC
+    azure_rm_networkinterface:
+      resource_group: "{{ newRG }}"
+      name: "{{ cardnic }}" 
+      state: absent
+
+  - name: Remove Os Disk
+    azure_rm_manageddisk:
+      name: "{{ osdisk }}"
+      location: "{{ location }}"
+      resource_group: "{{ newRG }}"
+      state: absent
+
+  - name: Delete Backup Item itself
+    shell: az backup protection disable --container-name {{ wshaName }} --backup-management-type AzureIaasVM --delete-backup-data true --item-name {{ wshaName }} --resource-group {{ resourceGroup }} --vault-name {{ wshaVaultName }} --yes
+    ignore_errors: yes  
+
+...

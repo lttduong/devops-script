@@ -1,0 +1,56 @@
+## When istio and searchguard-keycloak authentication are enabled, a service entry is created for ckey hostname.
+#If ckey location is MESH_INTERNAL, a virtual service is created to route the traffic destined for extCkeyHostname to ckeyK8sSvcName within the mesh.
+#If ckey location is MESH_EXTERNAL, the virtual service service is not created.
+{{- if (and (.Values.istio.enabled) (.Values.searchguard.enable) (.Values.searchguard.keycloak_auth)) }}
+apiVersion: {{ template "kibana.apiVersionNetworkIstioV1Alpha3orV1Beta1" . }}
+kind: ServiceEntry
+metadata:
+  name: {{ template "kibana.fullname" . }}-ckey-se
+  namespace: {{ .Release.Namespace }}
+spec:
+  location: {{ default "MESH_INTERNAL" .Values.searchguard.istio.extCkeyLocation }}
+  hosts:
+  - {{ .Values.searchguard.istio.extCkeyHostname }}
+  ports:
+  - number: {{ .Values.searchguard.istio.extCkeyPort }}
+    name: http-extCkey
+    protocol: {{ .Values.searchguard.istio.extCkeyProtocol }}
+  resolution: DNS
+---
+{{- if ne (default "MESH_INTERNAL" .Values.searchguard.istio.extCkeyLocation) "MESH_EXTERNAL" }}
+apiVersion: {{ template "kibana.apiVersionNetworkIstioV1Alpha3orV1Beta1" . }}
+kind: VirtualService
+metadata:
+  name: {{ template "kibana.fullname" . }}-ckey-vs
+  namespace: {{ .Release.Namespace }}
+spec:
+  hosts:
+  - {{ .Values.searchguard.istio.extCkeyHostname }}
+  {{- if eq .Values.searchguard.istio.extCkeyProtocol "HTTP" }}
+  http:
+  - match:
+    - port: {{ .Values.searchguard.istio.extCkeyPort }}
+      sourceLabels:
+        component: elasticsearch
+    route:
+    - destination:
+        host: {{ .Values.searchguard.istio.ckeyK8sSvcName }}
+        port:
+          number: {{ .Values.searchguard.istio.ckeyK8sSvcPort }}
+  {{- else }}
+  tls:
+  - match:
+    - port: {{ .Values.searchguard.istio.extCkeyPort }}
+      sni_hosts:
+      - {{ .Values.searchguard.istio.extCkeyHostname }}
+      sourceLabels:
+        component: elasticsearch
+    route:
+    - destination:
+        host: {{ .Values.searchguard.istio.ckeyK8sSvcName }}
+        port:
+          number: {{ .Values.searchguard.istio.ckeyK8sSvcPort }}
+  {{- end }}
+{{- end }}
+{{- end }}
+

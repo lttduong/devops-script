@@ -1,0 +1,82 @@
+{{- if or (.Values.rbac.enabled) (.Values.rbac.test.enabled) }}
+{{- if .Values.rabbitmq.management.enabled }}
+apiVersion: v1
+kind: Pod
+metadata:
+{{ if empty .Values.global.podNamePrefix }}
+  name: "{{ template "rabbitmq.fullname" . }}-plugin-test"
+{{ else }}
+  name: "{{ .Values.global.podNamePrefix }}{{ template "rabbitmq.fullname" . }}-plugin-test"
+{{ end }}
+  annotations:
+    "helm.sh/hook": test-success
+    {{- if .Values.istio.enabled }}
+    sidecar.istio.io/inject: "false"
+    {{- end }}
+spec:
+  volumes:
+    - name: testconfigmap
+      configMap:
+        name: "{{ template "rabbitmq.fullname" . }}-test-configmap"
+  containers:
+    - name: {{ default "" .Values.global.containerNamePrefix }}{{ template "rabbitmq.fullname" . }}-plugin-test
+      image: "{{ .Values.global.registry2 }}/{{ .Values.helmTestImage.repository }}:{{ .Values.helmTestImage.tag }}"
+      resources:
+        limits:
+          cpu: "0.5"
+          memory: 256Mi
+        requests:
+          cpu: "0.25"
+          memory: 128Mi
+      volumeMounts:
+        - name: testconfigmap
+          mountPath: /test/
+      command:
+         - bash
+         - -ec
+         - |
+           source /test/curl_cmd.sh
+           wait_service_available
+           wait_pod_running
+           plugins=$(echo "{{ .Values.rabbitmq.plugins }}"|sed -e "s/.*\[//" -e "s/\].*//")
+           if [ "{{ .Values.rabbitmq.prometheus.enabled }}" == "false"  ] ; then
+           plugins=$(sed 's/,rabbitmq_prometheus//' <<< "$plugins");
+           fi
+           if [ -z "{{ .Values.global.podNamePrefix }}"  ] ; then
+           kubectl exec -it {{ template "rabbitmq.fullname" . }}-0  -- /usr/lib/rabbitmq/bin/rabbitmq-plugins list |grep "E\*"
+           else
+           kubectl exec -it {{ .Values.global.podNamePrefix }}{{ template "rabbitmq.fullname" . }}-0  -- /usr/lib/rabbitmq/bin/rabbitmq-plugins list |grep "E\*"
+           fi
+           for plugin in $(echo $plugins | tr "," "\n")
+           do
+              echo "check plugin $plugin"
+              rc1=$(check_plugin $plugin)
+              echo "return:$rc1"
+              if [ "$rc1" !=  "0" ] ; then
+                 exit 1
+              fi
+           done
+           echo "plugins are good"
+
+      env:
+         - name: RABBITMQ_PASSWORD
+           valueFrom:
+             secretKeyRef:
+               name: {{ template "rabbitmq.fullname" . }}
+               key: rabbitmq-password
+         - name: RABBITMQ_USER
+           valueFrom:
+             secretKeyRef:
+               name: {{ template "rabbitmq.fullname" . }}
+               key: rabbitmq-user
+
+  restartPolicy: Never
+  {{- if .Values.rbac.enabled}}
+  serviceAccountName: {{ template "rabbitmq.fullname" . }}-test-account
+  {{- else if not ( empty .Values.rbac.test.serviceAccountNameHelmTest ) }}
+  serviceAccountName: "{{ .Values.rbac.test.serviceAccountNameHelmTest }}"
+  {{- else }}
+  serviceAccountName: "{{ .Values.rbac.serviceAccountName }}"
+  {{- end }}
+{{- end }}
+{{- end }}

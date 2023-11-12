@@ -1,0 +1,27 @@
+use Python3
+Upgrade to Python3.8
+https://www.itsupportwale.com/blog/how-to-upgrade-to-python-3-8-on-ubuntu-18-04-lts/
+reinstall pip3
+curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
+python3 get-pip.py --force-reinstall
+python -c "import sys; print sys.stdout.encoding"
+
+
+1/ install
+sudo apt install python3-pip
+pip3 install -U pip setuptools
+pip3 install -U pip ansible
+
+# exit and reconnect to the VM so that ansible is loaded
+
+ansible --version | grep "python version"
+# make sure python 3.6
+
+2/ cd ~/kube-cluster
+3/ ansible-playbook -i hosts ~/kube-cluster/initial.yml
+4/ ansible-playbook -i hosts ~/kube-cluster/kube-dependencies.yml 
+5/ install this on master node
+sudo apt-get install acl
+
+
+

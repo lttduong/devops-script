@@ -1,0 +1,157 @@
+db-configurator:
+  jobs:
+    nosdb:
+      username: "bpasnosdb"
+    bpasdb:
+      enabled: true
+      username: "bpasdb"
+      nosUsername: "bpasnosdb"
+      secretName: "bpasdb-secret"
+      sqlFile: "config_files/bpasdb.sql"
+
+crmq-configurator:
+  virtualHostName: "/"
+  users:
+    serverUser:
+      enabled: true
+      username: "bpas-server-user"
+      secretName: "server-crmq-user-secret"
+  jobs:
+    server:
+      enabled: true
+      adminCommands:
+        secretName: "{{ .Release.Name }}-server-crmq-secret"
+        files:
+          - "config_files/admin-commands/server-commands.txt"
+
+server:
+  useDbConfigurator: true
+  dbAccounts:
+    - name: "nosdb"
+      secretName: "nosdb-secret"
+    - name: "bpasdb"
+      secretName: "bpasdb-secret"
+  image: "epsec/products/businessprocessautomationservice/bpas-dist/epsec-bpas"
+  imageTag: "{{ index .Values.global.imageTags \"epsec/products/businessprocessautomationservice/bpas-dist/epsec-bpas\" }}"
+  ingress:
+    networkAccess:
+      ui:
+        externalPath: "/netguard-was-admin/"
+        internalPath: "/netguard-was-admin/"
+      rest:
+        enabled: false
+      legacyrest:
+        enabled: false
+    was:
+      rest:
+        enabled: true
+        maxBodySize: 100m
+        limitConnections: 35
+        limitRps: 35
+        proxyReadTimeout: 600
+        externalPath: "/netguard-was-rest/"
+        internalPath: "/netguard-was-rest/"
+  encryptedProperties:
+    secrets:
+      serverCrmqUser:
+        secretName: "server-crmq-user-secret"
+        path: "bpas/server/rabbitmq/credentials"
+  encryptionKey:
+    enabled: false
+    secretName: "encryptkey-secret"
+    version: "20200000-1"
+    # this default is overwritten by the generated password:
+    password: "InvalidDefaultPassword!"
+    # The 'previous' values are used for special cases, where we need to change or migrate the encryption keys
+    # These values are purposefully not exposed by any config vars file, but you can set the following extra values
+    # in the config_vars file in order to override the values here:
+    #   ENCRYPTION_VERSION:             (overrides above 'version' value)
+    #   ENCRYPTION_VERSION_PREVIOUS:    (overrides previous.version below)
+    #   ENCRYPTION_PASSWORD_PREVIOUS:   (overrides previous.password below)
+    previous:
+      secretName: "encryptkey-previous-secret"
+      # If migrating, the previous version is set to the original version (as set below), and the 
+      # encryptionKey.version value above must be manually changed to '20200000-2'
+      version: "20200000-1"
+      # A non-empty password here will trigger an encryption upgrade from the previous version. Only
+      # set this if you know what you're doing. If setting this then it should be set to the password
+      # of the previous encryption password. When the dbschematool runs it will have an additional
+      # properties file named by enc-{{ .Values.encryptionKey.previous.version }}.properties. 
+      # The previous and current version are used to upgrade the encryption version by the dbschematool.
+      password:
+  extraVolumeMounts: |-
+    - name: process-variable-config-volume
+      mountPath: /opt/nokia/process-variable-config
+    - name: was-keycloak
+      mountPath: /opt/nokia/config/was-keycloak.json
+      subPath: was-keycloak.json
+  extraVolumes: |-
+    - name: process-variable-config-volume
+      configMap:
+        name:  process-variable-config-configmap
+    - name: was-keycloak
+      configMap:
+        name: was-keycloak 
+  extraEnv: |-
+    - name: "PRODUCT_NAME"
+      value: "{{ .Values.productName }}"
+
+dbschematool:
+  image: "epsec/products/businessprocessautomationservice/bpas-dist/epsec-bpas-dbschematool"
+  imageTag: "{{ index .Values.global.imageTags \"epsec/products/businessprocessautomationservice/bpas-dist/epsec-bpas-dbschematool\" }}"
+  hookWeight: 20
+  operation: "schema"
+  restartPolicy: "Never"
+  imagePullPolicy: "IfNotPresent"
+  requests:
+    memory: 1024Mi
+    cpu: 1000m
+  limits:
+    memory: 4096Mi
+    cpu: 1500m
+
+ui:
+  image: "epsec/products/businessprocessautomationservice/bpas-thinclient/epsec-bpasui"
+  imageTag: "{{ index .Values.global.imageTags \"epsec/products/businessprocessautomationservice/bpas-thinclient/epsec-bpasui\" }}"
+  imagePullPolicy: "IfNotPresent"
+  replicaCount: 1
+  
+  httpsPort: 8443
+  httpPort: 8080
+  
+  ingress:
+    path: "/netguard-was(/|$)"
+    useRegex: true
+    maxBodySize: 100m
+    limitConnections: 35
+    proxyReadTimeout: 600
+    limitRps: 35
+    useHttps: true
+
+deployer:
+  image: "epsec/products/businessprocessautomationservice/bpas-dist/epsec-bpas-deployer"
+  imageTag: "{{ index .Values.global.imageTags \"epsec/products/businessprocessautomationservice/bpas-dist/epsec-bpas-deployer\" }}"
+  hookWeight: 20
+  restartPolicy: "OnFailure"
+  imagePullPolicy: "IfNotPresent"
+  workflowsMountDir: "/opt/bcmt/storage/workflows"
+  requests:
+    memory: 1024Mi
+    cpu: 100m
+  limits:
+    memory: 4096Mi
+    cpu: 200m
+  # deployer runs as user 'nokapp' created with gid:uid=1000:1000
+  securityContext:
+    group: 1000
+    user: 1000
+
+encryptedProperties:
+  secrets:
+    ckeyClientSecret:
+      secretName: "ckey-netguard-was-client-secret"
+      path: "bpas/ckey/client/secret"
+      enabled: true
+      
+product:
+  name: "NetGuard"

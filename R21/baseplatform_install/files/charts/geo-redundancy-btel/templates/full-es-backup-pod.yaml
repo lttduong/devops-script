@@ -1,0 +1,81 @@
+{{- if and (.Values.cbur.enabled) (.Values.geo_redundancy.enabled) }}
+apiVersion: v1
+{{/* Kind Pod is because Job blocks helm upgrade until completion, where backup can take a long time.*/}}
+kind: Pod
+metadata:
+  name: {{ .Chart.Name }}-switchover-full-backup
+  labels:
+    app: {{ .Chart.Name }}-switchover-full-backup
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+  annotations:
+    "helm.sh/hook-weight": "1"
+    "helm.sh/hook": post-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation
+    "helm.sh/resource-policy": keep
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: {{ .Values.global.seccompAllowedProfileNames }}
+    seccomp.security.alpha.kubernetes.io/defaultProfileName: {{ .Values.global.seccompDefaultProfileName }}
+spec:
+  securityContext:
+    runAsUser: 1000
+    fsGroup: 1000
+  restartPolicy: Never
+  containers:
+    - name: {{ .Chart.Name }}-switchover-full-backup
+      image: {{ .Values.image.registry }}/{{ .Values.centos.image.name }}:{{ .Values.image.tag }}
+      imagePullPolicy: {{ .Values.global.image.pullPolicy }}
+      command: ["/bin/bash", "-c"]
+      args: [".{{ .Values.geo_redundancy.config.scriptsPath }}/{{ .Values.geo_redundancy.config.backupScriptFilename }}"]
+      securityContext:
+        allowPrivilegeEscalation: false
+        privileged: false
+        capabilities:
+          drop:
+            - all
+      resources:
+{{ toYaml .Values.resources | indent 6 }}
+      env:
+        - name: "CLIENT_PORT"
+          value: "{{ .Values.global.config.btel.elasticsearchClientPort }}"
+        - name: "ELASTICSEARCH_SERVICE"
+          value: "{{ .Values.global.config.btel.elasticsearchServiceName }}"
+        - name: "IS_FULL_BACKUP"
+          value: "{{ .Values.cronjob.suspended }}"
+      volumeMounts:
+        {{- if .Values.searchguard.enable }}
+        - name: {{ .Chart.Name }}-tls-client
+          mountPath: "/etc/elasticsearch/certs/"
+          readOnly: true
+        {{- end }}
+        {{- if .Values.cbur.enabled }}
+        - name: elasticsearch-backup
+          mountPath: /elasticsearch-backup
+        - name: es-pre-backup
+          mountPath: "{{ .Values.geo_redundancy.config.scriptsPath }}/{{ .Values.geo_redundancy.config.backupScriptFilename }}"
+          subPath: "{{ .Values.global.config.btel.backupScriptFilename }}"
+        {{- end }}
+  volumes:
+    {{- if .Values.searchguard.enable }}
+    - name: {{ .Chart.Name }}-tls-client
+      secret:
+        secretName: {{ .Chart.Name }}-tls-client
+        items:
+          - key: tls.crt
+            path: admin.crt.pem
+          - key: tls.key
+            path: admin.key.pem
+    {{- end }}
+    {{- if .Values.cbur.enabled }}
+    - name: elasticsearch-backup
+      persistentVolumeClaim:
+        claimName: {{ .Chart.Name }}-nfs-pvc-rw
+    - name: es-pre-backup
+      configMap:
+        name: {{ .Values.global.config.btel.backupScriptConfigmapName }}
+        defaultMode: 0750
+        items:
+          - key: {{ .Values.global.config.btel.backupScriptFilename }}
+            path: {{ .Values.global.config.btel.backupScriptFilename }}
+    {{- end }}
+{{- end }}

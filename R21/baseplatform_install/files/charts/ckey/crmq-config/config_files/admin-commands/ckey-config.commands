@@ -1,0 +1,8 @@
+declare vhost name=/
+declare user name={{ .Values.config.crmq.users.ckey.username }} \
+             password={{ .Values.config.crmq.users.ckey.password }} \
+             tags=""
+declare exchange name={{ .Values.config.crmq.ckeyExchangeName }} \
+                 type=topic auto_delete=false internal=false durable=true
+declare permission vhost=/ user={{ .Values.config.crmq.users.ckey.username }} \
+                   configure="" write="{{ .Values.config.crmq.ckeyExchangeName }}" read=""

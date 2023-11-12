@@ -1,0 +1,17 @@
+- name: "Set possible values for geo redundancy related parameters"
+  set_fact:
+    activeMode: "active"
+    passiveMode: "passive"
+
+- name: "Set geoRedundancyEnabled fact"
+  set_fact:
+    geoRedundancyEnabled: "{{ GEO_REDUNDANCY.ENABLED | default(false) }}"
+
+- name: "Set geoRedundancyMode fact"
+  set_fact:
+    geoRedundancyMode: "{{ GEO_REDUNDANCY.MODE | default('') }}"
+
+- name: "Set password policy"
+  set_fact:
+    passwordLength: 14
+    passwordSigns: "@%^"

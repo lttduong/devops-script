@@ -1,0 +1,43 @@
+{{- if (empty .Values.server.configMapOverrideName) -}}
+{{- if .Values.deployOnComPaaS }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    app: {{ template "prometheus.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    component: "{{ .Values.server.name }}"
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+{{- include "prometheus-labels" (tuple .Values.global.labels) | indent 4}}
+  name: {{ template "prometheus.server.fullname" . }}
+{{- if .Values.global.annotations }}
+  annotations:
+{{- include "prometheus-annotations" (tuple .Values.global.annotations) | indent 4}}
+{{- end }}
+data:
+{{- $root := . -}}
+{{- $svcName := include "prometheus.alertmanager.fullname" . -}}
+{{- range $key, $value := .Values.serverFilesForComPaaS }}
+  {{ $key }}: |
+{{ toYaml $value | default "{}" | indent 4 }}
+{{- if eq $key "prometheus.yml" -}}
+{{- if $root.Values.customScrapeJobs }}
+{{ toYaml $root.Values.customScrapeJobs | indent 4 }}
+{{- end }}
+{{- if $root.Values.alertmanager.enabled -}}
+{{ printf "\n" }}
+    alerting:
+      alertmanagers:
+      - static_configs:
+        - targets:
+          {{- if $root.Values.ha.enabled }}
+          - {{ $svcName }}-ext:80
+          {{- else }}
+          - {{ $svcName }}:80
+          {{- end }}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}

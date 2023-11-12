@@ -1,0 +1,9 @@
+## Start of custom chart file
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ssl-dhparam
+type: Opaque
+data:
+  dhparam.pem: {{ .Values.ssl.dhparam }}
+## End of custom chart file

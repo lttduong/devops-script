@@ -1,0 +1,9 @@
+---
+- name: "Installing {{ BP_NAMESPACE }} namespace"
+  shell: >
+    {{ helm }} install {{ chartsPath }}/namespace/app
+    --wait
+    --name-template {{ namespaceHelmName }}
+    --namespace default
+    --set namespace={{ BP_NAMESPACE }}
+    --set namespaceConfiguration={{ BP_CONFIG_NAMESPACE }}

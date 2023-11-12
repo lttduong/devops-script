@@ -1,0 +1,9 @@
+---
+- name: "Upgrading namespace chart"
+  shell: >
+    {{ helm }}  upgrade {{ namespaceHelmName }} {{ chartsPath }}/namespace/app
+    --reuse-values
+    --install
+    --namespace default
+    --wait
+    --timeout 60s

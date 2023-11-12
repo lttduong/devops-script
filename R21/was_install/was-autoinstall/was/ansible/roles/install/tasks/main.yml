@@ -1,0 +1,31 @@
+#- name: "Installing namespace"
+#  include: 01_install_namespace.yml
+
+- name: "Installing PSP bypass"
+  include: 02_install_psp_bypass.yml
+  when: installPspBypass|bool == true
+
+- name: "Installing ckey-config"
+  include: 03_install_ckey_config.yml
+  when: runKeycloakConfig|bool == true
+
+- name: "Installing ssh-config"
+  include: 04_install_ssh_config.yml
+
+- name: "Generating DB passwords"
+  include: 05_generate_db_passwords.yml
+  when: db_password_helm_param_names is defined
+
+- name: "Generating CRMQ passwords"
+  include: 06_generate_crmq_passwords.yml
+  when: crmq_password_helm_param_names is defined
+
+- name: "Installing CA certificate for configuration jobs"
+  include: 07_install_config_ca_certificate.yml
+
+- name: "Generating encryption password"
+  include: 08_generate_encryption_password.yml
+  when: encryption_password_helm_param_names is defined
+
+- name: "Installing product"
+  include: install_product.yml

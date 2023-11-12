@@ -1,0 +1,64 @@
+- name: Change IP for host ansible
+  hosts: localhost
+  connection: local
+  collections:
+   - azure.azcollection   
+  
+  vars_files:
+    - env_variables
+  
+  tasks:
+  - name: Query IP Public VM of master node
+    command: sudo az vm show -g "{{ newRG }}" -n "{{ masterName }}"  --query publicIps -d --out tsv
+    register: publicmasterip
+
+  - name: Query IP Public VM of worker node
+    command: sudo az vm show -g "{{ newRG }}" -n "{{ workerName }}"  --query publicIps -d --out tsv
+    register: publicworkerip
+
+  - name: Query IP Public of DPA VM
+    command: sudo az vm show -g "{{ newRG }}" -n "{{ dpaName }}"  --query publicIps -d --out tsv
+    register: publicdpaip
+   
+  - name: Replace IP master to host
+    shell: |
+      sudo sed -i "s/172.17.0.4/"{{ publicmasterip.stdout }}"/g" ../../hosts
+   
+  - name: Replace IP worker to host
+    shell: |
+      sudo sed -i "s/172.17.0.5/"{{ publicworkerip.stdout }}"/g" ../../hosts
+
+  - name: Replace IP DPA to host
+    shell: |
+      sudo sed -i "s/172.17.0.8/"{{ publicdpaip.stdout }}"/g" ../../hosts
+
+  - name: Refresh inventory to ensure new instances exist in inventory
+    meta: refresh_inventory
+
+  - name: Pause 2 minutes for sync hosts file
+    pause:
+     minutes: 2
+  
+- name: Stop Firewall on master node
+  hosts: kubernetes_master_nodes:kubernetes_worker_nodes
+  become: yes
+
+  tasks:
+  - name: Starting and Enabling the required services
+    service:
+      name: firewalld
+      state: stopped
+      enabled: yes
+
+- name: Copy Credential to localhost
+  hosts: kubernetes_master_nodes
+  become: yes
+
+  tasks: 
+  - name: Fetch credential file to localhost
+    fetch:
+      src: $HOME/bp_config_vars.yml 
+      dest: ./
+      flat: yes
+  
+

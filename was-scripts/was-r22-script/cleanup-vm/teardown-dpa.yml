@@ -1,0 +1,70 @@
+- name: Tear down DPA VM
+  hosts: localhost
+  connection: local
+  collections:
+    - azure.azcollection
+
+  vars:
+    resourceGroup: open-wavehub-dev
+    dpaName: "{{ lookup('env', 'dpaName') }}"
+    newRG: "{{ lookup('env', 'rg') }}"
+    location: "{{ lookup('env', 'region') }}"
+    dpaVaultName: "{{ lookup('env', 'dpaVaultName') }}"
+
+  tasks:
+    - name: Get NIC card
+      shell: sudo az vm nic list --vm-name "{{ dpaName }}" -g "{{ newRG }}" --query [0].id | awk -F '[/]' '{print $9}' | sed 's/"//'
+      register: nicname
+
+    - name: show NIC
+      set_fact:
+        cardnic: "{{ nicname.stdout }}"
+
+    - name: Get OS Disk of VM
+      shell: sudo az vm show -d -g "{{ newRG }}" -n "{{ dpaName }}" --query "storageProfile.osDisk.managedDisk.id" | awk -F '[/]' '{print $9}' | sed 's/"//'
+      register: diskname
+
+    - name: show osDisk
+      set_fact:
+        osdisk: "{{ diskname.stdout }}"
+
+    - name: Get publicip name
+      shell: sudo az vm list-ip-addresses -g "{{ newRG }}" -n "{{ dpaName }}" --query [0].virtualMachine.network.publicIpAddresses[0].name | sed 's/"//g'
+      register: publicip
+
+    - name: Show public ip name
+      set_fact:
+        publicipname: "{{ publicip.stdout }}"
+
+    - name: Remove a VM with all resource that were autocreated
+      azure_rm_virtualmachine:
+        resource_group: "{{ newRG }}"
+        name: "{{ dpaName }}"
+        remove_on_absent: all_autocreated
+        state: absent
+
+    - name: Remove NIC
+      azure_rm_networkinterface:
+        resource_group: "{{ newRG }}"
+        name: "{{ cardnic }}"
+        state: absent
+
+    - name: Remove Os Disk
+      azure_rm_manageddisk:
+        name: "{{ osdisk }}"
+        location: "{{ location }}"
+        resource_group: "{{ newRG }}"
+        state: absent
+
+    - name: Remove Public IP
+      azure_rm_publicipaddress:
+        resource_group: "{{ newRG }}"
+        name: "{{ publicipname }}"
+        state: absent
+      ignore_errors: yes
+
+    - name: Delete Backup Item of Itself
+      shell: az backup protection disable --container-name {{ dpaName }} --backup-management-type AzureIaasVM --delete-backup-data true --item-name {{ dpaName }} --resource-group {{ resourceGroup }} --vault-name {{ wasVaultName }} --yes
+      ignore_errors: yes
+
+...

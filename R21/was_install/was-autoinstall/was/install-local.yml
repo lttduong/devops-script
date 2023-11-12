@@ -1,0 +1,36 @@
+- name: Pre-validation
+  hosts: localhost
+  connection: local
+  tasks:
+    - name: Installation started from here
+      debug:
+        var: playbook_dir
+
+- name: Product installation
+  hosts: localhost
+  connection: local
+  tasks:
+    - set_fact: 
+        files_path: "{{ playbook_dir }}/"
+    - set_fact:
+        executionTimestamp: 
+          stdout: latest
+
+- name: Product installation
+  hosts: localhost
+  connection: local
+  pre_tasks:
+    - name: "Get execution timestamp"
+      shell: "date +%Y-%m-%d_%H-%M-%S"
+      register: executionTimestamp
+      run_once: true
+  vars_files:
+    - "{{ playbook_dir }}/was_config_vars.yml"
+  vars:
+    - roles_path: "{{ playbook_dir }}/ansible/roles"
+  roles:
+    - { role: "{{ roles_path }}/pre_validation_facts_setup", run_once: true }
+    - { role: "{{ roles_path }}/validation",  run_once: true }
+    - { role: "{{ roles_path }}/facts_setup", run_once: true }
+    - { role: "{{ roles_path }}/copy_files", run_once: true }
+    - { role: "{{ roles_path }}/install", run_once: true }

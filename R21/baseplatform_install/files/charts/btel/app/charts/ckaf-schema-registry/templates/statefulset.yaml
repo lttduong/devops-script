@@ -1,0 +1,351 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ template "schema-registry.name" . }}
+  labels:
+    app: {{ .Chart.Name }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+  annotations:
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: {{ .Values.global.seccompAllowedProfileNames }} 
+    seccomp.security.alpha.kubernetes.io/defaultProfileName: {{ .Values.global.seccompDefaultProfileName }}
+spec:
+  serviceName: {{ template "schema-registry.name" . }}-headless
+  replicas: {{ .Values.replicaCount }}
+  updateStrategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app: {{ .Chart.Name }}
+      release: {{ .Release.Name | quote }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Chart.Name }}
+        release: {{ .Release.Name }}
+    spec:
+      {{- if .Values.global.rbacEnable }}
+      serviceAccountName: {{ template "schema-registry.name" . }}-sradmin
+      {{- end }}
+      {{- if eq .Values.Security.enabled true }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: {{ .Values.Security.runAsUser }}
+        fsGroup: {{ .Values.Security.fsGroup }}
+      {{- end }}
+      {{- if .Values.SchemaRegistryNodeSelector.enable }}
+      nodeSelector:
+{{ toYaml .Values.SchemaRegistryNodeSelector.nodeLabel | indent 8 }}
+      {{- end }}
+      {{- if .Values.tolerationsForTaints.enable }}
+      tolerations:
+      {{- range $index, $tol := .Values.tolerationsForTaints.tolerations }}
+        - key : "{{ $tol.key }}"
+          operator: "{{ $tol.operator }}"
+          value: "{{ $tol.value }}"
+          effect: "{{ $tol.effect }}"
+          {{- if $tol.tolerationSeconds }}
+          tolerationSeconds: {{ $tol.tolerationSeconds }}
+          {{ end }}
+      {{ end }}
+      {{ end }}
+      containers:
+        - name: ckaf-schema-registry
+          image: {{ .Values.global.registry }}/{{ .Values.SchemaRegistry.image.name }}:{{ .Values.SchemaRegistry.image.tag}}
+          imagePullPolicy: {{ .Values.SchemaRegistry.image.pullPolicy }}
+          {{- if eq .Values.Security.enabled true }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            privileged: false
+            capabilities:
+              drop:
+                - all
+          {{- end }}
+          ports:
+            - containerPort: {{ .Values.servicePort }}
+          livenessProbe:
+            exec:
+              command:
+                - bash
+                - -c
+                - ss -lntu | grep {{ .Values.servicePort }} | grep -q LISTEN
+            initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+            timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
+          readinessProbe:
+            exec:
+              command:
+                - bash
+                - -c
+                - ss -lntu | grep {{ .Values.servicePort }} | grep -q LISTEN
+            initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+            timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }} 
+          env:
+          - name: HOST_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+          - name: SCHEMA_REGISTRY_CUB_KAFKA_TIMEOUT
+            value: "{{ .Values.SchemaRegistry.cubtimeout }}"
+          - name: SCHEMA_REGISTRY_HOST_NAME
+            value: $(HOST_NAME).{{ template "schema-registry.name" . }}-headless.{{ .Release.Namespace }}.svc.cluster.local
+          - name: SCHEMA_REGISTRY_LOG_DIR
+            value: "/var/log/schema-registry"
+          - name: ZOOKEEPER_SASL_ENABLED
+            value: "FALSE"
+          - name: CLOG_ENABLE
+            value: "{{ .Values.global.clogEnable }}"
+          {{ if and (not .Values.kafka.ZookeeperUrl) (.Values.kafka.BootStrapServers) }}
+          - name: SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS
+            value: {{ .Values.kafka.BootStrapServers }}
+          {{ else if and (not .Values.kafka.BootStrapServers) (.Values.kafka.ZookeeperUrl) }}
+          - name: SCHEMA_REGISTRY_KAFKASTORE_CONNECTION_URL
+            value: {{ .Values.kafka.ZookeeperUrl }}
+          {{ else }}
+          - name: SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS
+            value: {{ .Values.kafka.BootStrapServers }}
+          - name: SCHEMA_REGISTRY_KAFKASTORE_CONNECTION_URL
+            value: {{ .Values.kafka.ZookeeperUrl }}
+          {{ end }}          
+          - name: SCHEMA_REGISTRY_KAFKASTORE_GROUP_ID
+            value: {{ template "schema-registry.groupId" . }}
+          - name: SCHEMA_REGISTRY_JMX_OPTS
+            value: "-javaagent:/jmx-exporter/jmx_prometheus_javaagent.jar={{ .Values.JmxExporter.port }}:/etc/schema_registry/jmx_config/schema-registry-jmx.yaml"
+          - name: SCHEMA_REGISTRY_LOG4J_ROOT_LOGLEVEL
+            value: "{{ .Values.LogLevel }}"
+          - name: SCHEMA_REGISTRY_MAX_FILE_SIZE
+            value: "{{ .Values.MaxFileSize }}"
+          - name: SCHEMA_REGISTRY_MAX_BACKUP_INDEX
+            value: "{{ .Values.MaxBackupIndex }}"
+          - name: SCHEMA_REGISTRY_MASTER_ELIGIBILITY
+            value: "true"
+          - name: SCHEMA_REGISTRY_LISTENERS
+            value: {{ template "listeners" . }}
+          - name: SCHEMA_REGISTRY_KAFKASTORE_SECURITY_PROTOCOL
+            value: {{ template "kafkastore-security-protocol" . }}
+          {{if eq .Values.sr_ssl.enabled true}}
+          - name: SCHEMA_REGISTRY_SSL_CLIENT_AUTH
+            value: {{ .Values.sr_ssl.clientAuth | quote }}
+          - name: SCHEMA_REGISTRY_SSL_TRUSTSTORE_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.sr_ssl.secret_name }}
+                key: {{ .Values.sr_ssl.truststore_passwd_key }}
+          - name: SCHEMA_REGISTRY_SSL_KEYSTORE_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.sr_ssl.secret_name }}
+                key: {{ .Values.sr_ssl.keystore_passwd_key }}
+          - name: SCHEMA_REGISTRY_SSL_KEY_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.sr_ssl.secret_name }}
+                key: {{ .Values.sr_ssl.keystore_key_passwd_key }}
+          - name: SCHEMA_REGISTRY_SSL_KEYSTORE_LOCATION
+            value: /opt/ssl/{{ .Values.sr_ssl.keystore_key }}
+          - name: SCHEMA_REGISTRY_SSL_TRUSTSTORE_LOCATION
+            value: /opt/ssl/{{ .Values.sr_ssl.truststore_key }}
+          - name: SCHEMA_REGISTRY_INTER_INSTANCE_PROTOCOL
+            value: "https"                
+          {{end}}
+          {{if eq .Values.kafkastore_ssl.enabled true}}              
+          - name: SCHEMA_REGISTRY_KAFKASTORE_SSL_KEY_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.kafkastore_ssl.secret_name }}
+                key: {{ .Values.kafkastore_ssl.keystore_key_passwd_key }}
+          - name: SCHEMA_REGISTRY_KAFKASTORE_SSL_KEYSTORE_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.kafkastore_ssl.secret_name }}
+                key: {{ .Values.kafkastore_ssl.keystore_passwd_key }}
+          - name: SCHEMA_REGISTRY_KAFKASTORE_SSL_TRUSTSTORE_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.kafkastore_ssl.secret_name }}
+                key: {{ .Values.kafkastore_ssl.truststore_passwd_key }}
+          - name: SCHEMA_REGISTRY_KAFKASTORE_SSL_TRUSTSTORE_LOCATION
+            value: /opt/kafka-ssl/{{ .Values.kafkastore_ssl.truststore_key }}
+          - name: SCHEMA_REGISTRY_KAFKASTORE_SSL_KEYSTORE_LOCATION
+            value: /opt/kafka-ssl/{{ .Values.kafkastore_ssl.keystore_key }}               
+          {{end}}
+          {{ range $configName, $configValue := .Values.configurationOverrides }}
+          - name: SCHEMA_REGISTRY_{{ $configName | replace "." "_" | upper }}
+            value: {{ $configValue | quote }}
+          {{ end }}
+          {{- if eq .Values.sasl.enable true}}
+          - name: SCHEMA_REGISTRY_KAFKASTORE_SASL_MECHANISM
+            value: {{ .Values.sasl.mechanism }}
+          - name: SASL_ENABLE
+            value: "TRUE"
+          {{- if eq .Values.sasl.mechanism "GSSAPI" }}
+          - name: KRB_ENABLE
+            value: "enable"
+          - name: KRB_PRINCIPAL
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.sasl.krb.krbSecretName }}
+                key: {{ .Values.sasl.krb.krbPrincipalKey }}
+          - name: KRB_KEYTAB
+            value: {{ .Values.sasl.krb.krbKeytabKey }}
+          - name: KRB_CONF
+            value: {{ .Values.sasl.krb.krbConf }}
+          - name: SCHEMA_REGISTRY_KAFKASTORE_SASL_KERBEROS_SERVICE_NAME
+            value: "kafka"
+          - name: EXTRA_ARGS
+            value: " -Djava.security.krb5.conf=/etc/schema-registry/krb-conf/krb5.conf -Dsun.security.krb5.debug=true"
+          {{- else }}
+          - name: KRB_ENABLE
+            value: "disable"
+          {{- end }}
+          {{- if eq .Values.sasl.mechanism "PLAIN" }}
+          - name: SASL_PLAIN_USER_NAME
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.sasl.plain.secretName }}
+                key: {{ .Values.sasl.plain.usernameKey }}
+          - name: SASL_PLAIN_PASS_WORD
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.sasl.plain.secretName }}
+                key: {{ .Values.sasl.plain.passwordKey }}
+          {{- end }}
+          {{- else }}
+          - name: SASL_ENABLE
+            value: "FALSE"
+          - name: KRB_ENABLE
+            value: "disable"
+          {{- end }}
+          {{if eq .Values.sr_basicAuth.enabled true}}
+          - name: SCHEMA_REGISTRY_AUTHENTICATION_ROLES
+            value: {{ required "specify the authentication roles." .Values.sr_basicAuth.authenticationRoles }}
+          - name: SCHEMA_REGISTRY_BASIC_AUTH
+            value: "true"
+          - name: SCHEMA_REGISTRY_AUTHENTICATION_METHOD 
+            value: "BASIC"
+          - name: SCHEMA_REGISTRY_AUTHENTICATION_REALM
+            value: "SchemaRegistry-Props"
+          {{ else }}
+          - name: SCHEMA_REGISTRY_BASIC_AUTH
+            value: "false"
+          {{ end }}
+          {{- if .Values.schemaRegistryOpts }}
+          # The pre-flight checks use KAFKA_OPTS instead of SCHEMA_REGISTRY_OPTS.
+          - name: KAFKA_OPTS
+            value: "{{ .Values.schemaRegistryOpts }}"
+          - name: SCHEMA_REGISTRY_OPTS
+            value: "{{ .Values.schemaRegistryOpts }}"
+          {{- end }}
+          resources:
+{{ toYaml .Values.resources | indent 12 }}
+          volumeMounts:
+          {{ if (eq .Values.sr_ssl.enabled true) }}
+          - name: ssl
+            mountPath: /opt/ssl
+          {{end}}          
+          {{ if (eq .Values.kafkastore_ssl.enabled true) }}
+          - name: kafka-ssl
+            mountPath: /opt/kafka-ssl
+          {{end}}
+          {{- if .Values.sasl.scram.enabled }}
+          - name: jaasconfig
+            mountPath: {{ .Values.sasl.configPath | quote }}
+          {{- end }}
+          {{- if (and (eq .Values.sasl.enable true) (eq .Values.sasl.mechanism "GSSAPI")) }}
+          - name: sasl-krb
+            mountPath: /etc/schema-registry/keytab
+          - name: krb5config
+            mountPath: /etc/schema-registry/krb-conf/
+          {{- end}}
+          - name: schemaregistry-jmx-config-volume
+            mountPath: "/etc/schema_registry/jmx_config"
+          - name: schemaregistry-jmx-exporter-volume
+            mountPath: /jmx-exporter
+          {{- if eq .Values.sr_basicAuth.enabled true}}
+          - name: basicauth
+            mountPath: "/etc/schema-registry/basicauth/"
+          {{- end }}
+        - name: schemaregistry-jmx-exporter
+          image: {{ .Values.global.registry1 }}/{{ .Values.JmxExporter.image.name }}:{{.Values.JmxExporter.image.tag}}
+          imagePullPolicy: {{ .Values.JmxExporter.image.pullPolicy }}
+          {{- if eq .Values.Security.enabled true }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            privileged: false
+            capabilities:
+              drop:
+                - all
+          {{- end }}
+          resources:
+{{ toYaml .Values.jmxresources | indent 12 }}
+          volumeMounts:
+          - name: schemaregistry-jmx-exporter-volume
+            mountPath: /jmx-exporter
+      volumes:
+      {{- if eq .Values.sr_basicAuth.enabled true}}
+      - name: basicauth
+        secret:
+          secretName: {{ .Values.sr_basicAuth.secretName }}
+          items:
+          - key: {{ .Values.sr_basicAuth.secretKeyName }}
+            path: passwd 
+      {{- end }}
+      {{ if (eq .Values.sr_ssl.enabled true) }}
+      - name: ssl
+        secret:
+          secretName: {{ .Values.sr_ssl.secret_name }}
+          items:
+          - key: {{ .Values.sr_ssl.keystore_key }}
+            path: {{ .Values.sr_ssl.keystore_key }}
+          - key: {{ .Values.sr_ssl.truststore_key }}
+            path: {{ .Values.sr_ssl.truststore_key }}
+          - key: {{ .Values.sr_ssl.truststore_passwd_key }}
+            path: {{ .Values.sr_ssl.truststore_passwd_key }}
+          - key: {{ .Values.sr_ssl.keystore_passwd_key }}
+            path: {{ .Values.sr_ssl.keystore_passwd_key }}
+          - key: {{ .Values.sr_ssl.keystore_key_passwd_key }}
+            path: {{ .Values.sr_ssl.keystore_key_passwd_key }}
+      {{end}}
+      {{ if (eq .Values.kafkastore_ssl.enabled true) }}
+      - name: kafka-ssl
+        secret:
+          secretName: {{ .Values.kafkastore_ssl.secret_name }}     
+          items:
+          - key: {{ .Values.kafkastore_ssl.keystore_key }}
+            path: {{ .Values.kafkastore_ssl.keystore_key }}
+          - key: {{ .Values.kafkastore_ssl.truststore_key }}
+            path: {{ .Values.kafkastore_ssl.truststore_key }}
+          - key: {{ .Values.kafkastore_ssl.truststore_passwd_key }}
+            path: {{ .Values.kafkastore_ssl.truststore_passwd_key }}
+          - key: {{ .Values.kafkastore_ssl.keystore_passwd_key }}
+            path: {{ .Values.kafkastore_ssl.keystore_passwd_key }}
+          - key: {{ .Values.kafkastore_ssl.keystore_key_passwd_key }}
+            path: {{ .Values.kafkastore_ssl.keystore_key_passwd_key }}
+      {{end}}
+      {{- if .Values.sasl.scram.enabled }}
+      - name: jaasconfig
+        emptyDir: { medium: "Memory" }
+      - name: jaastemplate
+        configMap:
+          name: {{ template "schema-registry.name" . }}
+      {{- end }}
+      {{- if (and (eq .Values.sasl.enable true) (eq .Values.sasl.mechanism "GSSAPI")) }}
+      - name: sasl-krb
+        secret:
+          secretName: {{ .Values.sasl.krb.krbSecretName  }}
+          items:
+          - key: {{ .Values.sasl.krb.krbKeytabKey }}
+            path: {{ .Values.sasl.krb.krbKeytabKey }}
+      - name: krb5config
+        configMap:
+          name: {{ .Values.sasl.krb.krbConfigmapName }}
+          items:
+          - key: {{ .Values.sasl.krb.KrbConfKeyName }}
+            path: krb5.conf
+      {{- end }}
+      - name : schemaregistry-jmx-config-volume
+        configMap:
+           name: {{ template "schema-registry.name" . }}
+      - name: schemaregistry-jmx-exporter-volume
+        emptyDir: {}
+

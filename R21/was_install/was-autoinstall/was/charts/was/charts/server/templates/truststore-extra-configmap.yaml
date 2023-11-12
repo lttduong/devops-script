@@ -1,0 +1,17 @@
+{{ if .Values.useTruststoreExtraCerts }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "name" . }}-truststore-extra
+  labels:
+    app: {{ template "name" . }}
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+    backup: "true"
+  annotations:
+    "helm.sh/hook": pre-install
+    "helm.sh/hook-weight": "-10"
+data:
+{{ (tpl (.Files.Glob "truststore-extra-configmap/*.pem").AsConfig . ) | indent 2 }}
+{{ end }}

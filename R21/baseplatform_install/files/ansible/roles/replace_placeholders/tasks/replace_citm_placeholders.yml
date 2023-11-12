@@ -1,0 +1,31 @@
+---
+- name: "Set FQDN"
+  replace:
+    dest: "{{ citmConfigurationProfile.stat.path }}"
+    regexp: '<ACCESS_FQDNS_PLACEHOLDER>'
+    replace: "\n    - {{ ACCESS_FQDNS | join('\n    - ') }}"
+  when: citmConfigurationProfile.stat.exists and (ACCESS_FQDNS is defined and ACCESS_FQDNS | length > 0)
+
+- name: "Clear FQDN"
+  replace:
+    dest: "{{ citmConfigurationProfile.stat.path }}"
+    regexp: '<ACCESS_FQDNS_PLACEHOLDER>'
+    replace: ""
+  when: citmConfigurationProfile.stat.exists and (not ACCESS_FQDNS is defined or ACCESS_FQDNS | length == 0)
+
+- name: "Set ip addresses"
+  replace:
+    dest: "{{ citmConfigurationProfile.stat.path }}"
+    regexp: '<ACCESS_IPS_PLACEHOLDER>'
+    replace: "\n    - {{ ACCESS_IPS | join('\n    - ') }}"
+  no_log: true
+  when: citmConfigurationProfile.stat.exists and (ACCESS_IPS is defined and ACCESS_IPS | length > 0)
+
+- name: "Clear ip addresses"
+  replace:
+    dest: "{{ citmConfigurationProfile.stat.path }}"
+    regexp: '<ACCESS_IPS_PLACEHOLDER>'
+    replace: ""
+  no_log: true
+  when: citmConfigurationProfile.stat.exists and (not ACCESS_IPS is defined or ACCESS_IPS | length == 0)
+  

@@ -1,0 +1,454 @@
+certsConverter:
+  initContainersTemplate: |
+    - name: certs-converter-init
+      image: wasr21containerregistry.azurecr.io/certs-converter:21.0.2
+      imagePullPolicy: "IfNotPresent"
+      securityContext:
+        runAsUser: 1000
+      command: ["certs_converter"]
+      args: ["--certs-dir=/opt/nokia/config/certs-input",
+             "--output=/opt/nokia/config/certs-generated",
+             "--format=JKS",
+             "--ks-pass=changeit",
+             "--ts-pass=changeit"]
+      volumeMounts:
+        # Mount the certificates generated via templates/certificate.yaml as input to certs_converter:
+        - name: "tls-secret"
+          mountPath: "/opt/nokia/config/certs-input"
+          readOnly: true
+        # Mount the outputdir where the converted certs will be placed.
+        # We will then mount the converted certs (JKS files) in the main container
+        - name: "server-generated-certs"
+          mountPath: "/opt/nokia/config/certs-generated"
+  inputdir: /opt/nokia/config/certs-input
+  jkspass: changeit
+  keystorefile: /opt/nokia/config/certs-generated/keystore.jks
+  outputdir: /opt/nokia/config/certs-generated
+  truststoreExtraCerts: /opt/nokia/config/certs-extra
+  truststorefile: /opt/nokia/config/certs-generated/truststore.jks
+  volumeMountsTemplate: |
+    - name: "server-generated-certs"
+      mountPath: "/opt/nokia/config/certs-generated"
+  volumesTemplate: |
+    - name: "tls-secret"
+      secret:
+        secretName: "server-tls-secret"
+    - name: "server-generated-certs"
+      emptyDir: {}
+ckey-config:
+  enableNA: false
+  image:
+    nameAndTag: wasr21containerregistry.azurecr.io/ckey-config:21.0.1
+  realm: netguard
+  secrets:
+    workflowAutomationWorkbenchSecret:
+      enabled: "true"
+      secretName: ckey-was-workbench-client-secret
+      secretValue: 9ef70542-eaf7-4e65-b20b-551d3b383d88
+crmq-configurator:
+  users:
+    ckeyListener:
+      password: B9G33^0^D1p6G8
+  virtualHostName: /
+db-configurator:
+  jobs:
+    nosdb:
+      enabled: "true"
+      password: E8^%2^R6@^r^5@@8
+      secretName: nosdb-secret
+      sqlFile: config_files/nosdb.sql
+      username: workbenchnosdb
+    workbenchdb:
+      enabled: "true"
+      nosUsername: workbenchnosdb
+      password: on%rx%@%Q@pP@^@4
+      secretName: workbenchdb-secret
+      sqlFile: config_files/workbenchdb.sql
+      username: workbenchdb
+dbschematool:
+  hookWeight: 20
+  image: epsec/products/businessprocessautomationservice/bpas-workbench-dist/epsec-bpas-workbench-dbschematool
+  imagePullPolicy: IfNotPresent
+  imageTag: 0.0.525
+  limits:
+    cpu: 1500m
+    memory: 4096Mi
+  operation: schema
+  requests:
+    cpu: 1000m
+    memory: 1024Mi
+  restartPolicy: Never
+global:
+  APP_NAMESPACE: netguard-workbench
+  APP_VERSION: 0.0.525
+  BP_CONFIG_NAMESPACE: netguard-configuration
+  BP_NAMESPACE: netguard-base
+  BP_RELEASE_NAME_PREFIX: null
+  adapterConfigOverridesConfigMapName: adapter-config-overrides
+  apiVersion: v1
+  applicationPropertiesOverridesConfigMapName: application-properties
+  caCertSecret: netguard-ca
+  cbur:
+    autoEnableCron: false
+    backendMode: local
+    cronSpec: 0 0 * * *
+    dataEncryption: true
+    enabled: false
+    maxiCopy: 3
+  certManager:
+    api: cert-manager.io/v1alpha2
+    duration: 8760h
+    issuerRef:
+      kind: ClusterIssuer
+      name: ncms-ca-issuer
+    keySize: "2048"
+    renewBefore: 360h
+  ckey:
+    eventsTopicName: ckey.topic
+    virtualHostName: /
+  ckeyAdapterAddresses:
+  - '"https://ckey-ckey.netguard-base.svc.cluster.local:8443",'
+  config:
+    ckey:
+      client:
+        secret:
+          netguardFrameworkSecret: b04e718c-2dd5-44a9-abc9-6069a80197cd
+          workflowAutomationWorkbenchSecret: 9ef70542-eaf7-4e65-b20b-551d3b383d88
+      configurator:
+        caCertFile: ca.crt
+        certificatesDir: /certificates
+        configDir: /import/config
+        dataDir: /import/data
+        image:
+          name: ckey-config
+          tag: 21.0.1
+        resources:
+          limits:
+            cpu: 200m
+            memory: 300Mi
+          requests:
+            cpu: 10m
+            memory: 50Mi
+        secretName: ckey-configurator-config
+      passwordPolicy: forceExpiredPasswordChange(90) and passwordHistory(5) and upperCase(1)
+        and lowerCase(1) and digits(1) and specialChars(1) and length(8) and regexPattern(^.{8,150}$)
+      realm: netguard
+    cmdb:
+      configurator:
+        configDir: /import/config
+        configMapName: cmdb-configurator-config-configmap
+        image:
+          name: cmdb-config
+          tag: 21.0.1
+        secretName: cmdb-configurator-config
+    crmq:
+      configurator:
+        configMapName: crmq-configurator-config-configmap
+        image:
+          name: crmq-config
+          tag: 21.0.1
+        secretName: crmq-configurator-config
+  crmq:
+    port: "5671"
+    serviceName: crmq-crmq.netguard-base.svc.cluster.local
+    useSsl: "true"
+  delete_cert_job:
+    resources:
+      limits:
+        cpu: 200m
+        memory: 300Mi
+      requests:
+        cpu: 10m
+        memory: 50Mi
+  dns:
+    domain: .svc.cluster.local
+    policy: ClusterFirst
+  elasticsearch:
+    port: "9200"
+    serviceName: elasticsearch.netguard-base.svc.cluster.local
+  extendedPropertiesConfigMapName: extended-properties
+  extraSslCerts:
+    server: ""
+  helmHooks:
+    appdbconfig:
+      hook: pre-install
+      weight: "-70"
+    appdbschema:
+      hook: pre-install
+      weight: "-40"
+    configmap:
+      hook: pre-install
+      weight: "-90"
+    crmqconfig:
+      hook: pre-install
+      weight: "-30"
+    nosdbconfig:
+      hook: pre-install
+      weight: "-80"
+    nosdbschema:
+      hook: pre-install
+      weight: "-60"
+    nrsdbschema:
+      hook: pre-install
+      weight: "-50"
+    secret:
+      hook: pre-install
+      weight: "-100"
+  imageTags:
+    certs-converter: 21.0.2
+    cmdb-config: 21.0.1
+    crmq-config: 21.0.1
+    epsec/products/businessprocessautomationservice/bpas-workbench-dist/epsec-bpas-workbench: 0.0.525
+    epsec/products/businessprocessautomationservice/bpas-workbench-dist/epsec-bpas-workbench-dbschematool: 0.0.525
+    epsec/products/businessprocessautomationservice/bpas-workbench-ui/epsec-bpas-workbench-ui: REPLACE-VERSION-bpas-workbench-ui/epsec-bpas-workbench-ui-REPLACE
+    epsec/products/framework/nos-dist/epsec-nos-dbschematool: 0.0.3276
+    epsec/products/framework/propertyencrypter/epsec-propertyencrypter: 0.0.275
+  ingressClass: netguard
+  jobNodeAffinityRuleTemplate: |
+    affinity:
+      # node-level affinity
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+          - matchExpressions:
+            - key: is_worker
+              operator: In
+              values:
+              - "true"
+  kubectl:
+    image:
+      repo: tools/kubectl
+      tag: v1.14.10-nano
+  mariadbExternalName: cmdb-mysql.netguard-base.svc.cluster.local
+  mariadbPort: 3306
+  nosdbSecret: nosdb-secret
+  rbac:
+    enabled: true
+  registry: wasr21containerregistry.azurecr.io
+  release:
+    name: workbench
+  releaseNamePrefix: null
+  serverClusterServiceHttpsPort: 8443
+  serverClusterServiceName: na-server
+  serverConfigOverrideConfigMapName: server-config-override
+  serviceAccountName: null
+  serviceAccountNameBP: null
+  sshConfigMapName: ssh-config
+  storageClass: default
+  svcDnsDomain: svc.cluster.local
+  workbenchdbSecret: workbenchdb-secret
+propertyEncrypter:
+  initContainersTemplate: |-
+    - name: property-encrypter
+      image: wasr21containerregistry.azurecr.io/epsec/products/framework/propertyencrypter/epsec-propertyencrypter:0.0.275
+      imagePullPolicy: "IfNotPresent"
+      env:
+        - name: SOURCE_SECRETS_DIR
+          value: "/opt/nokia/config/plaintext"
+        - name: ENCRYPTED_PROPS_FILE
+          value: /opt/nokia/config/encrypted/encrypted.properties
+        - name: ENCRYPTION_CONFIG_FILE
+          value: /opt/nokia/config/encrypted/encrypter-config.properties
+      volumeMounts:
+        - name: encrypted-properties
+          mountPath: "/opt/nokia/config/encrypted"
+        - mountPath: /opt/nokia/config/plaintext/ckey-netguard-framework-client-secret/ckey.client.secret.framework
+          name: ckey-netguard-framework-client-secret-volume
+        - mountPath: /opt/nokia/config/plaintext/ckey-was-workbench-client-secret/ckey.client.secret.workflowAutomationWorkbench
+          name: ckey-was-workbench-client-secret-volume
+  volumeMountsTemplate: |-
+    - mountPath: /opt/nokia/config/encryptedProperties
+      name: encrypted-properties
+  volumesTemplate: |-
+    - name: encrypted-properties
+      emptyDir: {}
+    - name: ckey-netguard-framework-client-secret-volume
+      secret:
+        secretName: ckey-netguard-framework-client-secret
+    - name: ckey-was-workbench-client-secret-volume
+      secret:
+        secretName: ckey-was-workbench-client-secret
+server:
+  certsConverter:
+    initContainersTemplate: |
+      - name: certs-converter-init
+        image: wasr21containerregistry.azurecr.io/certs-converter:21.0.2
+        imagePullPolicy: "IfNotPresent"
+        securityContext:
+          runAsUser: 1000
+        command: ["certs_converter"]
+        args: ["--certs-dir=/opt/nokia/config/certs-input",
+               "--output=/opt/nokia/config/certs-generated",
+               "--format=JKS",
+               "--ks-pass=changeit",
+               "--ts-pass=changeit"]
+        volumeMounts:
+          # Mount the certificates generated via templates/certificate.yaml as input to certs_converter:
+          - name: "tls-secret"
+            mountPath: "/opt/nokia/config/certs-input"
+            readOnly: true
+          # Mount the outputdir where the converted certs will be placed.
+          # We will then mount the converted certs (JKS files) in the main container
+          - name: "server-generated-certs"
+            mountPath: "/opt/nokia/config/certs-generated"
+    inputdir: /opt/nokia/config/certs-input
+    jkspass: changeit
+    keystorefile: /opt/nokia/config/certs-generated/keystore.jks
+    outputdir: /opt/nokia/config/certs-generated
+    truststoreExtraCerts: /opt/nokia/config/certs-extra
+    truststorefile: /opt/nokia/config/certs-generated/truststore.jks
+    volumeMountsTemplate: |
+      - name: "server-generated-certs"
+        mountPath: "/opt/nokia/config/certs-generated"
+    volumesTemplate: |
+      - name: "tls-secret"
+        secret:
+          secretName: "server-tls-secret"
+      - name: "server-generated-certs"
+        emptyDir: {}
+  dbAccounts:
+  - name: nosdb
+    secretName: nosdb-secret
+  - name: workbenchdb
+    secretName: workbenchdb-secret
+  dbConfig:
+    transactionTimeoutSeconds: "600"
+  dbschematool:
+    image: epsec/products/framework/nos-dist/epsec-nos-dbschematool
+    imagePullPolicy: IfNotPresent
+    imageTag: 0.0.3276
+    limits:
+      cpu: 1500m
+      memory: 4096Mi
+    operation: schema
+    requests:
+      cpu: 1000m
+      memory: 1024Mi
+    restartPolicy: Never
+  diagnosticVolume:
+    size: 32Gi
+  encryptionKey:
+    enabled: false
+    password: ""
+    previous:
+      password: ""
+      version: 20200000-1
+    secretName: encryptkey-secret
+    version: 20200000-1
+  extraVolumeMounts: |-
+    - name: workbench-keycloak
+      mountPath: /opt/nokia/config/workbench-keycloak.json
+      subPath: workbench-keycloak.json
+  extraVolumes: |-
+    - name: workbench-keycloak
+      configMap:
+        name: workbench-keycloak
+  image: epsec/products/businessprocessautomationservice/bpas-workbench-dist/epsec-bpas-workbench
+  imageTag: 0.0.525
+  ingress:
+    networkAccess:
+      legacyrest:
+        enabled: false
+      rest:
+        enabled: false
+      ui:
+        enabled: false
+    workbench:
+      rest:
+        enabled: true
+        externalPath: /was-workbench-rest/
+        internalPath: /was-workbench-rest/
+        limitConnections: 35
+        limitRps: 35
+        maxBodySize: 100m
+        proxyReadTimeout: 600
+  mail:
+    from: noreply@nokia.com
+    host: mailrelay.int.nokia.com
+    port: 25
+  nodeAffinityRuleTemplate: |
+    affinity:
+      # node-level affinity
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+          - matchExpressions:
+            - key: is_worker
+              operator: In
+              values:
+              - "true"
+      # pod-level anti-affinity
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 1
+          podAffinityTerm:
+            labelSelector:
+               matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - server
+            topologyKey: kubernetes.io/hostname
+  propertyEncrypter:
+    initContainersTemplate: |-
+      - name: property-encrypter
+        image: wasr21containerregistry.azurecr.io/epsec/products/framework/propertyencrypter/epsec-propertyencrypter:0.0.275
+        imagePullPolicy: "IfNotPresent"
+        env:
+          - name: SOURCE_SECRETS_DIR
+            value: "/opt/nokia/config/plaintext"
+          - name: ENCRYPTED_PROPS_FILE
+            value: /opt/nokia/config/encrypted/encrypted.properties
+          - name: ENCRYPTION_CONFIG_FILE
+            value: /opt/nokia/config/encrypted/encrypter-config.properties
+        volumeMounts:
+          - name: encrypted-properties
+            mountPath: "/opt/nokia/config/encrypted"
+          - mountPath: /opt/nokia/config/plaintext/ckey-netguard-framework-client-secret/ckey.client.secret.framework
+            name: ckey-netguard-framework-client-secret-volume
+          - mountPath: /opt/nokia/config/plaintext/ckey-was-workbench-client-secret/ckey.client.secret.workflowAutomationWorkbench
+            name: ckey-was-workbench-client-secret-volume
+    volumeMountsTemplate: |-
+      - mountPath: /opt/nokia/config/encryptedProperties
+        name: encrypted-properties
+    volumesTemplate: |-
+      - name: encrypted-properties
+        emptyDir: {}
+      - name: ckey-netguard-framework-client-secret-volume
+        secret:
+          secretName: ckey-netguard-framework-client-secret
+      - name: ckey-was-workbench-client-secret-volume
+        secret:
+          secretName: ckey-was-workbench-client-secret
+  replicaCount: 1
+  resources:
+    config:
+      enableconsole: "false"
+    jvm:
+      MaxMetaspaceSize: 512M
+      MetaspaceSize: 96M
+      Xms: 4G
+      Xmx: 8G
+      debugPort: 0
+    limits:
+      cpu: 8000m
+      memory: 12Gi
+    requests:
+      cpu: 2000m
+      memory: 12Gi
+  useDbConfigurator: true
+ui:
+  httpPort: 8080
+  httpsPort: 8443
+  image: epsec/products/businessprocessautomationservice/bpas-workbench-ui/epsec-bpas-workbench-ui
+  imagePullPolicy: IfNotPresent
+  imageTag: 0.0.195
+  ingress:
+    limitConnections: 35
+    limitRps: 35
+    maxBodySize: 100m
+    path: /was-workbench(/|$)
+    proxyReadTimeout: 600
+    useHttps: true
+    useRegex: true
+  replicaCount: 1

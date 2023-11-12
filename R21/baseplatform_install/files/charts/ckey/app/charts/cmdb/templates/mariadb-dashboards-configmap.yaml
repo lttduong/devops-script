@@ -1,0 +1,10 @@
+{{- if and (.Values.mariadb.dashboard) (.Values.mariadb.dashboard.enabled) }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "cmdb.fullname" . }}-dashboards
+  labels:
+    {{- include "cmdb-mariadb.labels" . | indent 4 }}
+data:
+{{ (.Files.Glob "dashboards/*").AsConfig | indent 2 }}
+{{- end }}

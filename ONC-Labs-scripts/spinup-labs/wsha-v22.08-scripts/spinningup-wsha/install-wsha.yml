@@ -1,0 +1,132 @@
+# ---
+# - name: Changing ssh port after brought up VM successfully
+#   hosts: restore_wsha_vm
+  
+#   tasks: 
+#     - name: Install expect package
+#       yum:
+#         name: expect
+#         state: present
+#       become: true
+    
+#     - name: Change 5522 SSH Port in the configuration file
+#       replace:
+#         path: /etc/ssh/sshd_config
+#         regexp: '#Port 22'
+#         replace: 'Port 5522'
+#       become: true
+
+#     - name: Restart ssh service  
+#       shell: |
+#         service sshd restart
+#       become: true
+
+#     - name: Reboot the server
+#       tags: reboot
+#       become: yes
+#       become_user: root
+#       shell: "sleep 5 && reboot"
+#       async: 1
+#       poll: 0
+    
+#     - name: Wait for the reboot and reconnect 
+#       wait_for:
+#         port: 5522
+#         host: restore_wsha_vm
+#         # search_regex: OpenSSH
+#         delay: 300
+#         timeout: 600
+#       connection: local
+#       ignore_errors: yes
+
+# - name: Change SSH port number to 5522
+#   hosts: localhost 
+#   connection: local
+#   collections:
+#     - azure.azcollection
+
+#   vars:
+#     newRG: "{{ lookup('env', 'rg') }}"
+#     wshaName: "{{ lookup('env', 'wshaName') }}"
+   
+#   tasks:
+#    - name: Replace public ip for hosts
+#      shell: sudo sed -i "s/ansible_port=22/ansible_port=5522/g" ../hosts
+
+#    - name: Refresh inventory to ensure new instances exist in inventory
+#      meta: refresh_inventory
+
+#    - name: Pause 2 minutes for sync hosts file
+#      pause:
+#       minutes: 2 
+
+- name: Installation after the VM is brought up successfully
+  hosts: restore_wsha_vm
+  
+  vars: 
+    nfmtIp: "{{ lookup('env', 'nfmtIp') }}"
+    nfmtPassword: "{{ lookup('env', 'nfmtPassword') }}"
+    vpnProfile: "{{ lookup('env', 'vpnProfile') }}"
+    rootProfile: "{{ lookup('env', 'rootProfile') }}"
+    wsha_profile_name: "{{ lookup('env', 'wsha_profile_name') }}"
+
+  tasks: 
+    - name: copy wavesuite config file to wsha host
+      copy:
+        src: playbook/wavesuite.yaml 
+        dest: /opt/wsha-full-installer-22.08.0-release-b86
+      become: true
+
+    - name: Copy openvpn profile to VM
+      copy:
+        src: "{{rootProfile}}{{ vpnProfile }}/{{ wsha_profile_name }}"
+        dest: /etc/openvpn3
+      become: true
+
+    - name: Connect VPN to WHLabs
+      shell: |
+        openvpn3 session-start --config /etc/openvpn3/"{{ wsha_profile_name }}"
+      become_user: WSHA_Admin
+      become: true
+      become_method: su
+      become_flags: '-s /bin/bash'
+
+    - name: Check vpn connaction with NFMT
+      shell: |
+        openvpn3 sessions-list 
+      register: showConnection
+
+    - name: List VPN connections in VM
+      debug:
+        msg: "{{showConnection.stdout}}"
+  
+    - name: Get tunnel VPN IP 
+      shell: hostname -I | awk '{ print $5 }'
+      register: tunnelIP
+
+    - name: Show out tunnel IP
+      debug:
+        msg: "{{tunnelIP.stdout}}"
+
+    - name: Update Ip tunnel VPN for configuration file
+      shell: sed -i "s/10.1.1.60/{{ tunnelIP.stdout }}/g" wavesuite.yaml   
+      args:
+          chdir: /opt/wsha-full-installer-22.08.0-release-b86
+      become: true
+
+    - name: Run script to update the setup
+      shell: |
+        spawn sudo ./wsha_installer.sh --install-ha --bypass-requirements-check
+        expect "Create vault password:"
+        send "qweQWE123!@#\r"
+        expect "Confirm vault password:" 
+        send "qweQWE123!@#\r"
+        interact
+        exit 0
+      args:
+        executable: /usr/bin/expect
+        chdir: /opt/wsha-full-installer-22.08.0-release-b86 
+      become: true
+      ignore_errors: yes
+
+...

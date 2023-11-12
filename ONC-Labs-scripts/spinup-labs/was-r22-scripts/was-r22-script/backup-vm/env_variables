@@ -1,0 +1,12 @@
+   resourceGroup: open-wavehub-dev
+   vaultName: "{{ lookup('env', 'vaultname') }}"
+   retainTime: "{{lookup('env', 'retainTime') }}"
+   dpaName: "{{ lookup('env', 'dpaname') }}"
+   masterName: "{{ lookup('env', 'mastername') }}"
+   workerName: "{{ lookup('env', 'workername') }}"
+   masterContainerName: "{{ lookup('env', 'masterContainerName') }}"
+   workerContainerName: "{{ lookup('env', 'workerContainerName') }}"
+   dpaContainerName: "{{ lookup('env', 'dpaContainerName') }}"
+   policyVault: "{{ lookup('env', 'policyVault') }}"
+                
+   

@@ -1,0 +1,34 @@
+---
+- name: "Upgrade CKEY"
+  shell: >
+    {{ helm }}  upgrade {{ ckeyHelmName }} {{ chartsPath }}/ckey/app
+    --namespace {{ BP_NAMESPACE }}
+    --reuse-values
+    --values {{ chartsPath }}/values/upgrade-global-values.yaml
+    --values {{ chartsPath }}/ckey/app/upgrade-override.yaml
+    {{ ckeyConfigurationOverride }}
+    {{ ckeyResourcesOverride }}
+    --set ingress.ingressClass={{ INGRESS_CLASS }}
+    --set ingress.annotations."kubernetes\.io\/ingress\.class"={{ INGRESS_CLASS }}
+    --set dns.domain={{ svcDnsDomain }}
+    --set clusterDomain={{ DNS_DOMAIN }}
+    --set cmdb.clusterDomain={{ DNS_DOMAIN }}
+    {{ ckeyGeoPassiveSettings | default('') }}
+    --wait
+    --timeout 1000s
+  no_log: "{{ no_log }}"
+
+# Temporary workaround for wait which does not wait (https://github.com/helm/helm/issues/4280)
+- name: "Read CKEY chart values"
+  include_vars:
+    file: "{{ files_path }}/charts/ckey/app/values.yaml"
+    name: ckey_values
+
+- name: "Waiting for CKEY to be ready"
+  shell: >
+    . {{ temporaryAppFilesDirectory }}/functions.sh {{ BP_NAMESPACE }}
+    && waitForReady ckey-ckey {{ ckey_values.imageTag }}
+  args:
+    executable: /bin/bash
+  async: 700
+  poll: 5

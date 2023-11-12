@@ -1,0 +1,18 @@
+{{- if .Values.cbur.enabled }}
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: {{ .Chart.Name }}-job-metadata-pvc
+  labels:
+    app: {{ .Chart.Name }}-passive-restore
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+spec:
+  resources:
+    requests:
+      storage: {{ .Values.geoRedundancyBtel.persistence.size }}
+  accessModes:
+    - {{ .Values.geoRedundancyBtel.persistence.accessMode }}
+  storageClassName: "{{ .Values.geoRedundancyBtel.persistence.storageClass }}"
+{{- end }}

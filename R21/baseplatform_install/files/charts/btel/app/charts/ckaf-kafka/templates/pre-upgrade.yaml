@@ -1,0 +1,218 @@
+{{if .Values.enable_upgrade_hook}}
+{{- if (and ( .Values.global.rbacEnable) (not .Values.global.serviceAccountName) ) }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ template "kafka.name" . }}-kf-preupg-admin
+  namespace: "{{.Release.Namespace}}"
+  labels:
+    app: {{ .Chart.Name }}
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+  annotations:
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: {{ .Values.global.seccompAllowedProfileNames }}
+    seccomp.security.alpha.kubernetes.io/defaultProfileName: {{ .Values.global.seccompDefaultProfileName }}
+    "helm.sh/hook": pre-upgrade
+    "helm.sh/hook-weight": "-8"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded,hook-failed
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ template "kafka.name" . }}-kf-preupg-rolebind
+  namespace: "{{.Release.Namespace}}"
+  labels:
+    app: {{ .Chart.Name }}
+  annotations:
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: {{ .Values.global.seccompAllowedProfileNames }}
+    seccomp.security.alpha.kubernetes.io/defaultProfileName: {{ .Values.global.seccompDefaultProfileName }}
+    "helm.sh/hook": pre-upgrade
+    "helm.sh/hook-weight": "-6"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded,hook-failed
+subjects:
+- kind: ServiceAccount
+  name: {{ template "kafka.name" . }}-kf-preupg-admin
+  namespace: "{{.Release.Namespace}}"
+roleRef:
+  kind: ClusterRole
+  name: admin
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "kafka.name" . }}-kf-preupg-job
+  labels:
+    app: {{ .Chart.Name }}
+    release: {{ .Release.Name | quote }}
+    heritage: {{ .Release.Service | quote }}
+  annotations:
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: {{ .Values.global.seccompAllowedProfileNames }}
+    seccomp.security.alpha.kubernetes.io/defaultProfileName: {{ .Values.global.seccompDefaultProfileName }}
+    "helm.sh/hook": pre-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    "helm.sh/hook-weight": "-5"
+spec:
+  template:
+    metadata:
+      labels:
+        app: {{ .Chart.Name }}
+      annotations:
+        sidecar.istio.io/inject: "false"
+    spec:
+      {{- if .Values.global.rbacEnable }}
+      {{- if not .Values.global.serviceAccountName }}
+      serviceAccountName: {{ template "kafka.name" . }}-kf-preupg-admin
+      {{ else }}
+      serviceAccountName: {{ template "kfserviceAccount.name" . }}
+      {{ end }}
+      {{ end }}
+      {{- if eq .Values.security.enabled true }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: {{ .Values.security.runAsUser }}
+        fsGroup: {{ .Values.security.fsGroup }}
+      {{- end }}
+      restartPolicy: Never
+      containers:
+      - name: ckaf-kafka-kf-preupg
+        image: "{{ .Values.global.registry3 }}/{{ .Values.kubectlImage }}:{{ .Values.kubectlTag }}"
+        imagePullPolicy: IfNotPresent
+        {{- if eq .Values.security.enabled true }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          privileged: false
+          capabilities:
+            drop:
+              - all
+        {{- end }}
+        resources:
+{{ toYaml .Values.jobResources | indent 10 }}
+        command:
+        - bash
+        - -c
+        - |
+          b=$(echo {{ .Values.imageTag }} | tr '-' '\n')
+          image_version=$(echo "${b[1]}")
+          echo "image version: = ${image_version}"
+          curr_image=$(echo {{ .Values.upgrade.CURRENT_KAFKA_VERSION }})
+          echo "curent image version: = ${curr_image}"
+          if  [ "${image_version}" != "${curr_image}" ]
+          then
+               KF_COUNT={{ .Values.Replicas }}
+               echo "UPDATED_KF_COUNT = ${KF_COUNT}"
+               for (( i=0; i<${KF_COUNT}; i++ ));do
+               kubectl exec -it {{ template "kafka.name" . }}-$i -c ckaf-kafka-broker  -- sed -i '$ a inter.broker.protocol.version={{ .Values.upgrade.CURRENT_KAFKA_VERSION }}'  /etc/kafka/server.properties
+               done;
+          fi
+          # Upgrade forcefully by deleting statefulset
+          {{- if .Values.global.forceUpgrade }}
+          kubectl delete statefulset --cascade=false --namespace {{ .Release.Namespace }} -l app={{ .Chart.Name }},release={{ .Release.Name }}
+          {{- end }}
+{{- end }}
+
+---
+# scale feature support via upgrade hooks.
+{{ if .Values.global.enable_scale_via_upgrade }}
+---
+# Config map which holds the number of replicas before any scale operation.
+# This config map is used to determine
+# the scale in/out direction when the user chooses to use the feature of scale via upgrade jobs.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "kafka.name" . }}-replicas
+  annotations:
+    "helm.sh/hook": pre-upgrade
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: {{ .Values.global.seccompAllowedProfileNames }}
+    seccomp.security.alpha.kubernetes.io/defaultProfileName: {{ .Values.global.seccompDefaultProfileName }}
+  labels:
+    app: {{ .Chart.Name }}
+    release: {{ .Release.Name }}
+data:
+  replicas: {{ .Values.Replicas | quote }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "kafka.name" . }}-kf-preupg-scale-job
+  labels:
+    app: {{ .Chart.Name }}
+    release: {{ .Release.Name | quote }}
+    heritage: {{ .Release.Service | quote }}
+  annotations:
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: {{ .Values.global.seccompAllowedProfileNames }}
+    seccomp.security.alpha.kubernetes.io/defaultProfileName: {{ .Values.global.seccompDefaultProfileName }}
+    "helm.sh/hook": pre-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    "helm.sh/hook-weight": "-1"
+spec:
+  template:
+    metadata:
+      labels:
+        app: {{ .Chart.Name }}
+      annotations:
+        sidecar.istio.io/inject: "false"
+    spec:
+      {{- if .Values.global.rbacEnable }}
+      serviceAccountName: {{ template "kfserviceAccount.name" . }}
+      {{ end }}
+      {{- if eq .Values.security.enabled true }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: {{ .Values.security.runAsUser }}
+        fsGroup: {{ .Values.security.fsGroup }}
+      {{- end }}
+      restartPolicy: Never
+      containers:
+      - name: ckaf-kafka-kf-preupg-scale
+        image: "{{ .Values.global.registry3 }}/{{ .Values.kubectlImage }}:{{ .Values.kubectlTag }}"
+        imagePullPolicy: IfNotPresent
+        {{- if eq .Values.security.enabled true }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          privileged: false
+          capabilities:
+            drop:
+              - all
+        {{- end }}
+        resources:
+{{ toYaml .Values.jobResources | indent 10 }}
+        command:
+        - bash
+        - -c
+        - |
+          newReplicaCount={{ .Values.Replicas }}
+          
+          # create the config map to store the number of replicas before scale operation.
+          oldReplicaCount=$(kubectl get pods -l release={{ .Release.Name }} -n {{ .Release.Namespace }} | grep {{ template "kafka.name" . }} | wc -l)
+          { echo "data:"; echo "   replicas:  \"$oldReplicaCount\""; } > /tmp/configmap.yaml
+          kubectl patch configmap {{ template "kafka.name" . }}-replicas -n {{ .Release.Namespace }}  --type merge -p "$(cat /tmp/configmap.yaml)"
+
+          if [ "$newReplicaCount" -eq "$oldReplicaCount" ]
+          then 
+            echo "Old and new kafka broker replica counts are same."
+          # scale in case
+          elif [ "$newReplicaCount" -lt "$oldReplicaCount" ]
+          then 
+            echo "Scaling in the kafka cluster"
+           
+            # prepare the broker ids of new cluster
+            for (( i=0; i<${newReplicaCount}; i++ ));do
+              brokerid=$(kubectl exec -it {{ template "kafka.name" . }}-$i -c ckaf-kafka-broker -n {{ .Release.Namespace }} -- cat /var/lib/kafka/data/topics/meta.properties |grep broker.id | sed -e 's/broker.id=//')
+              brokers=${brokers}${brokerid}","
+            done
+
+            # trigger reassign partitions
+            echo "updated brokers : ${brokers}"
+            kubectl exec -it {{ template "kafka.name" . }}-0 -c ckaf-kafka-broker -n {{ .Release.Namespace }} -- sh /etc/kafka/ckaf-reassign-partitions --zookeeper {{ template "zkConnect.url" . }} --broker ${brokers} --topic all --throttle {{ .Values.throttle | int  }}
+          
+          # scale out case
+          else
+            echo "No kafka specific operations required. Proceeding with kafka cluster scale out !"
+          fi
+{{- end }}
+---

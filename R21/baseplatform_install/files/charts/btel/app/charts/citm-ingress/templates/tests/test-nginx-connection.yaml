@@ -1,0 +1,60 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ default "" .Values.global.podNamePrefix }}{{ .Release.Name }}-controller-test-connection-{{randAlphaNum 6 | lower}}
+  annotations:
+    "helm.sh/hook": test-success
+    "helm.sh/hook-delete-policy": "{{ .Values.kubectl.hookDeletePolicy }}"
+spec:
+  restartPolicy: Never
+  containers:  
+  - name: {{ default "" .Values.global.containerNamePrefix }}citm-ingress-test-connection
+    image: "{{ .Values.global.registry }}/{{ .Values.kubectl.image }}:{{ .Values.kubectl.tag }}"
+    imagePullPolicy: "{{ .Values.controller.imagePullPolicy }}"
+    env:
+      - name: NGINX_HOST
+      {{- if .Values.controller.bindAddress }}
+        value: "{{ .Values.controller.bindAddress }}"
+      {{- else }}
+        value: {{ template "controller.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local
+      {{- end }}
+      - name: NGINX_HTTP_PORT
+      {{- if and (eq .Values.controller.forcePort false) (.Values.controller.httpPort) }}
+        value: "{{ .Values.controller.httpPort }}"
+      {{- else }}
+        value: "80"
+      {{- end }}
+      - name: NGINX_STATUS_PORT
+      {{- if .Values.controller.statusPort }}
+        value: "{{ .Values.controller.statusPort }}"
+      {{- else }}
+        value: "18080"
+      {{- end }}
+    command:
+      - bash
+      - "-c"
+      - |
+        RC=0
+        for PORTS in $NGINX_HTTP_PORT:/:200,404,308 $NGINX_STATUS_PORT:/healthz:200 $NGINX_STATUS_PORT:/nginx_status:200
+        do
+          P=$(echo $PORTS | cut -d ':' -f1)
+          U=$(echo $PORTS | cut -d ':' -f2)    
+          CODES=$(echo $PORTS | cut -d ':' -f3)          
+          echo "Checking http://$NGINX_HOST:$P$U. Should return $CODES"
+          E=""
+          for C in $(echo $CODES | sed -e 's|,| |g')
+          do
+            if [ -z "${E:-}" ]
+            then
+              E="CITM_HTTP_CODE=$C"
+            else
+              E="$E|CITM_HTTP_CODE=$C"
+            fi
+          done
+          curl --connect-timeout 60 -w "CITM_HTTP_CODE=%{http_code}" http://$NGINX_HOST:$P$U | egrep "$E"
+          RRC=$?
+          RC=$((RC + $RRC))
+        done
+        exit $RC
+    resources:
+{{ toYaml .Values.controller.resources | indent 6 }}

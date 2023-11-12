@@ -1,0 +1,46 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: "{{ .Release.Name }}-plugin-test-configmap"
+  namespace: {{ .Release.Namespace }}
+data:
+  scale.sh: |
+    #!/bin/bash
+    echo "check scale plugin"
+    result=$(curl -kv -s --head -H 'Authorization: Bearer token' -X POST "https://${NCM_HOST}:${NCM_PORT}/ncm/applications/{{ .Release.Name }}/scale?factor=1&flags=--help" |grep HTTP |awk '{print $2}')
+    if [[ $result = "200" ]]
+    then
+      exit 0
+    else
+      exit 1
+    fi
+  heal.sh: |
+    #!/bin/bash
+    echo "check heal plugin"
+    result=$(curl -kv -s --head -H 'Authorization: Bearer token' -X POST "https://${NCM_HOST}:${NCM_PORT}/ncm/applications/{{ .Release.Name }}/heal?flags=--help" |grep HTTP |awk '{print $2}')
+    if [[ $result = "200" ]]
+    then
+      exit 0
+    else
+      exit 1
+    fi
+  backup.sh: |
+    #!/bin/bash
+    echo "check backup plugin"
+    result=$(curl -kv -s --head -H 'Authorization: Bearer token' -X PATCH "https://${NCM_HOST}:${NCM_PORT}/ncm/applications/{{ .Release.Name }}/backup?flags=--help" |grep HTTP |awk '{print $2}')
+    if [[ $result = "202" || $result = "503" ]]
+    then
+      exit 0
+    else
+      exit 1
+    fi
+  restore.sh: |
+    #!/bin/bash
+    echo "check restore plugin"
+    result=$(curl -kv -s --head -H 'Authorization: Bearer token' -X PUT "https://${NCM_HOST}:${NCM_PORT}/ncm/applications/{{ .Release.Name }}/restore?flags=--help" |grep HTTP |awk '{print $2}')
+    if [[ $result = "202" || $result = "503" ]]
+    then
+      exit 0
+    else
+      exit 1
+    fi

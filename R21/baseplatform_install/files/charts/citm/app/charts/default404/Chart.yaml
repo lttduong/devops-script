@@ -1,0 +1,16 @@
+apiVersion: v1
+appVersion: 4.0.4-5
+description: A CITM Ingress default http backend
+engine: gotpl
+icon: https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Nginx_logo.svg/500px-Nginx_logo.svg.png
+keywords:
+- ingress
+- default-backend
+- http
+maintainers:
+- email: aa-csf-ps@LIST.NOKIA.COM
+  name: csf
+name: default404
+sources:
+- https://confluence.app.alcatel-lucent.com/display/plateng/CITM+-+IP+Traffic+Manager
+version: 1.0.27

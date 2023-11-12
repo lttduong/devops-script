@@ -1,0 +1,14 @@
+edge_node: nodemaster-off
+worker_node:
+ nodeworker-off
+ nodemaster-of
+
+# Setup the path of packages for master node
+dir_master:
+- "/mnt/was-offline-installation"             # store the packages to install                          
+- "/mnt/netguard-data"                        # mount point to install NFS server in order to create PV for install WAS
+
+# Setup the path of packages for master node
+dir_worker:
+- "/mnt/was-offline-installation"
+- "/mnt/netguard-data"

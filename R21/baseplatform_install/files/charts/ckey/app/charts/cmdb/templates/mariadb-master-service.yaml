@@ -1,0 +1,48 @@
+{{- if and (gt (int .Values.maxscale.count) 0) .Values.geo_redundancy.enabled }}
+{{ $service_name := .Values.services.mariadb_master.name | default (printf "%s-mariadb-master" (include "cmdb.fullname" .)) }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $service_name }}
+  labels:
+    {{- include "cmdb-mariadb.labels" . | indent 4 }}
+spec:
+  type: {{ .Values.services.mariadb_master.type }}
+  ports:
+  - name: tcp-mysql
+    port: 3306
+    targetPort: tcp-mysql
+    {{- if and (eq .Values.services.mariadb_master.type "NodePort") (.Values.services.mariadb_master.nodePort) }}
+    nodePort: {{ .Values.services.mariadb_master.nodePort }}
+    {{- end }}
+  selector:
+    {{- include "cmdb-mariadb.labels" . | indent 4 }}
+    type: mariadb
+    mariadb-master: "yes"
+
+{{- if .Values.istio.enabled }}
+---
+apiVersion: "authentication.istio.io/v1alpha1"
+kind: "Policy"
+metadata:
+  name: {{ $service_name }}-mlts-authn
+spec:
+  targets:
+  - name: {{ $service_name }}
+  peers:
+  - mtls:
+      mode: STRICT
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: {{ $service_name }}-mlts-dr
+spec:
+  host: {{ $service_name }}
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+{{- end }}
+
+{{- end }}

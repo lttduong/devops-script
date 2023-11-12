@@ -1,0 +1,210 @@
+---
+- name: Connecting the DPA VM to setup
+  hosts: restore_dpa_vm
+  
+  vars: 
+    nfmtIp: "{{ lookup('env', 'nfmtIp') }}"
+    nfmtUsername: "{{ lookup('env', 'nfmtUsername') }}"
+    nfmtPassword: "{{ lookup('env', 'nfmtPassword') }}"
+    vpnProfile: "{{ lookup('env', 'vpnProfile') }}"
+    wasUsername: "{{ lookup('env', 'wasUsername') }}"
+    dpaProfile: "{{ lookup('env', 'dpaProfile') }}"
+    rootProfile: "{{ lookup('env', 'rootProfile') }}"
+      
+  tasks: 
+    - name: Install expect package
+      shell: yum install -y expect
+      become: true
+
+    - name: copy wasip.txt file to dpa
+      copy:
+        src: sftp_config.yml
+        dest: /opt/nokia/dpa/digimops/config/sftp_config.yml
+      become: true
+    
+    - name: copy wasip.txt file to dpa
+      copy:
+        src: ../wasip.txt
+        dest: /tmp/  
+    
+    - name: Set Public Ip Master node
+      shell: awk '{if(NR==1) print $1}' /tmp/wasip.txt
+      register: privateIp
+
+    - name: Set fact Public Ip Master node
+      set_fact:
+        privateIpMaster: "{{privateIp.stdout}}"
+
+    - name: Show out NETGUARD_ADMIN_PASSWORD
+      shell: awk '{if(NR==2) print $1}' /tmp/wasip.txt
+      register: Password
+
+    - name: Set fact wasPassword
+      set_fact:
+        wasPassword: "{{Password.stdout}}"
+
+    - name: Create a directory if it does not exist
+      file:
+        path: /opt/openvpn
+        state: directory
+        mode: '0755'
+      become: true
+
+    - name: Copy file openvpn install to VM
+      copy:
+        src: ../../../openvpn-install.sh
+        dest: /opt/openvpn
+        mode: a+x
+      become: true
+
+    - name: Copy generate client ovpn file 
+      copy:
+        src: ../../../GenerateClientVPN.sh
+        dest: /opt/openvpn
+        mode: a+x
+      become: true
+
+    - name: Copy add rules iptables file
+      copy:
+        src: ../../../add-nfmt-openvpn-rules.sh
+        dest: /opt/openvpn
+        mode: a+x
+      become: true
+
+    - name: Installing openvpn on component
+      shell: |
+        AUTO_INSTALL=y ./openvpn-install.sh
+      args:
+        chdir: /opt/openvpn
+      become: true
+    
+    - name: copy openvpn profile
+      copy:
+        src: "{{rootProfile}}{{vpnProfile}}/client3.ovpn"
+        dest: /etc/openvpn3       
+      become: true 
+
+    - name: Connect VPN to WHLabs
+      shell: |
+        openvpn3 session-start --config /etc/openvpn3/client3.ovpn
+      become_user: DPA_Admin
+      become: true
+      become_method: su
+      become_flags: '-s /bin/bash'
+
+    - name: Check vpn connaction with NFMT
+      shell: |
+        openvpn3 sessions-list 
+      register: showConnection
+
+    - name: List VPN connections in VM
+      debug:
+        msg: "{{showConnection.stdout}}"
+
+    - name: Changing WAS configure in the credentials.cfg
+      shell: | 
+        sed -i "9 s/ip=.*/ip={{privateIpMaster}}/g" /opt/nokia/dpa/digimops/config/credentials.cfg
+        sed -i "11 s/username=.*/username={{wasUsername}}/g" /opt/nokia/dpa/digimops/config/credentials.cfg
+        sed -i "12 s/password=.*/password={{wasPassword}}/g" /opt/nokia/dpa/digimops/config/credentials.cfg
+      become: true
+
+    - name: Changing NFMT configure in the credentials.cfg
+      shell: | 
+        sed -i "23 s/ip=.*/ip={{nfmtIp}}/g" /opt/nokia/dpa/digimops/config/credentials.cfg
+        sed -i "25 s/username=.*/username={{nfmtUsername}}/g" /opt/nokia/dpa/digimops/config/credentials.cfg
+        sed -i "26 s/password=.*/password={{nfmtPassword}}/g" /opt/nokia/dpa/digimops/config/credentials.cfg
+        sed -i "30 s/ip=.*/ip={{nfmtIp}}/g" /opt/nokia/dpa/digimops/config/credentials.cfg
+        sed -i "32 s/username=.*/username={{nfmtUsername}}/g" /opt/nokia/dpa/digimops/config/credentials.cfg
+        sed -i "33 s/password=.*/password={{nfmtPassword}}/g" /opt/nokia/dpa/digimops/config/credentials.cfg
+      become: true
+
+    - name: Get IP public of DPA component
+      shell: dig -4 TXT +short o-o.myaddr.l.google.com @ns1.google.com | awk -F'"' '{ print $2}'
+      register: dpaPublicIp
+
+    - name: Set fact DPA Public IP
+      set_fact:
+        publicDPAIP: "{{ dpaPublicIp.stdout }}"
+
+    - name: Get private IP of DPA
+      shell: hostname -I | awk -F ' ' '{print $1}'
+      register: privateIP
+
+    - name: Set fact Public Ip Master node
+      set_fact:
+        privateDPAIP: "{{privateIP.stdout}}"
+
+    - name: Changing IP server of DPA to ogne_dpa_dm_ws_rest_hooks_monitor file
+      shell: |
+        sed -i " 6 s/RESTHOOK_IP: .*/RESTHOOK_IP: {{ privateDPAIP }}/g" /opt/nokia/dpa/digimops/ogne_dpa_dm_ws_rest_hooks_monitor/docker-compose.yml
+      become: true
+
+    - name: Starting and enabling docker 
+      shell: |
+        sudo systemctl start docker 
+        sudo systemctl enable docker 
+      become: true
+
+    - name: Docker swarm leave before initializing
+      shell: sudo docker swarm leave
+      ignore_errors: yes
+
+    - name: Start digimops with playbook 
+      shell: ansible-playbook initial_setup.yml --extra-vars "swarm_ip={{privateDPAIP}}"
+      args:
+        chdir: /opt/nokia/dpa/initial_setup/ogne_dpa_initial_setup/ansible
+      become: true
+
+    # - name: Scale up all docker swarm of DPA
+    #   shell: |
+    #     sudo docker service ls | grep 'nfmt' | while read a b c d e; do sudo docker service scale $b=1; done
+    #     sudo docker service ls | grep 'nrct' | while read a b c d e; do sudo docker service scale $b=1; done
+    #   become: true
+    #   ignore_errors: yes
+
+    - name: Run script to update the setup
+      shell: |
+        curl -k https://{{ nfmtIp }}/cas/login
+      become: true
+
+    - name: NAT was's traffic to openvpn
+      shell: |
+        bash add-openvpn-rules.sh
+      become: yes
+      args:
+        chdir: /etc/iptables/ 
+
+    - name: NAT was's traffic to NFMT
+      shell: |
+        bash add-nfmt-openvpn-rules.sh
+      become: yes
+      args:
+        chdir: /opt/openvpn
+
+    - name: Generating openvpn client on component
+      shell: |
+        bash GenerateClientVPN.sh "{{ dpaProfile }}"
+      args:
+        chdir: /opt/openvpn
+      become: true
+
+    - name: Get the ovpn path where store the ovpn files of component
+      shell: echo {{vpnProfile}} | rev |cut -c6- | rev
+      register: ovpnPath
+
+    - name: Set fact the ovpnPath
+      set_fact: 
+        ovpnPath : "{{ ovpnPath.stdout }}" 
+
+    - name: Fetching openvpn client to storage account
+      fetch:
+        src: "{{ item }}"
+        dest: "{{rootProfile}}{{ovpnPath}}/credentials/"
+        flat: yes
+      with_items:
+        - /home/DPA_Admin/{{ dpaProfile }}.ovpn
+        - /home/DPA_Admin/{{ dpaProfile }}1.ovpn
+        - /home/DPA_Admin/{{ dpaProfile }}2.ovpn
+        - /home/DPA_Admin/{{ dpaProfile }}3.ovpn
+        - /home/DPA_Admin/{{ dpaProfile }}4.ovpn
+      become: yes

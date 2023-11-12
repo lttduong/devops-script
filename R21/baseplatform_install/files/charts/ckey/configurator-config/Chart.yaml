@@ -1,0 +1,4 @@
+apiVersion: v1
+description: Keycloak configurator config
+name: ckey-configurator-config
+version: 1.0.0

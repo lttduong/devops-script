@@ -1,0 +1,520 @@
+apiVersion: {{ template "prometheus.apiVersionAppsV1Beta2orV1" . }}
+kind: StatefulSet
+metadata:
+  name: {{ template "grafana.stsName" . }}
+  labels:
+    app: {{ template "grafana.name" . }}
+    chart: {{ template "grafana.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+    {{- if .Values.global.labels }}
+{{ toYaml .Values.global.labels | indent 4}}
+    {{- end }}
+{{- if  or .Values.global.annotations .Values.annotations}}
+  annotations:
+{{- include "grafana-annotations" (tuple .Values.global.annotations) | indent 4}}
+{{- include "grafana-annotations" (tuple .Values.annotations) | indent 4}}
+{{- end }}
+spec:
+## Start of custom modification of original chart - CSFS-28351
+#{{- if .Values.HA.enabled }}
+#  replicas: 2
+#{{- else }}
+#  replicas: 1
+#{{- end }}
+  replicas: {{ .Values.replicas }}
+## End of custom modification of original chart
+  selector:
+    matchLabels:
+      app: {{ template "grafana.name" . }}
+      release: {{ .Release.Name }}
+  {{- if .Values.helm3 }}
+  serviceName: {{ template "grafana.fullname" . }}
+  {{- end }}
+  template:
+    metadata:
+      labels:
+        app: {{ template "grafana.name" . }}
+        release: {{ .Release.Name }}
+        {{- include "custom-labels" (tuple .Values.custom.pod.labels) | indent 8}}
+      annotations:
+{{- include "custom-annotations" (tuple .Values.custom.pod.annotations) | indent 8}}
+{{- if .Values.rbac.pspUseAppArmor }}
+{{- include "custom-annotations" (tuple .Values.custom.pod.apparmorAnnotations) | indent 8}}
+{{- end }}
+        sidecar.istio.io/inject: "{{ .Values.istio.enable }}"
+{{- if and (.Values.istio.enable) (.Values.istio.mtls_enable) }}
+        sidecar.istio.io/rewriteAppHTTPProbers: "true"
+{{- end }}
+      {{- with .Values.podAnnotations }}
+{{ toYaml . | indent 8 }}
+      {{- end }}
+    spec:
+{{- if and (.Values.istio.enable) (.Values.istio.createKeycloakServiceEntry.enabled) }}
+{{- if ne .Values.istio.createKeycloakServiceEntry.hostAlias "" }}
+      hostAliases:
+      - ip: "{{ .Values.istio.createKeycloakServiceEntry.hostAlias }}"
+        hostnames:
+        - "{{ .Values.istio.createKeycloakServiceEntry.extCkeyHostname }}"
+{{- end }}
+{{- end }}
+      serviceAccountName: {{ template "grafana.serviceAccountName" . }}
+{{- if .Values.schedulerName }}
+      schedulerName: "{{ .Values.schedulerName }}"
+{{- end }}
+      securityContext:
+        runAsUser: {{ template "grafana.user" . }}
+        fsGroup: {{ template "grafana.fsgroup" . }}
+      {{- if .Values.supplementalGroups }}
+        supplementalGroups: {{ .Values.supplementalGroups }}
+      {{- end }}
+      {{- if .Values.seLinuxOptions.enabled }}
+        seLinuxOptions:
+          level: {{ .Values.seLinuxOptions.level }}
+          role: {{ .Values.seLinuxOptions.role }}
+          type: {{ .Values.seLinuxOptions.type }}
+          user: {{ .Values.seLinuxOptions.user }}
+      {{- end }}
+      initContainers:
+{{- if and  (not .Values.cmdb.enabled) (not .Values.cmdb.need_deployed) (.Values.need_dbupdate) (.Release.IsUpgrade) }}
+        - name: {{ template "grafana.changeDbschema" . }}
+          image: "{{ .Values.global.registry3 }}/{{ .Values.hookImage.imageRepo }}:{{ .Values.hookImage.imageTag }}"
+          imagePullPolicy: "{{ .Values.hookImage.imagePullPolicy }}"
+          command:
+            - sh
+            - -c
+            - |
+              sqlite3 /var/lib/grafana/grafana.db ".read /etc/grafana/lcm/db-alter.sql"
+              echo 'Change db schema OK'
+          resources:
+{{ toYaml .Values.hookImage.resources | indent 12 }}
+          volumeMounts:
+            - name: storage
+              mountPath: "/var/lib/grafana"
+{{- end }}
+{{- if and  (.Values.cmdb.enabled) (not .Values.cmdb.need_deployed) (not .Values.sqlitetomdb) (.Values.need_dbupdate) (.Release.IsUpgrade) }}
+        - name: {{ template "grafana.changeMariadbSchema" . }}
+          image: "{{ .Values.global.registry3 }}/{{ .Values.mdbToolImage.imageRepo }}:{{ .Values.mdbToolImage.imageTag }}"
+          imagePullPolicy: "{{ .Values.mdbToolImage.imagePullPolicy }}"
+          resources:
+{{ toYaml .Values.mdbToolImage.resources | indent 12 }}
+          command: ["sh", "-c", "/usr/bin/mdbschema_update.sh {{ .Values.dbIP }} {{ .Values.dbName }} {{ .Values.dbUser }} {{ .Values.dbPassword }} "]
+{{- end }}
+{{- if and  (not .Values.cmdb.enabled) (.Values.cmdb.need_deployed) (not .Values.sqlitetomdb) (.Values.need_dbupdate) (.Release.IsUpgrade) }}
+        - name: {{ template "grafana.changeMariadbSchema" . }}
+          image: "{{ .Values.global.registry3 }}/{{ .Values.mdbToolImage.imageRepo }}:{{ .Values.mdbToolImage.imageTag }}"
+          imagePullPolicy: "{{ .Values.mdbToolImage.imagePullPolicy }}"
+          resources:
+{{ toYaml .Values.mdbToolImage.resources | indent 12 }}
+          command: ["sh", "-c", "/usr/bin/mdbschema_update.sh {{ template "grafana.cmdb.fullname" $ }} {{ .Values.dbName }} {{ .Values.dbUser }} {{ .Values.dbPassword }} "]
+{{- end }}
+      {{ if and (or .Values.cmdb.enabled .Values.cmdb.need_deployed) (not .Values.istio.enable) }}
+        - name: {{ template "grafana.waitforMariadb" . }}
+          image: "{{ .Values.global.registry3 }}/{{ .Values.hookImage.imageRepo }}:{{ .Values.hookImage.imageTag }}"
+          imagePullPolicy: "{{ .Values.hookImage.imagePullPolicy }}"
+          resources:
+{{ toYaml .Values.hookImage.resources | indent 12 }}
+          # Start of custom modification of original chart for CSFS-31473
+          command:
+            - sh
+            - -c
+            - |
+        {{ if .Values.cmdb.need_deployed }}
+              until nc --wait 1 {{ template "grafana.cmdb.fullname" . }}.{{ .Release.Namespace }}.{{ .Values.dns.domain }} 3306 | grep -i mariadb ; do
+        {{ else }}
+              cmdbhost=`echo {{ .Values.grafana_ini.database.host }} | tr ":" " " `
+              until nc --wait 1 $cmdbhost | grep -i mariadb ; do
+        {{ end }}
+                  echo "Waiting for database connection..."
+                  sleep 2;
+              done;
+              echo 'MariaDB OK ✓'
+      {{ end }}
+      # End of custom modification of original chart for CSFS-31473
+{{- if .Values.downloadDashboardsImage.enabled }}
+        - name: {{ template "grafana.downloadDashboards" . }}
+          image: "{{ .Values.global.registry4 }}/{{ .Values.downloadDashboardsImage.imageRepo }}:{{ .Values.downloadDashboardsImage.tag }}"
+          imagePullPolicy: {{ .Values.downloadDashboardsImage.pullPolicy }}
+          command: ["sh", "/etc/grafana/download_dashboards.sh"]
+          volumeMounts:
+            - name: config
+              mountPath: "/etc/grafana/download_dashboards.sh"
+              subPath: download_dashboards.sh
+            - name: storage
+              mountPath: "/var/lib/grafana"
+              subPath: {{ .Values.persistence.subPath }}
+          {{- range .Values.extraSecretMounts }}
+            - name: {{ .name }}
+              mountPath: {{ .mountPath }}
+              readOnly: {{ .readOnly }}
+          {{- end }}
+{{- end }}
+      {{- if .Values.image.pullSecrets }}
+      imagePullSecrets:
+      {{- range .Values.image.pullSecrets }}
+        - name: {{ . }}
+      {{- end}}
+      {{- end }}
+      containers:
+{{- if .Values.pluginsSideCar.enabled }}
+        - name: {{ template "grafana.pluginsidecarContainerName" . }}
+          securityContext:
+            runAsUser: {{ template "grafana.user" . }}
+          image: "{{ .Values.global.registry3 }}/{{ .Values.pluginsSideCar.imageRepo }}:{{ .Values.pluginsSideCar.imageTag }}"
+          imagePullPolicy: "{{ .Values.pluginsSideCar.imagePullPolicy }}"
+          resources:
+{{ toYaml .Values.pluginsSideCar.resources | indent 12 }}
+          volumeMounts:
+            - name: plugins
+              mountPath: "/pluginspv"
+{{- end }}
+{{- if .Values.sidecar.dashboards.enabled }}
+        - name: {{ template "grafana.grafanaSidecarDashboard" . }}
+          image: "{{ .Values.global.registry4 }}/{{ .Values.sidecar.imageRepo }}:{{ .Values.sidecar.imageTag }}"
+          imagePullPolicy: {{ .Values.sidecar.imagePullPolicy }}
+          env:
+            - name: LABEL
+              value: "{{ .Values.sidecar.dashboards.label }}"
+            - name: FOLDER
+              value: "{{ .Values.sidecar.dashboards.folder }}"
+          resources:
+{{ toYaml .Values.sidecar.resources | indent 12 }}
+          volumeMounts:
+            - name: sc-dashboard-volume
+              mountPath: {{ .Values.sidecar.dashboards.folder | quote }}
+{{- end}}
+{{- if .Values.sane }}
+  {{- if .Values.sane.enabled }}
+        - name: {{ template "grafana.grafanaSaneAuthProxy" . }}
+          image: "{{ .Values.global.registry5 }}/{{ .Values.sane.imageRepo }}:{{ .Values.sane.imageTag }}"
+          imagePullPolicy: {{ .Values.sane.imagePullPolicy }}
+          env:
+{{ toYaml .Values.sane.env | indent 12 }}
+          ports:
+            - name: tcp-sane-port
+              containerPort: {{ .Values.sane.port }}
+          resources:
+{{ toYaml .Values.sane.resources | indent 12 }}
+  {{- end}}
+{{- end}}
+{{- if .Values.cbur.enabled }}
+        - name: cbura-sidecar
+          securityContext:
+            runAsUser: {{ template "grafana.user" . }}
+          resources:
+{{ toYaml .Values.cbur.resources | indent 12 }}
+          image: "{{ .Values.global.registry }}/{{ .Values.cbur.image.imageRepo }}:{{ .Values.cbur.image.imageTag }}"
+          imagePullPolicy: {{ .Values.cbur.image.imagePullPolicy }}
+         {{- if or (.Values.cmdb.enabled) (.Values.cmdb.need_deployed) }}
+          volumeMounts:
+            - mountPath: /appdata
+              name: appdata
+         {{- else }}
+          volumeMounts:
+            - mountPath: /storage
+              name: storage
+         {{- end}}
+{{- end}}
+{{- if .Values.cbur.enabled }}
+        - name: {{ template "grafana.grafanaMdbtool" . }}
+          securityContext:
+            runAsUser: {{ template "grafana.user" . }}
+          image: "{{ .Values.global.registry3 }}/{{ .Values.mdbToolImage.imageRepo }}:{{ .Values.mdbToolImage.imageTag }}"
+          imagePullPolicy: {{ .Values.mdbToolImage.imagePullPolicy }}
+          resources:
+{{ toYaml .Values.mdbToolImage.resources | indent 12 }}
+         {{- if or (.Values.cmdb.enabled) (.Values.cmdb.need_deployed) }}
+          volumeMounts:
+            - name: appdata
+              mountPath: "/appdata"
+         {{- end}}
+{{- end}}
+{{- if .Values.sidecar.datasources.enabled }}
+        - name: {{ template "grafana.grafanaDatasource" . }}
+          image: "{{ .Values.global.registry4 }}/{{ .Values.sidecar.imageRepo }}:{{ .Values.sidecar.imageTag }}"
+          imagePullPolicy: {{ .Values.sidecar.imagePullPolicy }}
+          env:
+            - name: LABEL
+              value: "{{ .Values.sidecar.datasources.label }}"
+            - name: FOLDER
+              value: "/etc/grafana/provisioning/datasources"
+          resources:
+{{ toYaml .Values.sidecar.resources | indent 12 }}
+          volumeMounts:
+            - name: sc-datasources-volume
+              mountPath: "/etc/grafana/provisioning/datasources"
+{{- end}}
+        - name: {{ template "grafana.grafanaContainer" . }}
+          image: "{{ .Values.global.registry3 }}/{{ .Values.image.imageRepo }}:{{ .Values.image.imageTag }}"
+          imagePullPolicy: {{ .Values.image.imagePullPolicy }}
+          resources:
+{{ toYaml .Values.resources | indent 12 }}
+          # Start of custom modification of original chart for CSFS-31473
+          command:
+            - sh
+            - -c
+            - |
+      {{ if and (or .Values.cmdb.enabled .Values.cmdb.need_deployed) (.Values.istio.enable) }}
+        {{ if .Values.cmdb.need_deployed }}
+              until nc --wait 1 {{ template "grafana.cmdb.fullname" . }}.{{ .Release.Namespace }}.{{ .Values.dns.domain }} 3306 | grep -i mariadb ; do
+        {{ else }}
+              cmdbhost=`echo {{ .Values.grafana_ini.database.host }} | tr ":" " " `
+              until nc --wait 1 $cmdbhost | grep -i mariadb ; do
+        {{ end }}
+                  echo "Waiting for database connection..."
+                  sleep 2;
+              done;
+              echo 'MariaDB OK ✓'
+      {{ end }}
+              /run.sh
+          # End of custom modification of original chart for CSFS-31473
+          volumeMounts:
+            - name: keycloak
+              readOnly: true
+              mountPath: "/etc/grafana/keycloak"
+            - name: cmdbtls
+              readOnly: true
+              mountPath: "/etc/grafana/cmdbtls"
+            - name: ssl
+              mountPath: "/etc/grafana/ssl"
+            - name: config
+              mountPath: "/etc/grafana/grafana.ini"
+              subPath: grafana.ini
+            - name: ldap
+              mountPath: "/etc/grafana/ldap.toml"
+              subPath: ldap.toml
+{{- if .Values.pluginsSideCar.enabled }}
+            - name: plugins
+              mountPath: "/var/lib/grafana/plugins"
+{{- end }}
+{{- if .Values.dashboards }}
+  {{- range $key, $value := .Values.dashboards }}
+    {{ if hasKey $value "json" }}
+            - name: dashboards-json
+              mountPath: "/var/lib/grafana/dashboards/{{ $key }}.json"
+              subPath: {{ $key }}.json
+    {{- end }}
+  {{- end }}
+{{- end -}}
+{{- if .Values.datasources }}
+            - name: config
+              mountPath: "/etc/grafana/provisioning/datasources/datasources.yaml"
+              subPath: datasources.yaml
+{{- end }}
+{{- if .Values.dashboardProviders }}
+            - name: config
+              mountPath: "/etc/grafana/provisioning/dashboards/dashboardproviders.yaml"
+              subPath: dashboardproviders.yaml
+{{- end }}
+{{- if .Values.sidecar.dashboards.enabled }}
+            - name: sc-dashboard-volume
+              mountPath: {{ .Values.sidecar.dashboards.folder | quote }}
+            - name: sc-dashboard-provider
+              mountPath: "/etc/grafana/provisioning/dashboards"
+{{- end}}
+{{- if .Values.sidecar.datasources.enabled }}
+            - name: sc-datasources-volume
+              mountPath: "/etc/grafana/provisioning/datasources"
+{{- end}}
+            - name: storage
+              mountPath: "/var/lib/grafana"
+              subPath: {{ .Values.persistence.subPath }}
+          {{- range .Values.extraSecretMounts }}
+            - name: {{ .name }}
+              mountPath: {{ .mountPath }}
+              readOnly: {{ .readOnly }}
+          {{- end }}
+          ports:
+            - name: tcp-service
+              containerPort: {{ .Values.service.port }}
+            - name: tcp-grafana
+              containerPort: 3000
+          env:
+            - name: GRAFANA_APPTITLE
+              value: {{ .Values.appTitle }}
+
+            - name: GF_SECURITY_ADMIN_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ template "grafana.fullname" . }}
+                  key: admin-user
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ template "grafana.fullname" . }}
+                  key: admin-password
+            {{- if .Values.plugins }}
+            - name: GF_INSTALL_PLUGINS
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ template "grafana.fullname" . }}
+                  key: plugins
+            {{- end }}
+            {{- if .Values.smtp.existingSecret }}
+            - name: GF_SMTP_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.smtp.existingSecret }}
+                  key: user
+            - name: GF_SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.smtp.existingSecret }}
+                  key: password
+            {{- end }}
+{{- range $key, $value := .Values.env }}
+            - name: "{{ $key }}"
+              value: "{{ $value }}"
+{{- end }}
+          {{- if .Values.envFromSecret }}
+          envFrom:
+            - secretRef:
+                name: {{ .Values.envFromSecret }}
+          {{- end }}
+          {{- if not (and .Values.istio.enable .Values.istioIngress.enabled .Values.istioIngress.tls.enabled (eq .Values.istioIngress.tls.mode "PASSTHROUGH") ) }}
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              scheme: {{ .Values.livenessProbe.scheme }}
+              port: 3000
+            initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+            timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
+            periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              scheme: {{ .Values.readinessProbe.scheme }}
+              port: 3000
+            initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+            timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
+            periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+          {{- end }}
+          resources:
+{{ toYaml .Values.resources | indent 12 }}
+    {{- with .Values.nodeSelector }}
+      nodeSelector:
+{{ toYaml . | indent 8 }}
+    {{- end }}
+{{- if .Values.HA.enabled }}
+      affinity:
+        podAntiAffinity:
+        {{- if eq .Values.nodeAntiAffinity "hard" }}
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - {{  template "grafana.name" . }}
+              - key: release
+                operator: In
+                values:
+                - {{ .Release.Name }}
+            topologyKey: "kubernetes.io/hostname"
+        {{- else }}
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - {{  template "grafana.name" . }}
+                - key: release
+                  operator: In
+                  values:
+                  - {{ .Release.Name }}
+              topologyKey: "kubernetes.io/hostname"
+        {{- end }}
+{{- else }}
+    {{- with .Values.affinity }}
+      affinity:
+{{ toYaml . | indent 8 }}
+    {{- end }}
+{{- end }}    
+{{- with .Values.tolerations }}
+      tolerations:
+{{ toYaml . | indent 8 }}
+    {{- end }}
+      volumes:
+        - name: keycloak
+          secret:
+{{- if .Values.keycloak.secret }}
+            secretName: {{ .Values.keycloak.secret }}
+{{- else }}
+            secretName: {{ template "grafana.fullname" . }}-keycloakcrt
+{{- end }}
+            defaultMode: 0400
+        - name: cmdbtls
+          secret:
+            ## Start of custom modification of original chart - CSFID-3367
+            secretName: {{ template "grafana.fullname" . }}-cmdb-cert
+            ## End of custom modification of original chart
+            defaultMode: 0400
+        ## Start of custom modification of original chart - CSFID-3367
+        - name: ssl
+          secret:
+            secretName: {{ template "grafana.fullname" . }}-server-cert
+            items:
+              - key: tls.crt
+                path: server.crt
+              - key: tls.key
+                path: server.key
+        ## End of custom modification of original chart
+            defaultMode: 0400
+        - name: config
+          configMap:
+            name: {{ template "grafana.fullname" . }}
+            defaultMode: 0400
+        - name: dashboards-json
+          configMap:
+            name: {{ template "grafana.fullname" . }}-dashboards-json
+            defaultMode: 0400
+        - name: ldap
+          secret:
+            {{- if .Values.ldap.existingSecret }}
+            secretName: {{ .Values.ldap.existingSecret }}
+            {{- else }}
+            secretName: {{ template "grafana.fullname" . }}
+            {{- end }}
+            defaultMode: 0400
+            items:
+              - key: ldap-toml
+                path: ldap.toml
+        - name: storage
+      {{- if and (.Values.persistence.enabled) (not .Values.cmdb.enabled) (not .Values.cmdb.need_deployed) }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.persistence.existingClaim | default (include "grafana.fullname" .) }}
+      {{- else }}
+          emptyDir: {}
+      {{- end -}}
+      {{- if .Values.sidecar.dashboards.enabled }}
+        - name: sc-dashboard-volume
+          emptyDir: {}
+        - name: sc-dashboard-provider
+          configMap:
+            name: {{ template "grafana.fullname" . }}-config-dashboards
+            defaultMode: 0400
+      {{- end }}
+      {{- if .Values.sidecar.datasources.enabled }}
+        - name: sc-datasources-volume
+          emptyDir: {}
+      {{- end -}}
+      {{- range .Values.extraSecretMounts }}
+        - name: {{ .name }}
+          secret:
+            secretName: {{ .secretName }}
+            defaultMode: 0400
+      {{- end }}
+      {{- if or (.Values.cmdb.enabled) (.Values.cmdb.need_deployed) }}
+        - name: appdata
+          emptyDir: {}
+      {{- end }}
+      {{- if .Values.pluginsSideCar.enabled }}
+        - name: plugins
+          emptyDir: {}
+      {{- end }}
+

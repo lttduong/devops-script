@@ -1,0 +1,84 @@
+- name: Change IP for host ansible
+  hosts: localhost
+  connection: local
+  collections:
+    - azure.azcollection
+
+  vars:
+    rg: open-wavehub-dev
+    nmaster: "{{ lookup('env', 'masterName') }}"
+    nworker: "{{ lookup('env', 'workerName') }}"
+    newRG: "{{ lookup('env', 'rg') }}"
+    wasVaultName: "{{ lookup('env', 'wasVaultName') }}"
+    wasPolicyVault: "{{ lookup('env', 'wasPolicyVault') }}"
+  
+  tasks:
+    - name: Copy host file to hosts
+      copy:
+        src: hosts
+        dest: ../../hosts
+        owner: root
+        group: root
+        remote_src: yes
+      become: yes
+
+    - name: copy env_variables to was_install
+      copy:
+        src: env_variables
+        dest: ../was22-install/playbook/
+      remote_src: yes
+
+    - name: copy bp_config_vars.yml to was-install
+      copy:
+        src: bp_config_vars.yml
+        dest: ../was22-install/playbook/bp-packages/
+      remote_src: yes
+
+    - name: Query IP Private vm master node
+      shell: sudo az vm show -g "{{ newRG }}" -n "{{ nmaster }}"  --query privateIps -d --out tsv
+      register: ipmaster
+
+    - name: Query IP Private vm worker node
+      shell: sudo az vm show -g "{{ newRG }}" -n "{{ nworker }}" --query privateIps -d --out tsv
+      register: ipworker
+      
+    - name: Query IP Public vm master node
+      shell: sudo az vm show -g "{{ newRG }}" -n "{{ nmaster }}"  --query publicIps -d --out tsv
+      register: publicmasterip
+    
+    - name: Query IP Public vm master node
+      shell: sudo az vm show -g "{{ newRG }}" -n "{{ nworker }}"  --query publicIps -d --out tsv
+      register: publicworkerip 
+
+    - name: Replace IP master to host
+      shell: |
+        sudo sed -i "s/172.17.0.4/"{{ publicmasterip.stdout }}"/g" ../../hosts
+        sudo sed -i "s/172.17.0.4/"{{ ipmaster.stdout }}"/g" ../was22-install/playbook/bp-packages/bp_config_vars.yml
+        sudo sed -i "s/51.132.124.36/"{{ ipmaster.stdout }}"/g" ../was22-install/playbook/bp-packages/bp_config_vars.yml
+        sudo sed -i "s/51.132.124.36/"{{ ipmaster.stdout }}"/g" ../was22-install/playbook/bp-packages/bp_config_vars.tpl   
+    
+    - name: Replace IP worker to host ansible
+      shell: |
+        sudo sed -i "s/172.17.0.5/"{{ publicworkerip.stdout }}"/g" ../../hosts
+        sudo sed -i "s/172.17.0.5/"{{ ipworker.stdout }}"/g" ../was22-install/playbook/bp-packages/bp_config_vars.yml
+        sudo sed -i "s/172.17.0.5/"{{ ipworker.stdout }}"/g" ../was22-install/playbook/bp-packages/bp_config_vars.tpl
+
+    - name: Change env name for cluster
+      shell: |
+        sudo sed -i "s/tonyk8smastervm/"{{ nmaster }}"/g" ../was22-install/playbook/env_variables
+        sudo sed -i "s/tonyk8sworker1vm/"{{ nworker }}"/g" ../was22-install/playbook/env_variables
+    
+    - name: Refresh inventory to ensure new instances exist in inventory
+      meta: refresh_inventory
+
+    - name: Pause 2 minutes for sync hosts file
+      pause:
+        minutes: 2
+
+    - name: Enable backup for masternode
+      shell: sudo az backup protection enable-for-vm --resource-group "{{ rg }}" --vault-name "{{ wasVaultName }}" --vm $(az vm show -g "{{ newRG }}" -n "{{ nmaster }}" --query id | tr -d '"') --policy-name "{{ wasPolicyVault }}" 
+      ignore_errors: yes
+      
+    - name: Enable backup for workernode
+      shell: sudo az backup protection enable-for-vm --resource-group "{{ rg }}" --vault-name "{{ wasVaultName }}" --vm $(az vm show -g "{{ newRG }}" -n "{{ nworker }}" --query id | tr -d '"') --policy-name "{{ wasPolicyVault }}"
+      ignore_errors: yes

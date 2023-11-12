@@ -1,0 +1,18 @@
+- name: "Upgrading namespace"
+  include: 01_upgrade_namespace.yml
+
+- name: "Upgrading PSP bypass"
+  include: 02_upgrade_psp_bypass.yml
+  when: installPspBypass|bool == true
+
+- name: "Upgrading ckey-config"
+  include: upgrade_ckey_config.yml
+
+- name: "Upgrading ssh-config"
+  include: 03_upgrade_ssh_config.yml
+
+- name: "Upgrading CA certificate for configuration jobs"
+  include: 04_upgrade_config_ca_certificate.yml
+
+- name: "Upgrading product"
+  include: upgrade_product.yml

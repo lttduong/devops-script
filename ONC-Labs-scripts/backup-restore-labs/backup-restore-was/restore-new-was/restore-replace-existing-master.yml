@@ -1,0 +1,55 @@
+---
+- name: Recovery Existing Master VM
+  hosts: localhost
+  connection: local
+  collections:
+   - azure.azcollection
+
+  vars_files:
+    - env_variables
+
+  tasks:
+#  - name: Listing available recovery points
+#    shell: sudo az backup recoverypoint list --resource-group "{{ resource_group }}" --vault-name "{{ wasVaultName }}" --backup-management-type AzureIaasVM --container-name "{{ container_name }}" --item-name "{{ container_name }}" --query [0].name --output tsv
+#    register: recoverypoint
+
+  - name: Restore the disk from your recovery point
+    shell: sudo az backup restore restore-disks --resource-group "{{ resource_group }}" --vault-name "{{ wasVaultName }}" --container-name onc-was-master-2202 --item-name onc-was-master-2202 --storage-account "{{ wasStorageName }}" --rp-name "{{ masterRecoveryPoint }}" --target-resource-group "{{ resourceGroup }}" --query name
+    register: backupjob
+
+  - name: Pause for 5 minutes for restore disk
+    pause:
+      minutes: 5 
+  
+  # - name: Disable backup of VM
+  #   shell: sudo az backup protection disable --resource-group "{{ resource_group }}" --vault-name "{{ wasVaultName }}" --container-name onc-was-master-2202 --item-name onc-was-master-2202 --backup-management-type AzureIaaSVM -y
+  
+  - name: Change VM name to lower and cut special characters in name
+    shell: echo "onc-was-master-2202" | tr -dc '[:alnum:]\n\r' | tr '[:upper:]' '[:lower:]'
+    register: vmname
+  
+  - name: Get new Id disk
+    shell: sudo az disk list -g "{{ resourceGroup }}" --query '[?managedBy==`null`].[id]' -o tsv | grep -i "{{ vmname.stdout }}"
+    register: newiddisk
+
+  - name: Get old Id disk
+    shell: sudo az vm show -d -g "{{ resourceGroup }}" -n "{{ masterName }}" --query "storageProfile.osDisk.managedDisk.id" | awk -F '[/]' '{print $9}' | sed 's/"//'
+    register: oldiddisk
+
+  - name: Stop Master VM
+    shell: sudo az vm stop -n "{{ masterName }}" -g "{{ resourceGroup }}"
+
+  - name: Swap disk for master vm
+    shell: sudo az vm update -g "{{ resourceGroup }}" -n "{{ masterName }}" --os-disk {{ newiddisk.stdout }}
+
+  - name: Start Master VM
+    shell: sudo az vm start -n "{{ masterName }}" -g "{{ resourceGroup }}"
+
+  - name: Remove Os Disk
+    azure_rm_manageddisk:
+      name: "{{ oldiddisk.stdout }}"
+      location: "{{ location }}"
+      resource_group: "{{ resourceGroup }}"
+      state: absent
+  
+

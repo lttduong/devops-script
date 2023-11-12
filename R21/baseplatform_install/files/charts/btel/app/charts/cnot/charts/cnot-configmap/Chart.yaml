@@ -1,0 +1,9 @@
+apiVersion: v1
+appVersion: 1.2.3
+description: CNOT - Unified Notification - Configmap
+engine: gotpl
+maintainers:
+- email: balazs.szita@nokia.com
+  name: Szita Balázs
+name: cnot-configmap
+version: 1.2.3

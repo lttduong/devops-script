@@ -1,0 +1,6 @@
+dependencies:
+- name: ckaf-zookeeper
+  repository: https://repo.lab.pl.alcatel-lucent.com/csf-helm-stable/
+  version: 3.0.1
+digest: sha256:f5673eec78f24b2440e616a74c28037e9b57804aaaf6a412ddb44428bce0fa97
+generated: "2020-07-07T15:08:58.009761862Z"

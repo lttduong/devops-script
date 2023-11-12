@@ -1,0 +1,35 @@
+{{- if .Values.global.cbur.enabled }}
+apiVersion: "cbur.bcmt.local/v1"
+kind: BrPolicy
+metadata:
+  name: "{{ .Values.global.releaseNamePrefix }}{{ .Chart.Name }}"
+  labels:
+    app: "{{ .Chart.Name }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+spec:
+  brOption: 0
+## Start of custom modification of original chart
+  k8sType: statefulset 
+  k8sobjects:
+    - object-type: secrets
+      match-criteria: label
+      label-key: {backup: "true"}
+    - object-type: configmaps
+      match-criteria: label
+      label-key: {backup: "true"}
+## End of custom modification of original chart
+  maxiCopy: {{ .Values.global.cbur.maxiCopy }}
+  selector:
+    matchLabels:
+      app: "{{ .Chart.Name }}"
+      release: "{{ .Release.Name }}"
+      heritage: "{{ .Release.Service }}"
+  backend:
+    mode: "{{ .Values.global.cbur.backendMode }}"
+  cronSpec: "{{ .Values.global.cbur.cronSpec }}"
+  autoEnableCron: {{ .Values.global.cbur.autoEnableCron }}
+  autoUpdateCron: {{ .Values.global.cbur.autoEnableCron }}
+  dataEncryption:
+    enable: {{ .Values.global.cbur.dataEncryption }}
+{{- end }}

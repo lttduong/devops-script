@@ -1,0 +1,39 @@
+---
+- name: Connect to WSHA to run script update
+  hosts: restore_wsha_vm 
+
+  vars_files:
+    ha_env_variables
+  
+  tasks:
+  - name: copy openvpn profile
+    copy:
+      src: /etc/openvpn3/{{wshaProfile}}.ovpn
+      dest: /home/WSHA_Admin/
+    become: true        
+
+  - name: Connect VPN to WHLabs
+    shell: |
+      openvpn3 session-start --config /home/WSHA_Admin/{{wshaProfile}}.ovpn
+    become_user: WSHA_Admin
+    become: true
+    become_method: su
+    become_flags: '-s /bin/bash'
+
+  - name: Check vpn connaction with NFMT
+    shell: openvpn3 sessions-list 
+    register: showConnection
+
+  - name: List VPN connections
+    debug:
+      msg: "{{showConnection.stdout}}"
+               
+  - name: Run script to update the setup
+    shell: |
+      cd /opt/wsha-full-installer-22.08.0-release-b86/
+      yes 'qweQWE123!@#' | ./wsha_installer.sh --update
+    become: true
+
+
+
+   

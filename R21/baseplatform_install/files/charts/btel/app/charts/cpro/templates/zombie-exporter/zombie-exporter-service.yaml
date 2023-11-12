@@ -1,0 +1,49 @@
+{{- if .Values.zombieExporter.enabled -}}
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    prometheus.io/port: "{{ .Values.zombieExporter.service.servicePort }}"
+{{- include "prometheus-annotations" (tuple .Values.global.annotations) | indent 4}}
+{{- if .Values.zombieExporter.service.annotations}}
+{{ toYaml .Values.zombieExporter.service.annotations | indent 4 }}
+{{- end }}
+  labels:
+    app: {{ template "prometheus.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    component: "{{ .Values.zombieExporter.name }}"
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+{{- if .Values.zombieExporter.service.labels }}
+{{ toYaml .Values.zombieExporter.service.labels | indent 4 }}
+{{- end }}
+{{- include "prometheus-labels" (tuple .Values.global.labels) | indent 4}}
+  name: {{ template "prometheus.zombieExporter.fullname" . }}
+spec:
+{{- if .Values.zombieExporter.service.clusterIP }}
+  clusterIP: {{ .Values.zombieExporter.service.clusterIP | quote }}
+{{- end }}
+{{- if .Values.zombieExporter.service.externalIPs }}
+  externalIPs:
+{{ toYaml .Values.zombieExporter.service.externalIPs | indent 4 }}
+{{- end }}
+{{- if .Values.zombieExporter.service.loadBalancerIP }}
+  loadBalancerIP: {{ .Values.zombieExporter.service.loadBalancerIP }}
+{{- end }}
+{{- if .Values.zombieExporter.service.loadBalancerSourceRanges }}
+  loadBalancerSourceRanges:
+  {{- range $cidr := .Values.zombieExporter.service.loadBalancerSourceRanges }}
+    - {{ $cidr }}
+  {{- end }}
+{{- end }}
+  ports:
+    - name: tcp-metrics
+      port: {{ .Values.zombieExporter.service.servicePort }}
+      protocol: TCP
+      targetPort: tcp-8002
+  selector:
+    app: {{ template "prometheus.name" . }}
+    component: "{{ .Values.zombieExporter.name }}"
+    release: {{ .Release.Name }}
+  type: "{{ .Values.zombieExporter.service.type }}"
+{{- end -}}

@@ -1,0 +1,43 @@
+{{- if or .Values.persistence .Values.autonomous }}
+{{- if or .Values.persistence.enabled .Values.autonomous.enabled }}
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ .Release.Name }}-persistence-test"
+  annotations:
+    "helm.sh/hook": test-success
+  labels:
+    component: "{{ .Values.service.name }}"
+spec:
+  containers:
+  - name: {{ .Release.Name }}-persistence-test
+    image: {{ .Values.global.registry }}/{{ .Values.image.name }}:{{ .Values.image.tag }}
+    securityContext:
+      runAsUser: 0
+    env:
+      - name: NCM_HOST
+        value: {{ template "ncmHost" . }}
+      - name: NCM_PORT
+        value: "{{ .Values.service.httpPort }}"
+    command:
+    - bash
+    - "-c"
+    - |
+      cp -R /root/.helm /tmp
+      curl -kv  -H "Authorization: Bearer token"  -X POST https://$NCM_HOST:$NCM_PORT/ncm/repos/test?repoUrl=https://repo.lab.pl.alcatel-lucent.com/csf-helm-stable
+      check=$(curl -kvs --head -H 'Authorization: Bearer token' -X GET https://$NCM_HOST:$NCM_PORT/ncm/repos/test |grep HTTP |awk '{print $2}')
+      if [[ $check = "200" ]]
+      then
+        diff -r --no-dereference /root/.helm /tmp/.helm && exit 0 || exit 1
+      fi
+      sleep 4s
+    volumeMounts:
+        - name: local-dir
+          mountPath: /root/.helm
+  volumes:
+    - name: local-dir
+      hostPath:
+        path: /root/.helm
+  restartPolicy: Never
+{{- end }}
+{{- end }}

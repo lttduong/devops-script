@@ -1,0 +1,53 @@
+{{- if and .Values.istio.enable .Values.restserver.enabled }}
+{{- if .Values.restserver.istioIngress.enabled }}
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  labels:
+    app: {{ template "prometheus.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    component: "{{ .Values.restserver.name }}"
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+{{- include "prometheus-labels" (tuple .Values.global.labels) | indent 4}}
+  name: {{ template "prometheus.restserver.fullname" . }}-vs
+{{- if .Values.global.annotations }}
+  annotations:
+{{- include "prometheus-annotations" (tuple .Values.global.annotations) | indent 4}}
+{{- end }}
+spec:
+  hosts:
+  - '*'
+  gateways:
+  {{- if eq .Values.restserver.istioIngress.gatewayName "" }}
+  - {{ template "prometheus.restserver.fullname" . }}-istio-gateway
+        {{- else }}
+  - {{ .Values.restserver.istioIngress.gatewayName }}
+  {{- end }}
+
+  {{- if and .Values.restserver.istioIngress.tls.enabled (eq .Values.restserver.istioIngress.tls.mode "PASSTHROUGH") }}
+  tls:
+  - match:
+    - port: {{ .Values.restserver.istioIngress.tls.httpsPort }}
+      sni_hosts:
+      - '{{ .Values.restserver.istioIngress.host }}'
+    route:
+    - destination:
+        host: {{ template "prometheus.restserver.fullname" . }}
+        port:
+          number: {{ .Values.restserver.service.servicePort }}
+  {{- else }}
+  http:
+  - match:
+    - uri:
+        prefix: /{{ .Values.restserver.istioIngress.Contextroot }}/
+    rewrite:
+      uri: /
+    route:
+    - destination:
+        host: {{ template "prometheus.restserver.fullname" . }}
+        port:
+          number: {{ .Values.restserver.service.servicePort }}
+  {{- end }}
+{{- end }}
+{{- end }}

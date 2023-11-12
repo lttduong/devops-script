@@ -1,0 +1,7 @@
+# Values for umbrella charts need to be redefined and provided for upgrade as helm omits subcharts values
+# during upgrade operation and use defaults instead (https://github.com/helm/helm/issues/2948).
+# After switch to helm3 it should work properly.
+## Start of subcharts values
+cmdb:
+  enabled: false
+## End of subcharts values

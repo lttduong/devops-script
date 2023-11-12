@@ -1,0 +1,37 @@
+cmdbConfiguratorEnabled: true
+
+config:
+  btel:
+    configurator:
+      configDir: /import/config
+  cmdb:
+    configurator:
+      image:
+        name: cmdb-config
+        tag: latest
+      secretName: cmdb-configurator-config
+      configMapName: cmdb-configurator-config-configmap
+      configDir: /import/config
+
+db_configurator:
+  resources:
+    requests:
+      cpu: "10m"
+      memory: "50Mi"
+    limits:
+      cpu: "200m"
+      memory: "300Mi"
+
+dns:
+  policy: ClusterFirst
+
+global:
+  caCertName: netguard-ca
+
+image:
+  registry: epsec-docker-releases.repo.lab.pl.alcatel-lucent.com/common
+  pullPolicy: IfNotPresent
+
+mariadb:
+  grafana_db_password: change_it
+  calm_db_password: change_it

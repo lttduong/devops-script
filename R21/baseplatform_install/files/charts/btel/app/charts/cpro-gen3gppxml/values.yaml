@@ -1,0 +1,736 @@
+# Default values for gen3gppxml.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+replicaCount: 1
+global:
+  # For pull gen3gppxml, proftpd & ConfigmapReload image
+  registry: "csf-docker-delivered.repo.lab.pl.alcatel-lucent.com"
+  # For pull Cbur and kubectl image
+  registry2: "csf-docker-delivered.repo.lab.pl.alcatel-lucent.com"
+  annotations: {}
+  labels: {}
+## Define serviceAccount name for Gen3gppxml component at global level.
+## serviceAccount priority order is
+## 1. serviceAccountName
+## 2. global.seviceAccountName
+## 3. If we are not using customized resources set rbac.enabled to true then resources will be created on helm install
+## 4. If both serviceAccounts are not set and rbac.ebabled is set to false then default serviceAccount will be used
+##
+  serviceAccountName:
+## istio verion in X.Y format eg 1.4/1.5
+  istioVersion: 1.4
+  podNamePrefix: ""
+  containerNamePrefix: ""
+
+persistence:
+  pvc_auto_delete: true
+
+custom:
+  psp:
+    annotations:
+      seccomp.security.alpha.kubernetes.io/allowedProfileNames: runtime/default
+      seccomp.security.alpha.kubernetes.io/defaultProfileName: runtime/default
+    apparmorAnnotations:
+      apparmor.security.beta.kubernetes.io/allowedProfileNames: runtime/default
+      apparmor.security.beta.kubernetes.io/defaultProfileName: runtime/default
+    labels:
+
+  pod:
+    annotations:
+      seccomp.security.alpha.kubernetes.io/allowedProfileNames: runtime/default
+      seccomp.security.alpha.kubernetes.io/defaultProfileName: runtime/default
+    apparmorAnnotations:
+      apparmor.security.beta.kubernetes.io/allowedProfileNames: runtime/default
+      apparmor.security.beta.kubernetes.io/defaultProfileName: runtime/default
+    labels:
+
+customResourceNames:
+  resourceNameLimit: 63
+  gen3gppxmlPod:
+    gen3gppxmlContainer: ""
+    sftpContainer: ""
+    configMapReloadContainer: ""
+  postDeleteJobPod:
+    name: ""
+    postDeletePvcContainer: ""
+
+
+name: gen3gppxml
+## soft means preferredDuringSchedulingIgnoredDuringExecution
+## hard means requiredDuringSchedulingIgnoredDuringExecution
+## you could refer k8s api for more detail
+antiAffinityMode: "soft"
+helm3: false
+rbac:
+  enabled: true
+  pspUseAppArmor: false
+serviceAccountName:
+
+lcm:
+  scale:
+    timeout: 180
+image:
+  imageRepo: "cpro-gen3gppxml"
+  imageTag: 3.0.0-2.1.0
+  pullPolicy: IfNotPresent
+resources:
+  requests:
+    memory: 256Mi
+    cpu: 250m
+  limits:
+    memory: 1024Mi
+    cpu: 500m
+seLinuxOptions:
+  enabled: false
+  level: ""
+  role: ""
+  type: ""
+  user: ""
+service:
+  name: gen3gppxml
+  # Set service type to NodePort when istio.enable is set to 'false'
+  serviceType: ClusterIP
+  sftpPort: 2309
+  sftpNodePort: 30022
+  restHttpPort: 8080
+  # Start of custom modification of original chart file, CSFS-31348
+  restHttpNodePort: 30023
+  # End of custom modification of original chart file
+  restHttpsPort: 8081
+  # Start of custom modification of original chart file, CSFS-31348
+  restHttpsNodePort: 30024
+  # End of custom modification of original chart file
+
+kubectl:
+  image:
+    repo: tools/kubectl
+    tag: v1.17.8-nano
+  jobResources:
+    requests:
+     cpu: 200m
+     memory: 500Mi
+    limits:
+     cpu: 1
+     memory: 1Gi
+
+cbur:
+  enabled: true
+  image:
+    repository: cbur/cbura
+    tag: 1.0.3-1665
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 250m
+    limits:
+      memory: 1024Mi
+      cpu: 500m
+
+  ## defines the backup storage options.
+  backendMode: "local"
+  ##autoEnableCron = true indicates that the cron job is immediately scheduled when the BrPolicy is created,
+  ##while autoEnableCron = false indicates that scheduling of the cron job should be done on a subsequent backup request.
+  ##This option only works when k8swatcher.enabled is true
+  autoEnableCron: false
+  ##Indicate if subsequent update of cronjob will be done via brpoilicy update.
+  ##true means cronjob must be updated via brpolicy update,
+  ##false means cronjob must be updated via manual "helm backup -t app -a enable/disable" command.
+  autoUpdateCron: false
+  ## It is used for scheduled backup task. Empty string is allowed for no scheduled backup.
+  ## Here means every 10 minutes of every day
+  cronJob: "*/10 * * * *"
+  ## Limit the number of copies that can be saved. Once it is reached, the newer backup will overwritten the oldest one.
+  maxCopy: 5
+## Whether the chart will deploy on istio
+istio:
+  enable: false
+  mtls_enable: true
+  cni_enable: true
+
+## Whether use istio ingress gateway(Envoy)
+istioIngress:
+  enabled: true
+  selector: {istio: ingressgateway}
+  Contextroot: gen3gppxml
+  # the host used to access the management GUI from istio ingress gateway(for http/https)
+  host: "*"
+  httpPort: 80
+  ## Keep gatewayName to empty to create kubenetes gateway resource.
+  ## If new virtualservice needs to refer to existing gateway then mention that name here
+  ## gatewayName is used for http/https
+  gatewayName: "istio-system/single-gateway-in-istio-system"
+  ## tls section will be used if gatewayName is ""(within http gateway only)
+  tls:
+    enabled: false
+    httpsPort: 443
+    ## mode could be SIMPLE, MUTUAL, PASSTHROUGH
+    mode: PASSTHROUGH
+    credentialName: "am-gateway"
+  ## Keep gatewayName to empty to create kubenetes gateway resource.
+  ## If new virtualservice needs to refer to existing gateway then mention that name here
+  ## tcpGatewayName is used for sftp
+  tcpGatewayName: ""
+  sftpPort: 31400
+  # the host used to access the management GUI from istio ingress gateway(for tcp)
+  tcpHost: "*"
+
+configmapReload:
+  image:
+    repository: cpro/registry4/configmap-reload
+    tag: v0.2.1-4.0.0
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 250m
+    limits:
+      memory: 1024Mi
+      cpu: 500m
+containerSecurityContext:
+  runAsUser: 1001
+sftp:
+  image:
+    repository: cpro-gen3gppxml-proftpd
+    tag: 3.0.0-2.1.0
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 250m
+    limits:
+      memory: 1024Mi
+      cpu: 500m
+  user: sftp
+  logLevel: 3
+  authentication:
+    passwd:
+      enabled: true
+      passwd: IXmPRU+6YoEP1pZjU5iBhAps96xbM3JYO1mmwJuEpl5scUozjP5VRLtOTtvqGSJf7LvUSPad+3EvBxszH/rEVvd1yz7WnCd5qsTIwkfaycobByRYs1uTjur+PGqrVcMDqNl27qdJPeljdQPfiHcItfBUgFq6bcipL5PaC2RXVjwZNyGnghD/HpBmCzgdvErKD6BVCjQlvO/kxvJBK6qelAxXAycU3+Jv7DOQzxRH8qsosHvn+cxXQtAHWEAGROVnlZ3va8XVI9YY9HUfCjE5sGYxKT4gVwSWOOH/XUD4WIFo1TXy4CTYpGF6uGPVkcVpKpyL3olN/lpvSADKdzpUBg==
+      rsaKey: |+
+        -----BEGIN RSA PRIVATE KEY-----
+        MIIEpAIBAAKCAQEAwD86zfKF2GlSH4j1R7attom9XJkiC/Ztc2dmBjU1tESydgYZ
+        sSHiDe5e6dnPEPTqkr7UFoUM1mKLnCtBuC5pv3RIUdsv8Y1cAD9dTSPwzHL/p9yf
+        1FiuJWi3yD4zFng+gC6kO7nnrNFYDh0iEnVTE+AtndQCazTfHzDgAuLxAMR1+dPc
+        PDJYi8ilvf5GPvLtUA2aAMbMJopBtCEAFzrqWnG8P0DlRNyQd6rNbha63LU/+niJ
+        o17YuAmg3NlOXVcftyTx0iCY7jFWTlnujITA1sR7qa8PARJTpu/sQb/H6+bZ9oE6
+        N6/znaohHueCibrFHNqfz4e+iYyxJqtoVNpfxQIDAQABAoIBADBf+MEX9LwXDHYo
+        9Wd9PUsAb+jcE6gk8zel3hNT0laxLqLqOA7Nct+EiteXWjZvGpOgdyfPhQJxO6Yp
+        cFkTPMLTVNtcJz1GD890Ilsl3xLjIRexOXqqce+x4QT/OcW+riN9GRB6YCSpbNno
+        VMmGQkhvEat0TMODQ13K46N2TaSeWynKrPxjkExlW1BHIYIbycKWTN0muRHZpYj1
+        DJdZQnFh/Os6o1NlVXTz4rHnzQdzdHaunW7hPrJHx3t18oCQsum2X2CRrwU3K80N
+        sjMSKHJkPBas3FFvvqA4X4+VcmAKcUU5TEs/iwG9PzwjB+eXQTGb9qNV4zKxLMl6
+        aChQpGECgYEA6stEDY1n0LdsI5KM/MlNSYVY3JelVU2oYavOe9msZhOPmjVQnoYb
+        bb79JAO6gwMyae2rSt/We5OhW0gVYODvqL23oDV4dqJqe18r16rr39BU4p/cO9FQ
+        N2xroiURHk6z5uaIbl4pTMyv/tPD4Uaj0PptPO8vwahRWG12n+Ys6hkCgYEA0Zw5
+        HIRnMyYZO86K0521eddXX7P99VMinj/jSASmQWwWNcQW1BJWwSqhxrI+DomSjB/Z
+        FoDdHSVM4FUUrp90D//xSJ/qcRR2kRm4+ateHTOhUABK9lvESFjlgHX9UkVGrNa2
+        QQdujhUzDzl8FTa+9B7+f0epJwxpqV/BjoiW8I0CgYEAhGgIgpQBvYQSqaTVeSCU
+        Qye9yviBti9LC3l1wgYo4I+bZd03D46VHTidTJgFsCg3X+E1vc2pCJtiXTWzSKTQ
+        whnq2aANxOkmn1g2QzMSPW8gz4RTEDCjyf2MXS4GD09WyJmsyoCzTaoIfe4yAnJx
+        o0H2JGzGQ7GF3hYs1VNadNECgYBDJ98wYMdDnvA0th7KX9vVtoV61wsFf2Y291cV
+        KtAtY7jV7wY1Wc7LwqHkLBUvySnXlRiTWiP9g4bW1Mt0iwe/XIvsbbfKFPlL0cbu
+        ztWvW2xSWlWqCoqfd0PIXYUUx7c2BvCLcxsbkHU0aoFztn+FbSyykL4EEbkEl/ZG
+        eUKKvQKBgQDQxkYpGw5Vsju6NuNUKQxhSVP/ZGnUG9VV64L3h+noWBwKbEAUniAp
+        BSD1buLKC4mm8Dxz03vUOszil6L4BXoC0e0OQ5gPvaLT9nkAtxeBsWdP6h9pU5ct
+        edLbvHX/lIc3lswoTE1QSHIFHrSqTxvE4kdAf2qZQj49+p867V0/9g==
+        -----END RSA PRIVATE KEY-----
+    key:
+      enabled: true
+      #ssh2 key to be used
+      key: |+
+        ---- BEGIN SSH2 PUBLIC KEY ----
+        Comment: "2048-bit RSA, converted by shasshuk@csfci.ih.lucent.com from"
+        AAAAB3NzaC1yc2EAAAADAQABAAABAQDAPzrN8oXYaVIfiPVHtq22ib1cmSIL9m1zZ2YGNT
+        W0RLJ2BhmxIeIN7l7p2c8Q9OqSvtQWhQzWYoucK0G4Lmm/dEhR2y/xjVwAP11NI/DMcv+n
+        3J/UWK4laLfIPjMWeD6ALqQ7uees0VgOHSISdVMT4C2d1AJrNN8fMOAC4vEAxHX509w8Ml
+        iLyKW9/kY+8u1QDZoAxswmikG0IQAXOupacbw/QOVE3JB3qs1uFrrctT/6eImjXti4CaDc
+        2U5dVx+3JPHSIJjuMVZOWe6MhMDWxHuprw8BElOm7+xBv8fr5tn2gTo3r/OdqiEe54KJus
+        Uc2p/Ph76JjLEmq2hU2l/F
+        ---- END SSH2 PUBLIC KEY ----
+
+#User can use the configOverride to override the configuration in configs/Gen3GPPXML
+#for example: OVERRIDE_XXX_YYY_ZZZ = 11111
+#it is the same as below configuration:
+#{
+#    "XXX" :
+#     {
+#             "YYY" :
+#              {
+#                      "ZZZ" : "11111"
+#              }
+#     }
+#}
+#NOTE: It could not override the value in an array.
+configOverride: |+
+  OVERRIDE_prometheus_url = http://cpro-server.default.svc.cluster.local:80/api/v1
+configs:
+  Gen3GPPXML: '{
+    "measCollecFile" :
+    {
+        "xmlns" : "http://www.3gpp.org/ftp/specs/archive/32_series/32.435#measCollec",
+        "xmlns:xsi" : "http://www.w3.org/2001/XMLSchema-instance",
+        "xmlns:schemaLocation" : "http://www.3gpp.org/ftp/specs/archive/32_series/32.435#measCollec http://www.3gpp.org/ftp/specs/archive/32_series/32.435#measCollec",
+        "fileHeader" :
+        {
+            "fileFormatVersion" : "32.435 V9.1.0",
+            "vendorName" : "NOKIA",
+            "dnPrefix" :"dn",
+            "elementType" : "eletype"
+        }
+    },
+    "REST" : 
+    {
+        "HTTP" :
+        {
+            "enable":true,
+            "httpPort":8080
+        },
+        "HTTPS":
+        {
+            "enable":false,
+            "httpsPort" : 8081,
+            "verifyClient" : false,
+            "securityFiles" :
+            {
+                "caCert":"/etc/gen3gppxml/secret/restCa",
+                "cert":"/etc/gen3gppxml/secret/restCert",
+                "key":"/etc/gen3gppxml/secret/restKey"
+            }
+        },
+        "SSO":
+        {
+            "enable":false,
+            "validationUrl":"http://localhost:8280/auth/realms/myrealm/protocol/openid-connect/userinfo",
+            "HTTPS": false,
+            "securityFiles" :
+            {
+                "caCert":"/etc/gen3gppxml/secret/ssoCa",
+                "cert":"/etc/gen3gppxml/secret/ssoCert",
+                "key":"/etc/gen3gppxml/secret/ssoKey"
+            }
+        }
+    },
+    "prometheus" :
+    {
+        "url" : "http://localhost:9090/api/v1",
+        "HTTPS" : false,
+        "securityFiles" :
+        {
+            "caCert":"/etc/gen3gppxml/secret/prometheusCa",
+            "cert":"/etc/gen3gppxml/secret/prometheusCert",
+            "key":"/etc/gen3gppxml/secret/prometheusKey"
+        },
+        "authentication" :
+        {
+            "enable":"false",
+            "username" : "root",
+            "password" : "P8KaOyx504Vpby+hNFUGHicuO9TKArmVhGXAlCIBut2R7i/DDd0Hx2W6OG2Q/XjJ8/NNxb1IljPSwErOIrxPrHB30uvvH7vOhA2BhuMBFgYb4n/+uKJaVqFSo8s7dH8c0tKPbPGxhei9m64Nb/fMhCnacD2yn5p04wl73ZlY7fPuJVbzV1luXhuaIG42UqCntZTKjxhqEFczLqKcb7JAVABBMjiRmb91iYd44tKP73Lcj0JiF6GyuuCGJaGTIyAAouTLTNhGZw==",
+            "key":"/etc/gen3gppxml/secret/prometheusAuthKey"
+        }
+    },
+    "plugins" :
+    {
+        "vesAgent" :
+        {
+            "enable" : "false",
+            "connectString" : "127.0.0.1:9991",
+            "appName" : "csf"
+        }
+    },
+    "postFix" : "gen3gppxmlDefaultPostFix",
+    "logLevel" : "INFO",
+    "reportLocation" : "/var/3gppxml/",
+    "expiredDays" : "14",
+    "notUseColonInQuery" : "false",
+    "threadPoolSize" : 20,
+    "misfireGraceTime" : 1,
+    "filter" : ["job=''prometheus-nodeexporter''", "component=''node-exporter''"],
+    "defaultGranPeriod" : ["5m"],
+    "defaultRule" : "avg",
+    "defaultValueType" : "integer",
+    "orientation" : "vertical",
+    "hideNonExistentMetrics" : "true",
+    "invalidValue" : "0",
+    "FastPass" : {
+        "enable" : "true",
+        "maxAttributeValueEachLength" : 80,
+        "maxAttributeTypeEachLength" : 6,
+        "maxAttributeTypeNum" : 10,
+        "replaceInvalidCharInMeasObjLdnWith" : "_"
+    },
+    "measGroups" :
+    [
+        {
+            "measInfoId" : "M1",
+            "objects" : {"PLTFM":"1"},
+            "metrics" :
+            [
+                {"metric":"node_boot_time_seconds"}
+            ]
+        },
+        {
+            "measInfoId" : "M2",
+            "objects" : {"PLTFM":"1"},
+            "metrics" :
+            [
+                {"metric":"node_ipvs_incoming_bytes_total", "rule":"max"},
+                {"metric":"node_ipvs_outgoing_bytes_total", "rule":"max"}
+            ]
+        },
+        {
+            "measInfoId" : "M3",
+            "objects" : {"PLTFM":"1"},
+            "dnLabels" : ["CPU"],
+            "labelRename": {"CPU":"cpu"},
+            "metrics" :
+            [
+                {
+                    "metric" : "node_cpu_seconds_total",
+                    "rule" : "max",
+                    "label" :
+                    {
+                        "name" : "mode",
+                        "value" : ["idle", "iowait", "irq", "nice", "softirq", "steal", "system", "user"]
+                    }
+                }
+            ]
+        },
+        {
+            "measInfoId" : "M4",
+            "objects" : {"PLTFM":"1"},
+            "dnLabels" : ["DISK"],
+            "labelRename": {"DISK":"device"},
+            "metrics" :
+            [
+                {"metric":"node_disk_read_bytes_total", "rule":"max"},
+                {"metric":"node_disk_written_bytes_total", "rule":"max"},
+                {"metric":"node_disk_io_now"},
+                {"metric":"node_disk_io_time_seconds_total"}
+            ]
+        },
+        {
+            "measInfoId" : "M5",
+            "objects" : {"PLTFM":"1"},
+            "metrics" :
+            [
+                {"metric":"node_entropy_available_bits"}
+            ]
+        },
+        {
+            "measInfoId" : "M6",
+            "objects" : {"PLTFM":"1"},
+            "metrics" :
+            [
+                {"metric":"node_load1"},
+                {"metric":"node_load5"},
+                {"metric":"node_load15"}
+            ]
+        },
+        {
+            "measInfoId" : "M7",
+            "objects" : {"PLTFM":"1"},
+            "metrics" :
+            [
+                {"metric":"node_memory_AnonPages_bytes"},
+                {"metric":"node_memory_Buffers_bytes"},
+                {"metric":"node_memory_Cached_bytes"},
+                {"metric":"node_memory_Dirty_bytes"},
+                {"metric":"node_memory_HardwareCorrupted_bytes"},
+                {"metric":"node_memory_Mapped_bytes"},
+                {"metric":"node_memory_MemFree_bytes"},
+                {"metric":"node_memory_MemTotal_bytes"},
+                {"metric":"node_memory_Shmem_bytes"},
+                {"metric":"node_memory_SwapFree_bytes"},
+                {"metric":"node_memory_SwapTotal_bytes"},
+                {"metric":"node_memory_Writeback_bytes"},
+                {"metric":"node_memory_MemAvailable_bytes"}
+            ]
+        },
+        {
+            "measInfoId" : "M8",
+            "objects" : {"PLTFM":"1"},
+            "metrics" :
+            [
+                {"metric":"node_ipvs_incoming_packets_total", "rule":"max"},
+                {"metric":"node_ipvs_outgoing_packets_total", "rule":"max"}
+            ]
+        },
+        {
+            "measInfoId" : "M9",
+            "objects" : {"PLTFM":"1"},
+            "metrics" :
+            [
+                {"metric":"node_procs_blocked"},
+                {"metric":"node_procs_running"},
+                {"metric":"node_context_switches_total", "rule":"max"}
+            ]
+        },
+        {
+            "measInfoId" : "M10",
+            "objects" : {"PLTFM":"1"},
+            "metrics" :
+            [
+                {"metric":"node_netstat_Tcp_AttemptFails"},
+                {"metric":"node_netstat_Tcp_InSegs"},
+                {"metric":"node_netstat_Tcp_OutSegs"},
+                {"metric":"node_netstat_Tcp_RetransSegs"},
+                {"metric":"node_netstat_TcpExt_ListenDrops"}
+            ]
+        },
+        {
+            "measInfoId" : "M11",
+            "objects" : {"PLTFM":"1"},
+            "metrics" :
+            [
+                {"metric":"node_netstat_Udp_InDatagrams"},
+                {"metric":"node_netstat_Udp_InErrors"},
+                {"metric":"node_netstat_Udp_OutDatagrams"}
+            ]
+        },
+        {
+            "measInfoId" : "M12",
+            "objects" : {"PLTFM":"1"},
+            "metrics" :
+            [
+                {"metric":"node_vmstat_pgpgin"},
+                {"metric":"node_vmstat_pgpgout"}
+            ]
+        },
+        {
+            "measInfoId" : "M13",
+            "objects" : {"PLTFM":"1"},
+            "dnLabels" : ["IF"],
+            "labelRename": {"IF":"device"},
+            "metrics" :
+            [
+                {"metric":"node_network_receive_bytes_total"},
+                {"metric":"node_network_receive_drop_total"},
+                {"metric":"node_network_receive_errs_total"},
+                {"metric":"node_network_receive_packets_total"}
+            ]
+        },
+        {
+            "measInfoId" : "M14",
+            "objects" : {"PLTFM":"1"},
+            "dnLabels" : ["IF"],
+            "labelRename": {"IF":"device"},
+            "metrics" :
+            [
+                {"metric":"node_network_transmit_bytes_total"},
+                {"metric":"node_network_transmit_drop_total"},
+                {"metric":"node_network_transmit_errs_total"},
+                {"metric":"node_network_transmit_packets_total"}
+            ]
+        },
+        {
+            "measInfoId" : "M15",
+            "objects" : {"PLTFM":"1"},
+            "dnLabels" : ["DISK", "FS", "MP"],
+            "labelRename": {"DISK":"device", "FS":"fstype", "MP":"mountpoint"},
+            "metrics" :
+            [
+                {"metric":"node_filesystem_free_bytes"},
+                {"metric":"node_filesystem_size_bytes"}
+            ]
+        }
+    ]
+}'
+
+secrets:
+  prometheusCa: |+
+    -----BEGIN CERTIFICATE-----
+    MIIC7jCCAdagAwIBAgIBAjANBgkqhkiG9w0BAQsFADATMREwDwYDVQQDDAhNeVRl
+    c3RDQTAeFw0xODAzMjIxMDA4MTFaFw0xOTAzMjIxMDA4MTFaMDExHjAcBgNVBAMM
+    FXl1bWwtdGVzdC5sb2NhbGRvbWFpbjEPMA0GA1UECgwGY2xpZW50MIIBIjANBgkq
+    hkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA01FXQ7ItSD5zsKZ/Hw1aIwGeuf6PhI79
+    CtaHcU8RrKAd7zBDoqc8p89dWOIfsn1E/lVlG1zvFfpgNgtPzeNnzJVLvIZJAzAm
+    0jJtXaxYDnKiLrR9hzNeJXuLgp6FYjaXllY2VRVuX+3XX6IGle5olazlte/k+kHB
+    UuOLlUbei8HqVCRFfp+UWkWz85u+QrQlz/EmfB/O8uZ4LJmO6yBDyB123gRyVmi/
+    7c9jIyVclz9+f2uu3jo0Eg5NMuRKkHv8Hh8v9Nx0FrIaz/yr3MX2wqzVuVbEQXYb
+    vXkdzvjyzeswNDEPbO1ER5efTQlIIpAqIe5Iz0phyT7tbh1OM7EiDQIDAQABoy8w
+    LTAJBgNVHRMEAjAAMAsGA1UdDwQEAwIFoDATBgNVHSUEDDAKBggrBgEFBQcDAjAN
+    BgkqhkiG9w0BAQsFAAOCAQEAEQM+e+8peUh49cdpKCxsGKShkcSw8DOPWbTb26Z2
+    6jS+gE2XhWvvP2qk6i/A0SLvFtpPC2sf+cilA9ZonrH08jQAy/mw0spzG41lQ7Ir
+    nE9jklhKrb8azrorNXMsYI7D7wKhGX4oL8aq7UND2A0cxQhYRvIg9pn/DIFiSAY4
+    O4AyB2JqwBJRj7Wvgymtfqc1QVhuQD+iAUGcfBMZQctbpiQqZKi4wyzj6AnEn+pI
+    3fGCSzLXVZlN2m4aXbhzRZd4mok1YcTa1yalxJymMoguakpzVGNO1UXyPQIXxeQH
+    kJdafMTyYWPXygCdsaSHeggbr6oTpwd395bsA7lcE6d6xw==
+    -----END CERTIFICATE-----
+  prometheusCert: |+
+    -----BEGIN CERTIFICATE-----
+    MIIC7jCCAdagAwIBAgIBAjANBgkqhkiG9w0BAQsFADATMREwDwYDVQQDDAhNeVRl
+    c3RDQTAeFw0xODAzMjIxMDA4MTFaFw0xOTAzMjIxMDA4MTFaMDExHjAcBgNVBAMM
+    FXl1bWwtdGVzdC5sb2NhbGRvbWFpbjEPMA0GA1UECgwGY2xpZW50MIIBIjANBgkq
+    hkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA01FXQ7ItSD5zsKZ/Hw1aIwGeuf6PhI79
+    CtaHcU8RrKAd7zBDoqc8p89dWOIfsn1E/lVlG1zvFfpgNgtPzeNnzJVLvIZJAzAm
+    0jJtXaxYDnKiLrR9hzNeJXuLgp6FYjaXllY2VRVuX+3XX6IGle5olazlte/k+kHB
+    UuOLlUbei8HqVCRFfp+UWkWz85u+QrQlz/EmfB/O8uZ4LJmO6yBDyB123gRyVmi/
+    7c9jIyVclz9+f2uu3jo0Eg5NMuRKkHv8Hh8v9Nx0FrIaz/yr3MX2wqzVuVbEQXYb
+    vXkdzvjyzeswNDEPbO1ER5efTQlIIpAqIe5Iz0phyT7tbh1OM7EiDQIDAQABoy8w
+    LTAJBgNVHRMEAjAAMAsGA1UdDwQEAwIFoDATBgNVHSUEDDAKBggrBgEFBQcDAjAN
+    BgkqhkiG9w0BAQsFAAOCAQEAEQM+e+8peUh49cdpKCxsGKShkcSw8DOPWbTb26Z2
+    6jS+gE2XhWvvP2qk6i/A0SLvFtpPC2sf+cilA9ZonrH08jQAy/mw0spzG41lQ7Ir
+    nE9jklhKrb8azrorNXMsYI7D7wKhGX4oL8aq7UND2A0cxQhYRvIg9pn/DIFiSAY4
+    O4AyB2JqwBJRj7Wvgymtfqc1QVhuQD+iAUGcfBMZQctbpiQqZKi4wyzj6AnEn+pI
+    3fGCSzLXVZlN2m4aXbhzRZd4mok1YcTa1yalxJymMoguakpzVGNO1UXyPQIXxeQH
+    kJdafMTyYWPXygCdsaSHeggbr6oTpwd395bsA7lcE6d6xw==
+    -----END CERTIFICATE-----
+  prometheusKey: |+
+    -----BEGIN CERTIFICATE-----
+    MIIC7jCCAdagAwIBAgIBAjANBgkqhkiG9w0BAQsFADATMREwDwYDVQQDDAhNeVRl
+    c3RDQTAeFw0xODAzMjIxMDA4MTFaFw0xOTAzMjIxMDA4MTFaMDExHjAcBgNVBAMM
+    FXl1bWwtdGVzdC5sb2NhbGRvbWFpbjEPMA0GA1UECgwGY2xpZW50MIIBIjANBgkq
+    hkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA01FXQ7ItSD5zsKZ/Hw1aIwGeuf6PhI79
+    CtaHcU8RrKAd7zBDoqc8p89dWOIfsn1E/lVlG1zvFfpgNgtPzeNnzJVLvIZJAzAm
+    0jJtXaxYDnKiLrR9hzNeJXuLgp6FYjaXllY2VRVuX+3XX6IGle5olazlte/k+kHB
+    UuOLlUbei8HqVCRFfp+UWkWz85u+QrQlz/EmfB/O8uZ4LJmO6yBDyB123gRyVmi/
+    7c9jIyVclz9+f2uu3jo0Eg5NMuRKkHv8Hh8v9Nx0FrIaz/yr3MX2wqzVuVbEQXYb
+    vXkdzvjyzeswNDEPbO1ER5efTQlIIpAqIe5Iz0phyT7tbh1OM7EiDQIDAQABoy8w
+    LTAJBgNVHRMEAjAAMAsGA1UdDwQEAwIFoDATBgNVHSUEDDAKBggrBgEFBQcDAjAN
+    BgkqhkiG9w0BAQsFAAOCAQEAEQM+e+8peUh49cdpKCxsGKShkcSw8DOPWbTb26Z2
+    6jS+gE2XhWvvP2qk6i/A0SLvFtpPC2sf+cilA9ZonrH08jQAy/mw0spzG41lQ7Ir
+    nE9jklhKrb8azrorNXMsYI7D7wKhGX4oL8aq7UND2A0cxQhYRvIg9pn/DIFiSAY4
+    O4AyB2JqwBJRj7Wvgymtfqc1QVhuQD+iAUGcfBMZQctbpiQqZKi4wyzj6AnEn+pI
+    3fGCSzLXVZlN2m4aXbhzRZd4mok1YcTa1yalxJymMoguakpzVGNO1UXyPQIXxeQH
+    kJdafMTyYWPXygCdsaSHeggbr6oTpwd395bsA7lcE6d6xw==
+    -----END CERTIFICATE-----
+  prometheusAuthKey: |+
+    -----BEGIN CERTIFICATE-----
+    MIIC7jCCAdagAwIBAgIBAjANBgkqhkiG9w0BAQsFADATMREwDwYDVQQDDAhNeVRl
+    c3RDQTAeFw0xODAzMjIxMDA4MTFaFw0xOTAzMjIxMDA4MTFaMDExHjAcBgNVBAMM
+    FXl1bWwtdGVzdC5sb2NhbGRvbWFpbjEPMA0GA1UECgwGY2xpZW50MIIBIjANBgkq
+    hkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA01FXQ7ItSD5zsKZ/Hw1aIwGeuf6PhI79
+    CtaHcU8RrKAd7zBDoqc8p89dWOIfsn1E/lVlG1zvFfpgNgtPzeNnzJVLvIZJAzAm
+    0jJtXaxYDnKiLrR9hzNeJXuLgp6FYjaXllY2VRVuX+3XX6IGle5olazlte/k+kHB
+    UuOLlUbei8HqVCRFfp+UWkWz85u+QrQlz/EmfB/O8uZ4LJmO6yBDyB123gRyVmi/
+    7c9jIyVclz9+f2uu3jo0Eg5NMuRKkHv8Hh8v9Nx0FrIaz/yr3MX2wqzVuVbEQXYb
+    vXkdzvjyzeswNDEPbO1ER5efTQlIIpAqIe5Iz0phyT7tbh1OM7EiDQIDAQABoy8w
+    LTAJBgNVHRMEAjAAMAsGA1UdDwQEAwIFoDATBgNVHSUEDDAKBggrBgEFBQcDAjAN
+    BgkqhkiG9w0BAQsFAAOCAQEAEQM+e+8peUh49cdpKCxsGKShkcSw8DOPWbTb26Z2
+    6jS+gE2XhWvvP2qk6i/A0SLvFtpPC2sf+cilA9ZonrH08jQAy/mw0spzG41lQ7Ir
+    nE9jklhKrb8azrorNXMsYI7D7wKhGX4oL8aq7UND2A0cxQhYRvIg9pn/DIFiSAY4
+    O4AyB2JqwBJRj7Wvgymtfqc1QVhuQD+iAUGcfBMZQctbpiQqZKi4wyzj6AnEn+pI
+    3fGCSzLXVZlN2m4aXbhzRZd4mok1YcTa1yalxJymMoguakpzVGNO1UXyPQIXxeQH
+    kJdafMTyYWPXygCdsaSHeggbr6oTpwd395bsA7lcE6d6xw==
+    -----END CERTIFICATE-----
+  restCa: |+
+    -----BEGIN CERTIFICATE-----
+    MIIC7jCCAdagAwIBAgIBAjANBgkqhkiG9w0BAQsFADATMREwDwYDVQQDDAhNeVRl
+    c3RDQTAeFw0xODAzMjIxMDA4MTFaFw0xOTAzMjIxMDA4MTFaMDExHjAcBgNVBAMM
+    FXl1bWwtdGVzdC5sb2NhbGRvbWFpbjEPMA0GA1UECgwGY2xpZW50MIIBIjANBgkq
+    hkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA01FXQ7ItSD5zsKZ/Hw1aIwGeuf6PhI79
+    CtaHcU8RrKAd7zBDoqc8p89dWOIfsn1E/lVlG1zvFfpgNgtPzeNnzJVLvIZJAzAm
+    0jJtXaxYDnKiLrR9hzNeJXuLgp6FYjaXllY2VRVuX+3XX6IGle5olazlte/k+kHB
+    UuOLlUbei8HqVCRFfp+UWkWz85u+QrQlz/EmfB/O8uZ4LJmO6yBDyB123gRyVmi/
+    7c9jIyVclz9+f2uu3jo0Eg5NMuRKkHv8Hh8v9Nx0FrIaz/yr3MX2wqzVuVbEQXYb
+    vXkdzvjyzeswNDEPbO1ER5efTQlIIpAqIe5Iz0phyT7tbh1OM7EiDQIDAQABoy8w
+    LTAJBgNVHRMEAjAAMAsGA1UdDwQEAwIFoDATBgNVHSUEDDAKBggrBgEFBQcDAjAN
+    BgkqhkiG9w0BAQsFAAOCAQEAEQM+e+8peUh49cdpKCxsGKShkcSw8DOPWbTb26Z2
+    6jS+gE2XhWvvP2qk6i/A0SLvFtpPC2sf+cilA9ZonrH08jQAy/mw0spzG41lQ7Ir
+    nE9jklhKrb8azrorNXMsYI7D7wKhGX4oL8aq7UND2A0cxQhYRvIg9pn/DIFiSAY4
+    O4AyB2JqwBJRj7Wvgymtfqc1QVhuQD+iAUGcfBMZQctbpiQqZKi4wyzj6AnEn+pI
+    3fGCSzLXVZlN2m4aXbhzRZd4mok1YcTa1yalxJymMoguakpzVGNO1UXyPQIXxeQH
+    kJdafMTyYWPXygCdsaSHeggbr6oTpwd395bsA7lcE6d6xw==
+    -----END CERTIFICATE-----
+  restCert: |+
+    -----BEGIN CERTIFICATE-----
+    MIIC7jCCAdagAwIBAgIBAjANBgkqhkiG9w0BAQsFADATMREwDwYDVQQDDAhNeVRl
+    c3RDQTAeFw0xODAzMjIxMDA4MTFaFw0xOTAzMjIxMDA4MTFaMDExHjAcBgNVBAMM
+    FXl1bWwtdGVzdC5sb2NhbGRvbWFpbjEPMA0GA1UECgwGY2xpZW50MIIBIjANBgkq
+    hkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA01FXQ7ItSD5zsKZ/Hw1aIwGeuf6PhI79
+    CtaHcU8RrKAd7zBDoqc8p89dWOIfsn1E/lVlG1zvFfpgNgtPzeNnzJVLvIZJAzAm
+    0jJtXaxYDnKiLrR9hzNeJXuLgp6FYjaXllY2VRVuX+3XX6IGle5olazlte/k+kHB
+    UuOLlUbei8HqVCRFfp+UWkWz85u+QrQlz/EmfB/O8uZ4LJmO6yBDyB123gRyVmi/
+    7c9jIyVclz9+f2uu3jo0Eg5NMuRKkHv8Hh8v9Nx0FrIaz/yr3MX2wqzVuVbEQXYb
+    vXkdzvjyzeswNDEPbO1ER5efTQlIIpAqIe5Iz0phyT7tbh1OM7EiDQIDAQABoy8w
+    LTAJBgNVHRMEAjAAMAsGA1UdDwQEAwIFoDATBgNVHSUEDDAKBggrBgEFBQcDAjAN
+    BgkqhkiG9w0BAQsFAAOCAQEAEQM+e+8peUh49cdpKCxsGKShkcSw8DOPWbTb26Z2
+    6jS+gE2XhWvvP2qk6i/A0SLvFtpPC2sf+cilA9ZonrH08jQAy/mw0spzG41lQ7Ir
+    nE9jklhKrb8azrorNXMsYI7D7wKhGX4oL8aq7UND2A0cxQhYRvIg9pn/DIFiSAY4
+    O4AyB2JqwBJRj7Wvgymtfqc1QVhuQD+iAUGcfBMZQctbpiQqZKi4wyzj6AnEn+pI
+    3fGCSzLXVZlN2m4aXbhzRZd4mok1YcTa1yalxJymMoguakpzVGNO1UXyPQIXxeQH
+    kJdafMTyYWPXygCdsaSHeggbr6oTpwd395bsA7lcE6d6xw==
+    -----END CERTIFICATE-----
+  restKey: |+
+    -----BEGIN CERTIFICATE-----
+    MIIC7jCCAdagAwIBAgIBAjANBgkqhkiG9w0BAQsFADATMREwDwYDVQQDDAhNeVRl
+    c3RDQTAeFw0xODAzMjIxMDA4MTFaFw0xOTAzMjIxMDA4MTFaMDExHjAcBgNVBAMM
+    FXl1bWwtdGVzdC5sb2NhbGRvbWFpbjEPMA0GA1UECgwGY2xpZW50MIIBIjANBgkq
+    hkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA01FXQ7ItSD5zsKZ/Hw1aIwGeuf6PhI79
+    CtaHcU8RrKAd7zBDoqc8p89dWOIfsn1E/lVlG1zvFfpgNgtPzeNnzJVLvIZJAzAm
+    0jJtXaxYDnKiLrR9hzNeJXuLgp6FYjaXllY2VRVuX+3XX6IGle5olazlte/k+kHB
+    UuOLlUbei8HqVCRFfp+UWkWz85u+QrQlz/EmfB/O8uZ4LJmO6yBDyB123gRyVmi/
+    7c9jIyVclz9+f2uu3jo0Eg5NMuRKkHv8Hh8v9Nx0FrIaz/yr3MX2wqzVuVbEQXYb
+    vXkdzvjyzeswNDEPbO1ER5efTQlIIpAqIe5Iz0phyT7tbh1OM7EiDQIDAQABoy8w
+    LTAJBgNVHRMEAjAAMAsGA1UdDwQEAwIFoDATBgNVHSUEDDAKBggrBgEFBQcDAjAN
+    BgkqhkiG9w0BAQsFAAOCAQEAEQM+e+8peUh49cdpKCxsGKShkcSw8DOPWbTb26Z2
+    6jS+gE2XhWvvP2qk6i/A0SLvFtpPC2sf+cilA9ZonrH08jQAy/mw0spzG41lQ7Ir
+    nE9jklhKrb8azrorNXMsYI7D7wKhGX4oL8aq7UND2A0cxQhYRvIg9pn/DIFiSAY4
+    O4AyB2JqwBJRj7Wvgymtfqc1QVhuQD+iAUGcfBMZQctbpiQqZKi4wyzj6AnEn+pI
+    3fGCSzLXVZlN2m4aXbhzRZd4mok1YcTa1yalxJymMoguakpzVGNO1UXyPQIXxeQH
+    kJdafMTyYWPXygCdsaSHeggbr6oTpwd395bsA7lcE6d6xw==
+    -----END CERTIFICATE-----
+  ssoCa: |+
+    -----BEGIN CERTIFICATE-----
+    MIIC7jCCAdagAwIBAgIBAjANBgkqhkiG9w0BAQsFADATMREwDwYDVQQDDAhNeVRl
+    c3RDQTAeFw0xODAzMjIxMDA4MTFaFw0xOTAzMjIxMDA4MTFaMDExHjAcBgNVBAMM
+    FXl1bWwtdGVzdC5sb2NhbGRvbWFpbjEPMA0GA1UECgwGY2xpZW50MIIBIjANBgkq
+    hkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA01FXQ7ItSD5zsKZ/Hw1aIwGeuf6PhI79
+    CtaHcU8RrKAd7zBDoqc8p89dWOIfsn1E/lVlG1zvFfpgNgtPzeNnzJVLvIZJAzAm
+    0jJtXaxYDnKiLrR9hzNeJXuLgp6FYjaXllY2VRVuX+3XX6IGle5olazlte/k+kHB
+    UuOLlUbei8HqVCRFfp+UWkWz85u+QrQlz/EmfB/O8uZ4LJmO6yBDyB123gRyVmi/
+    7c9jIyVclz9+f2uu3jo0Eg5NMuRKkHv8Hh8v9Nx0FrIaz/yr3MX2wqzVuVbEQXYb
+    vXkdzvjyzeswNDEPbO1ER5efTQlIIpAqIe5Iz0phyT7tbh1OM7EiDQIDAQABoy8w
+    LTAJBgNVHRMEAjAAMAsGA1UdDwQEAwIFoDATBgNVHSUEDDAKBggrBgEFBQcDAjAN
+    BgkqhkiG9w0BAQsFAAOCAQEAEQM+e+8peUh49cdpKCxsGKShkcSw8DOPWbTb26Z2
+    6jS+gE2XhWvvP2qk6i/A0SLvFtpPC2sf+cilA9ZonrH08jQAy/mw0spzG41lQ7Ir
+    nE9jklhKrb8azrorNXMsYI7D7wKhGX4oL8aq7UND2A0cxQhYRvIg9pn/DIFiSAY4
+    O4AyB2JqwBJRj7Wvgymtfqc1QVhuQD+iAUGcfBMZQctbpiQqZKi4wyzj6AnEn+pI
+    3fGCSzLXVZlN2m4aXbhzRZd4mok1YcTa1yalxJymMoguakpzVGNO1UXyPQIXxeQH
+    kJdafMTyYWPXygCdsaSHeggbr6oTpwd395bsA7lcE6d6xw==
+    -----END CERTIFICATE-----
+  ssoCert: |+
+    -----BEGIN CERTIFICATE-----
+    MIIC7jCCAdagAwIBAgIBAjANBgkqhkiG9w0BAQsFADATMREwDwYDVQQDDAhNeVRl
+    c3RDQTAeFw0xODAzMjIxMDA4MTFaFw0xOTAzMjIxMDA4MTFaMDExHjAcBgNVBAMM
+    FXl1bWwtdGVzdC5sb2NhbGRvbWFpbjEPMA0GA1UECgwGY2xpZW50MIIBIjANBgkq
+    hkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA01FXQ7ItSD5zsKZ/Hw1aIwGeuf6PhI79
+    CtaHcU8RrKAd7zBDoqc8p89dWOIfsn1E/lVlG1zvFfpgNgtPzeNnzJVLvIZJAzAm
+    0jJtXaxYDnKiLrR9hzNeJXuLgp6FYjaXllY2VRVuX+3XX6IGle5olazlte/k+kHB
+    UuOLlUbei8HqVCRFfp+UWkWz85u+QrQlz/EmfB/O8uZ4LJmO6yBDyB123gRyVmi/
+    7c9jIyVclz9+f2uu3jo0Eg5NMuRKkHv8Hh8v9Nx0FrIaz/yr3MX2wqzVuVbEQXYb
+    vXkdzvjyzeswNDEPbO1ER5efTQlIIpAqIe5Iz0phyT7tbh1OM7EiDQIDAQABoy8w
+    LTAJBgNVHRMEAjAAMAsGA1UdDwQEAwIFoDATBgNVHSUEDDAKBggrBgEFBQcDAjAN
+    BgkqhkiG9w0BAQsFAAOCAQEAEQM+e+8peUh49cdpKCxsGKShkcSw8DOPWbTb26Z2
+    6jS+gE2XhWvvP2qk6i/A0SLvFtpPC2sf+cilA9ZonrH08jQAy/mw0spzG41lQ7Ir
+    nE9jklhKrb8azrorNXMsYI7D7wKhGX4oL8aq7UND2A0cxQhYRvIg9pn/DIFiSAY4
+    O4AyB2JqwBJRj7Wvgymtfqc1QVhuQD+iAUGcfBMZQctbpiQqZKi4wyzj6AnEn+pI
+    3fGCSzLXVZlN2m4aXbhzRZd4mok1YcTa1yalxJymMoguakpzVGNO1UXyPQIXxeQH
+    kJdafMTyYWPXygCdsaSHeggbr6oTpwd395bsA7lcE6d6xw==
+    -----END CERTIFICATE-----
+  ssoKey: |+
+    -----BEGIN CERTIFICATE-----
+    MIIC7jCCAdagAwIBAgIBAjANBgkqhkiG9w0BAQsFADATMREwDwYDVQQDDAhNeVRl
+    c3RDQTAeFw0xODAzMjIxMDA4MTFaFw0xOTAzMjIxMDA4MTFaMDExHjAcBgNVBAMM
+    FXl1bWwtdGVzdC5sb2NhbGRvbWFpbjEPMA0GA1UECgwGY2xpZW50MIIBIjANBgkq
+    hkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA01FXQ7ItSD5zsKZ/Hw1aIwGeuf6PhI79
+    CtaHcU8RrKAd7zBDoqc8p89dWOIfsn1E/lVlG1zvFfpgNgtPzeNnzJVLvIZJAzAm
+    0jJtXaxYDnKiLrR9hzNeJXuLgp6FYjaXllY2VRVuX+3XX6IGle5olazlte/k+kHB
+    UuOLlUbei8HqVCRFfp+UWkWz85u+QrQlz/EmfB/O8uZ4LJmO6yBDyB123gRyVmi/
+    7c9jIyVclz9+f2uu3jo0Eg5NMuRKkHv8Hh8v9Nx0FrIaz/yr3MX2wqzVuVbEQXYb
+    vXkdzvjyzeswNDEPbO1ER5efTQlIIpAqIe5Iz0phyT7tbh1OM7EiDQIDAQABoy8w
+    LTAJBgNVHRMEAjAAMAsGA1UdDwQEAwIFoDATBgNVHSUEDDAKBggrBgEFBQcDAjAN
+    BgkqhkiG9w0BAQsFAAOCAQEAEQM+e+8peUh49cdpKCxsGKShkcSw8DOPWbTb26Z2
+    6jS+gE2XhWvvP2qk6i/A0SLvFtpPC2sf+cilA9ZonrH08jQAy/mw0spzG41lQ7Ir
+    nE9jklhKrb8azrorNXMsYI7D7wKhGX4oL8aq7UND2A0cxQhYRvIg9pn/DIFiSAY4
+    O4AyB2JqwBJRj7Wvgymtfqc1QVhuQD+iAUGcfBMZQctbpiQqZKi4wyzj6AnEn+pI
+    3fGCSzLXVZlN2m4aXbhzRZd4mok1YcTa1yalxJymMoguakpzVGNO1UXyPQIXxeQH
+    kJdafMTyYWPXygCdsaSHeggbr6oTpwd395bsA7lcE6d6xw==
+    -----END CERTIFICATE-----
+persistentVolume:
+  size: 1Gi
+  #storageClass: default               
+
+tolerations: []
+nodeSelector: {}

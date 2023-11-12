@@ -1,0 +1,794 @@
+rbac:
+  enabled: true
+  pspUseAppArmor: false
+serviceAccountName:
+
+#replicas: 2
+
+deployOnCompass: false
+
+deploymentStrategy: Recreate
+
+
+=: &registry "csf-docker-delivered.repo.lab.pl.alcatel-lucent.com"
+
+global:
+  registry: *registry
+# registry2 repo is used in cmdb chart
+  registry2: "csf-docker-delivered.repo.lab.pl.alcatel-lucent.com"
+# registry3 repo is used to pull grafana-tenant image
+  registry3: "csf-docker-delivered.repo.lab.pl.alcatel-lucent.com"
+# registry4 repo is used to pull download-dashboards image
+  registry4: "registry1-docker-io.repo.lab.pl.alcatel-lucent.com"
+# registry5 repo is used to pull sane image
+  registry5: "repo.lab.pl.alcatel-lucent.com"
+  annotations: {}
+  labels: {}
+# Define serviceAccount name for grafana at global level.
+## serviceAccount priority order is
+## 1. serviceAccountName
+## 2. global.seviceAccountName
+## 3. If we are not using customized resources set rbac.enabled to true then resources will be created on helm install
+## 4. If both serviceAccounts are not set and rbac.ebabled is set to false then default serviceAccount will be used
+##
+  serviceAccountName:
+## istio verion in X.Y format eg 1.4/1.5
+  istioVersion: 1.4
+  podNamePrefix: ""
+  containerNamePrefix: ""
+
+custom:
+  psp:
+    annotations:
+      seccomp.security.alpha.kubernetes.io/allowedProfileNames: runtime/default
+      seccomp.security.alpha.kubernetes.io/defaultProfileName: runtime/default
+    apparmorAnnotations:
+      apparmor.security.beta.kubernetes.io/allowedProfileNames: runtime/default
+      apparmor.security.beta.kubernetes.io/defaultProfileName: runtime/default
+    labels: {}
+
+  pod:
+    annotations:
+      seccomp.security.alpha.kubernetes.io/allowedProfileNames: runtime/default
+      seccomp.security.alpha.kubernetes.io/defaultProfileName: runtime/default
+    apparmorAnnotations:
+      apparmor.security.beta.kubernetes.io/allowedProfileNames: runtime/default
+      apparmor.security.beta.kubernetes.io/defaultProfileName: runtime/default
+    labels: {}
+
+name: grafana
+helm3: false
+appTitle: "Performance Monitoring"
+
+HA:
+  enabled: false
+
+## Whether the chart will deploy on istio
+istio:
+  enable: false
+  mtls_enable: true
+  cni_enable: true
+  createKeycloakServiceEntry:
+    enabled: false
+    extCkeyHostname: ""     # Ex. extCkeyHostname: "ckey.io"
+    # Port on which ckey is externally accessible
+    extCkeyPort: ""         # Ex. extCkeyPort: 31390
+    # Protocol on which ckey is externally accessible
+    extCkeyProtocol: ""     # accepted values: HTTP, HTTPS
+    ## FQDN of ckey k8s service name internally accessible within k8s cluster
+    ckeyK8sSvcName: ""     # Ex. keycloak-ckey.default.svc.cluster.local
+    # Port on which ckey k8s service is accessible
+    ckeyK8sSvcPort: ""    # Ex. ckeyK8sSvcPort: 8443
+    hostAlias: ""       # If the host name of ckey is not resolvable then edge node ip has to be given here
+    location: "MESH_INTERNAL"       # Location specifies whether the service is part of Istio mesh or outside the mesh Ex. MESH_EXTERNAL/MESH_INTERNAL
+
+image:
+  imageRepo: cpro/grafana-registry1/grafana-tenant
+  imageTag: 7.1.3-1.0.3
+  imagePullPolicy: IfNotPresent
+
+runAsUser: 65534
+fsGroup: 65534
+supplementalGroups: [65534]
+seLinuxOptions:
+  enabled: false
+  level: ""
+  role: ""
+  type: ""
+  user: ""
+
+helmDeleteImage:
+  imageRepo: tools/kubectl
+  imageTag: v1.17.8-nano
+  imagePullPolicy: IfNotPresent
+  resources:
+    limits:
+      cpu: 100m
+      memory: 100Mi
+    requests:
+      cpu: 50m
+      memory: 32Mi
+
+need_dbupdate: false
+sqlitetomdb: false
+
+  ## Optionally specify an array of imagePullSecrets.
+  ## Secrets must be manually created in the namespace.
+  ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
+  ##
+  # pullSecrets:
+  #   - myRegistrKeySecretName
+
+hookImage:
+  imageRepo: cpro/grafana-registry1/grafana-lcm-hook
+  imageTag: "1.8.0"
+  imagePullPolicy: IfNotPresent
+  resources:
+    limits:
+      cpu: 500m
+      memory: 1Gi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+mdbToolImage:
+  imageRepo: cpro/grafana-registry1/grafana-mdb-tool
+  imageTag: "3.9.0"
+  imagePullPolicy: IfNotPresent
+  resources:
+    limits:
+      cpu: 500m
+      memory: 1Gi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+pluginsSideCar:
+  ## If true, will install Pie chart and Bar chart and Alertmanager datasource plugins
+  enabled: true
+  imageRepo: cpro/grafana-registry1/grafana-plugins
+  imageTag: "2.0.1"
+  imagePullPolicy: IfNotPresent
+  resources:
+    limits:
+      cpu: 500m
+      memory: 1Gi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+
+## Currently, sane integration should be enabled only by Network Operations Master
+sane:
+  enabled: false
+  port: ""
+  servicePort: ""
+  env:
+    - name: PORT
+      value: ""
+    - name: CSANE_SSO_PROXY_URL
+      value: ""
+  imageRepo: neo-docker-release/grafana-sane
+  imageTag: "0.0.11"
+  imagePullPolicy: IfNotPresent
+  ingress:
+    annotations:
+      kubernetes.io/ingress.class: nginx
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    labels: {}
+    path: /
+    hosts:
+      - ""
+    tls: []
+    #  - secretName: grafana-sane-server-tls
+    #    hosts:
+    #      - chart-example.local
+  resources:
+    limits:
+      cpu: 300m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 64Mi
+
+cbur:
+  enabled: true
+  ## bkup are configurations about helm cbur functions that grafana provides.
+  ## Please keep the values unchanged if you do not know exactly what is needed.
+  image:
+    imageRepo: cbur/cbura
+    imageTag: 1.0.3-1665
+    imagePullPolicy: IfNotPresent
+  resources:
+    limits:
+      cpu: 500m
+      memory: 500Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  ## not other mode allowed/supported now
+  backendMode: "local"
+  ##autoEnableCron = true indicates that the cron job is immediately scheduled when the BrPolicy is created,
+  ##while autoEnableCron = false indicates that scheduling of the cron job should be done on a subsequent backup request.
+  ##This option only works when k8swatcher.enabled is true
+  autoEnableCron: false
+  ##Indicate if subsequent update of cronjob will be done via brpoilicy update.
+  ##true means cronjob must be updated via brpolicy update,
+  ##false means cronjob must be updated via manual "helm backup -t app -a enable/disable" command.
+  autoUpdateCron: false
+  ## cronjob frequency, here means very 5 minutes of every day
+  cronJob: "*/5 * * * *"
+  ## the maximum copy you want to saved.
+  maxCopy: 5
+
+  ### custom name to override default  pod and container name
+  ## pod and container name should be unique
+customResourceNames:
+  resourceNameLimit: 63
+  grafanaPod:
+    inCntChangeDbSchema: ""
+    inCntChangeMariadbSchema: ""
+    inCntWaitforMariadb: ""
+    inCntDownloadDashboard: ""
+    pluginSidecarContainer: ""
+    grafanaSidecarDashboard: ""
+    grafanaSaneAuthproxy: ""
+    grafanaMdbtool: ""
+    grafanaDatasource: ""
+    grafanaContainer: ""
+  deleteDatasourceJobPod:
+    name: ""
+    deleteDatasourceContainer: ""
+  setDatasourceJobPod:
+    name: ""
+    setDatasourceContainer: ""
+  postUpgradeJobPod:
+    name: ""
+    postUpgradeJobContainer: ""
+  postDeleteJobPod:
+    name: ""
+    deletedbContainer: ""
+    deletesecretsContainer: ""
+  importDashboardJobPod:
+    name: ""
+    importDashboardJobContainer: ""
+
+downloadDashboardsImage:
+  enabled: false
+  imageRepo: appropriate/curl
+  tag: latest
+  pullPolicy: IfNotPresent
+
+## Pod Annotations
+podAnnotations: {}
+
+## Deployment annotations
+# annotations: {}
+
+## Expose the grafana service to be accessed from outside the cluster (LoadBalancer service).
+## or access it from within the cluster (ClusterIP service). Set the service type and the port to serve it.
+## ref: http://kubernetes.io/docs/user-guide/services/
+##
+
+# Database IP address (the IP address should be filed, if need_deployed: false; it should be ignored, if need_deployed: true)
+dbIP: grafanadb-cmdb-mysql
+# Database information (all items below are mandatory)
+dbName: grafana
+dbUser: grafana
+dbPassword: grafana
+
+#------------------------------------------------------------------------------
+# CMDB values
+#------------------------------------------------------------------------------
+cmdb:
+  enabled: false
+  # If cmdb.need_deployed is True, mariadb will be deployed with grafana deployment
+  need_deployed: false
+  # If retain_data is true, will retain grafana data in mariadb when deleting grafana instance
+  retain_data: false
+
+  rbac_enabled: true
+
+  ## Cluster Type is one of master-slave, master-master, galera, standalone
+  cluster_type: "simplex"
+  cluster_name: "my-cluster"
+
+  istio:
+    enabled: false
+# CMDB TLS cert and key
+
+  cacert: "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURCVENDQWUyZ0F3SUJBZ0lKQU1ycEhLekRmZWdPTUEwR0NTcUdTSWIzRFFFQkN3VUFNQmd4RmpBVUJnTlYKQkFNTURVMWhjbWxoUkVJZ1lXUnRhVzR3SUJjTk1Ua3dOakF6TURRd05EUTJXaGdQTXpBeE9ERXdNRFF3TkRBMApORFphTUJneEZqQVVCZ05WQkFNTURVMWhjbWxoUkVJZ1lXUnRhVzR3Z2dFaU1BMEdDU3FHU0liM0RRRUJBUVVBCkE0SUJEd0F3Z2dFS0FvSUJBUUMzNGRvbUJWbnN4Rk1KOHpyRlJxbTNpYWtDRTNndk9IL1hGSGZqTE5FakNQdE8Kb1FkNnYwS0x0dU1sYlhiaFFDa1EzdEpxMGpvT3l3QjBmS0tKS0dwcVZnWnNuUGNGQVFYZURoL1FjVHBMMzZQYwpzb3lLaUY4bmNEWlFQeEVxbnRBVDJqWVNjOUhSaVFUcmtySjNOU0hhNEdyRzkyYUhIWjhzRHJIekFObGcwc3h4ClY5eHJUbUwzZnFneko5VjZYc2RyMzlJaDVqRzgvSkZzSHNkcDlPS2VTZklEQ2Y0bXNPeU51czFYQXBmejNrOEwKUWlrMkhEVE9kWFBmZGhGOGZ3M1FZU0lISDMxODJaWFFIK3FOV1dBMGs4cFdoUFVyYkFtZW1lakFLa1Q0ZFdLYwpFVGRhanNxYVMwVDVidllEUTRCc0tOZFFYRHYxSSs5Z0FMTnIyaVFsQWdNQkFBR2pVREJPTUIwR0ExVWREZ1FXCkJCUlVyc1k0aElmRGFRWUphNnVLanNrNDc1QU0rekFmQmdOVkhTTUVHREFXZ0JSVXJzWTRoSWZEYVFZSmE2dUsKanNrNDc1QU0rekFNQmdOVkhSTUVCVEFEQVFIL01BMEdDU3FHU0liM0RRRUJDd1VBQTRJQkFRQlN5SDZzZHZ3ZgpqSTRhVm5mU1dBTm5JcVhnQS9WNFJzRlhQMi9rL25JS2x3VnhIYmlaWFo3VFRrUXBlUTdPZDFUckEyRUVkb2JtCnVlSnRMRGFvZzRWSGtqVEZtU2tNM3Jvc1dMNittbkk2NVZYMnFvSnBjSzFTZ255b29SRHh3d2RIN0dmQWtIcloKZTVOMGR4UWhvcE1EZm1uVWhtb3pxbkRPalFDaS8wTmUzcW5CYXhzczdPb2FKWWdqU1BJdGJoeXlnN3BWZ01YMgphMkpkRW1OVVc3ZEtuWU5sUnRZQ0ZhbnZ0TGlzM0tlZlRKMTBGbEpNQURvTHF3cTFzQm4rVlhkZjA0TDN1aE1YCnVBa1J5Qm4vT1pueEZDMU4wSG53QVh4dUJvODdsNXE1M005blJFeDBPSURJYmt5WHgvMis5cnF2UDNrbXVuZWQKOVJYakZ1aVRhSEl6Ci0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0="
+  clientcert: "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUNwVENDQVkwQ0FRRXdEUVlKS29aSWh2Y05BUUVMQlFBd0dERVdNQlFHQTFVRUF3d05UV0Z5YVdGRVFpQmgKWkcxcGJqQWdGdzB4T1RBMk1ETXdOREEyTlRCYUdBOHpNREU0TVRBd05EQTBNRFkxTUZvd0Z6RVZNQk1HQTFVRQpBd3dNVFdGeWFXRkVRaUIxYzJWeU1JSUJJakFOQmdrcWhraUc5dzBCQVFFRkFBT0NBUThBTUlJQkNnS0NBUUVBCnllRHBybFV1Y1BWSDc2SmxyT2E1ZnI5YUZVTVV1aEs5Y1Jvc1FZUEg2NkpoNEg4OFJSQWdzdndEcUhyTG9hRDYKVkw3eEVjWHdMcVp5Um1EMnV3eEhhWUFsN2ZFcGRFb2RyZHhBMmFPTHhybDNmdzZ6ck9kK2U3SXhLWXdFWXUxdQpYNDVkMkt2eWJVVEkrK2NveXJ5SkYvT3Zpdjh0eXFVQXpvdTh1U2d4eHNRVnQ0U2pFMys5M2RrWTVYL2FpU1JhCmcwNlo1ZE9TbitFa1dQRUNYU0I3UHh2ZHFVN2ZFdHUwaWw5WnM2UVJvS3ZWWnZmaFpDazZLYkMybk9lYUYvaUkKbk5oRXRlSXY4aUYwelVUWmhhcjhQbTE4THVlLzJSZ0NCam5SRDgwcHVEbmIvQzZPR3lIQ2Z2U1pFLzF3c2dWbgpRZTJFU3k2N0RlODNMc2l6WGpsY0JRSURBUUFCTUEwR0NTcUdTSWIzRFFFQkN3VUFBNElCQVFBUlpjZHR3Mi9nClZDMis1UTdWZFpYUU54cmRJTWhjSlN4TkV6MlVkM21Sa3pHVmorUUM4akJQZTU4bXB0Q2pKaG5hck93M05CL1MKMm1KRldIK2w4UXdVSllScUEvakNDSTlEczkzVUtPTk9iSjQwOGFnZWtGS2YxaEkvUm8zZldaN2xrb1I2M2Q3NQptTWlCa0dsdU1mOSttQlI4QktVQ2c5OUo5VlFMOWdwcnpLdmd1cE5yTEF5by9GVDJRQUdtbDB0aW03MkV3cGxrCkppSCswTHpUeGFET2dORDFuZGJLSEQ0aXp6ZG1vNkV6ZDhpeWptUU10TVRWaS84WWh5b2pyL3JPRGxiUXFKMHkKbUxIMmowcUpoNlIyMHVlcHo0S3hXL3F2RTFGZWs4SmdQL1puRmlYMmhNRzFtY0RQaTN5dWtsS2NEZnJFWkE0QQpCbWZBQ3VuKzFyRTUKLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQ=="
+  clientkey: "LS0tLS1CRUdJTiBSU0EgUFJJVkFURSBLRVktLS0tLQpNSUlFb3dJQkFBS0NBUUVBeWVEcHJsVXVjUFZINzZKbHJPYTVmcjlhRlVNVXVoSzljUm9zUVlQSDY2Smg0SDg4ClJSQWdzdndEcUhyTG9hRDZWTDd4RWNYd0xxWnlSbUQydXd4SGFZQWw3ZkVwZEVvZHJkeEEyYU9MeHJsM2Z3NnoKck9kK2U3SXhLWXdFWXUxdVg0NWQyS3Z5YlVUSSsrY295cnlKRi9Pdml2OHR5cVVBem91OHVTZ3h4c1FWdDRTagpFMys5M2RrWTVYL2FpU1JhZzA2WjVkT1NuK0VrV1BFQ1hTQjdQeHZkcVU3ZkV0dTBpbDlaczZRUm9LdlZadmZoClpDazZLYkMybk9lYUYvaUluTmhFdGVJdjhpRjB6VVRaaGFyOFBtMThMdWUvMlJnQ0JqblJEODBwdURuYi9DNk8KR3lIQ2Z2U1pFLzF3c2dWblFlMkVTeTY3RGU4M0xzaXpYamxjQlFJREFRQUJBb0lCQVFDNFQ2bkp5bWRlSmZLSgpiR0ViM0lLYW42VmxLQnR5VHMyNngwU0VoQVl3c2M1ZW9vdXFHakZnZUFuMjlqV1gyVnJ6cUdoNzY1Vi9ZZU9QCk1kUFJya0k4cGd6N0VtVGdrUkpMdTMxUnRxbFV3OXUvbXZLYjk3Wll4TFZ4MHkzbURCUHJGaFhFVGloRmJybDQKa3ZHQk4yU0xBNmJQWm02dVJydFgxK2h6dTZqR2FIbk9BV29Pbi91QWdVbE92VzIzb1U1MUVVTFB4SDNZOVE3OQpRaVN2M3RTOWZqUG10QXhrZE8vakU5RFNnRFhoOFhrZ3NwMXM2dzdjVVZaYTVXWHJleG82M004b2dZZng4T24xCnZ1aEV1bW9BYmp2SnJnRmhmS1lNdThHSmNUZ09neE81TmZDRGh5ZC9vYkg1bEpqSEcrZjNtZ3FoWUZrUlArU1IKTmdtQzdOQjVBb0dCQVAvbHhKTlMrSThtRHlENXd2bHczQUtwRnlTQlBQNStKUWJUNGNZdW4wa0RBVXRNTGR2bwo3TnJnY0RYV3d2TXhCQk50U05SUFdqQ2luN3A1RHRlc2ZXTzhQcEhLcHFNYjZNYU1NTDNMMUNYcFdmODRhU21SCnBaUytaS2VlNzVxUGJEOHJDb0REdzlybmtqVzQ4VisxMGhlT0JtSDQwMklPeWpscSs2VE9nWCtUQW9HQkFNbjEKbTRGM1NkaG11OHlBb3BsSHFJcHFCdU8yeWpBR2xGNUU3OSsyN2wwcDlYck5ibXhFY2d0NVhhZCtjSmUwbGJLbQpKSkJmbW4xVkR1L1o1ZXFvNGJvSTRlQ09hNXpvdkM5cExuanVNQ1RESXFaMHg1bDB0cU1EUDhPUWlCNmdtSys4Ck9wd01mR0ZjM2N5SWJsbkJWWGRnQ1J6cWlmMXdPdFJjZjR0ZXF3VUhBb0dBUGhwa0g2RDJRNzluMG9mcTRxQ2EKTkdjVy83d0JzbjJvdk1SMU9hU2M4Wm95R1RVT3VCMEtSb0JMbXpWWXNLNkhuN05aQm5XUG5OZ0t6YldOZlpnVwpBanR3TCsrdmkwdzlyTm5mQm1ET1Jya2dKMGxvZERjdHFUQ2Z1dkpla2ZNV3dTblA3Ym9VOFM1Y0ZIK2l6S2lTCnFUYkZvOGRBZmI2N0l6NHNmaTNEemRNQ2dZQVJXS3dqb1poUkl2bk1aZHdSYUVzOG9FQzVQRkQvY1FFN1c1WnkKMDZhRGtBQUtyU3huMWpVcGNTSXZLYmdILzdXLzQyOU9pemVjdmpxTE5WNy9HY1JSazBPN1l1QXhXUGdZNW1MYwpkakRpWjNSSmNjeFhET1JHK2hkMjk2b0pYMmZkNkQvc2VWSVJsc1ZpTlBHdGVlS2FYMEJKSUlmN29iRWIzbG9DCklYNTA3d0tCZ0E3M3BPeWd3WDUyUVNRTzBJVFQxb1RrYzBLMk5ORlN5MEZzRjRlVHVwSiswem15dHpqajBJUzEKWWR5eGFpT3drNkpNZlFaN1EvelBuTEZmb09UWGwrM1pKak5Sb0xHVU1sdVIxaGJJb0VLYkxIQkd5cFBCZHpQegpJUGgrQ0RKQXRCTnRKMFZUMFFqWkt5Mk5lVW1pa2JUZFBTM01ISFczSzVobkltK01jandNCi0tLS0tRU5EIFJTQSBQUklWQVRFIEtFWS0tLS0t"
+
+
+  mariadb:
+    # if cmdb.enabled, make sure that MYSQL_DATABASE is the same as dbName above!
+    #r00tr00t
+    root_password:
+
+    ## If root user should be allowed from all hosts
+    allow_root_all: false
+
+    ## The number of MariaDB pods to create
+    count: 1
+
+    ## If automatic rollback of the database should be performed on pod restarts
+    auto_rollback: true
+
+    ## Use TLS for data in flight to/from client
+    ## If using certificates, populate the certicate names in the certificates
+    ## section in the secret that is created and specify the secret resource
+    ## name in the certificates.secret name.  Note that the secret resource
+    ## containing all the certificate files must be pre-populated before
+    ## CMDB deployment.
+    use_tls: false
+    certificates:
+      ca_cert:     ca-cert.pem
+      ca_key:      ca-key.pem
+      client_cert: client-cert.pem
+      client_key:  client-key.pem
+      client_req:  client-req.pem
+      server_cert: server-cert.pem
+      server_key:  server-key.pem
+      server_req:  server-req.pem
+      secret:
+
+    # if cmdb.need_deployed, make sure that MYSQL_DATABASE is the same as dbName above!
+    databases:
+      - name: grafana
+        character_set: utf8
+        collate: utf8_general_ci
+
+    users:
+      - name: grafana
+        # base64 encoded:grafana
+        password: Z3JhZmFuYQ==
+        host: "%"
+        privilege: ALL
+        object: "grafana.*"
+        # if use_tls set, require SSL/X509 or not
+        requires: ""
+
+    persistence:
+      enabled: true
+      accessMode: ReadWriteOnce
+      size: 20Gi
+      storageClass: ""
+      resourcePolicy: delete
+      preserve_pvc: false
+      backup:
+        enabled: true
+        storageClass: ""
+        accessMode: ReadWriteOnce
+        size: 20Gi
+        resourcePolicy: delete
+        preserve_pvc: false
+        dir: /mariadb/backup
+
+    ## A customized mysqld.conf to import
+    mysqld_site_conf: |-
+      [mysqld]
+      userstat = on
+
+    ## Resources per MariaDB container (default values from CMDB chart are used)
+    resources:
+      requests:
+        memory: 256Mi
+        cpu: 250m
+      #limits:
+        #memory:
+        #cpu:
+
+service:
+  type: ClusterIP
+  port: 80
+  annotations: {}
+  annotationsForScrape:
+    prometheus.io/scrape: "true"
+    prometheus.io/scheme: http
+  labels: {}
+
+ingress:
+  enabled: true
+  annotations:
+    ingress.citm.nokia.com/sticky-route-services: $cookie_JSESSIONID|JSESSIONID ip_cookie
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/rewrite-target: /$1
+    ###  when ingress version is or lower than 1.14.30, use below value
+    #nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/secure-backends: "true"
+    nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  labels: {}
+  path: /grafana/?(.*)
+  ###  when ingress version is or lower than 1.14.30, use below value
+  #path: /grafana
+  hosts:
+    - ""
+  tls: []
+  #  - secretName: chart-example-tls
+  #    hosts:
+  #      - chart-example.local
+
+## Whether use istio ingress gateway(Envoy)
+istioIngress:
+  enabled: true
+  # when istio is enabled: root_url path and Contextroot path should match
+  Contextroot: grafana
+  selector: {istio: ingressgateway}
+  # the host used to access the management GUI from istio ingress gateway
+  host: "*"
+  httpPort: 80
+  ## Keep gatewayName to empty to create kubenetes gateway resource. If new virtualservice needs to refer to existing gateway then mention that name here
+  gatewayName: "istio-system/single-gateway-in-istio-system"
+  ## tls section will be used if gatewayName is ""
+  tls:
+    enabled: true
+    httpsPort: 443
+    ## mode could be SIMPLE, MUTUAL, PASSTHROUGH, ISTIO_MUTUAL
+    mode: SIMPLE
+    credentialName: "am-gateway"
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 1Gi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+## Node labels for pod assignment
+## ref: https://kubernetes.io/docs/user-guide/node-selection/
+#
+nodeSelector: {}
+
+## Tolerations for pod assignment
+## ref: https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
+##
+tolerations: []
+
+## Affinity for pod assignment
+## ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
+##
+affinity: {}
+nodeAntiAffinity: hard
+
+## Enable persistence using Persistent Volume Claims
+## ref: http://kubernetes.io/docs/user-guide/persistent-volumes/
+##
+persistence:
+  enabled: true
+  ##storageClassName: default
+  accessModes:
+    - ReadWriteOnce
+  size: 1Gi
+  annotations: {}
+  # subPath: ""
+  # existingClaim:
+
+adminUser: admin
+#adminPassword: admin
+
+## Use an alternate scheduler, e.g. "stork".
+## ref: https://kubernetes.io/docs/tasks/administer-cluster/configure-multiple-schedulers/
+##
+# schedulerName:
+
+## Extra environment variables that will be pass onto deployment pods
+env: {}
+
+## The name of a secret in the same kubernetes namespace which contain values to be added to the environment
+## This can be useful for auth tokens, etc
+envFromSecret: ""
+
+## Additional grafana server secret mounts
+# Defines additional mounts with secrets. Secrets must be manually created in the namespace.
+extraSecretMounts: []
+  # - name: secret-files
+  #   mountPath: /etc/secrets
+  #   secretName: grafana-secret-files
+  #   readOnly: true
+
+# Pass the plugins you want installed as a comma separated list.
+# plugins: "digrich-bubblechart-panel,grafana-clock-panel"
+plugins: ""
+
+## Uncoment below datasources section to add alertmanager datasource.
+## Added alertmanager datasource cannot be modified in Grafana UI
+## Datasource can only be modified through restapi requests.
+#
+#datasources:
+#  datasources.yaml:
+#    apiVersion: 1
+#    datasources:
+#    - name: alertmanager
+#      type: camptocamp-prometheus-alertmanager-datasource
+#      url: http://promtheus-cpro-alertmanager
+#      access: proxy
+#      isDefault: false
+
+## Configure grafana datasources
+## ref: http://docs.grafana.org/administration/provisioning/#datasources
+##
+SetDatasource:
+  ## If true, an initial Grafana Datasource will be set
+  ## Default: false
+  ##
+  enabled: true
+
+  ## How long should it take to commit failure
+  ## Default: 300
+  ##
+  #activeDeadlineSeconds: 300
+
+  ## Curl Docker image
+  ## Default: appropriate/curl:latest
+  ##
+  imageRepo: cpro/grafana-registry1/grafana-curl
+  imageTag: "1.16.0"
+  imagePullPolicy: IfNotPresent
+
+  resources:
+    limits:
+      cpu: 200m
+      memory: 128Mi
+    requests:
+      cpu: 100m
+      memory: 64Mi
+
+  datasource:
+    ## The datasource name.
+    ## Default: default
+    name: prometheus
+
+    ## Type of datasource
+    ## Default: prometheus
+    ##
+    type: prometheus
+
+    ## The url of the datasource. To set correctly you need to know
+    ## the right datasource name and its port ahead. Check kubernetes
+    ## dashboard or describe the service should fulfill the requirements.
+    ## Synatx like `http://<release name>-<server name>:<port number>
+    ## Default: "http://limping-tiger-server"
+    ##
+    url: "http://prometheus-cpro-server"
+
+    ## The name of the database at the datasource.
+    ## Required parameter when used with elasticsearch, which refers to the index_name
+    ## Default: <empty>
+    # database:
+
+    ## Additional JSON data to be passed to the configuration of the datasource.
+    ## The JSON data is passed to curl, therefore it needs proper quoting and
+    ## escaping and needs to be on a single line. For example:
+    ##  '\"esVersion\": 2, \"interval\": \"Daily\", \"timeField\": \"@timestamp\"'
+    # jsonData: null
+
+    ## Specify if Grafana has to go thru proxy to reach datasource
+    ## Default: proxy
+    ##
+    access: proxy
+
+    ## Specify should Grafana use this datasource as default
+    ## Default: true
+    ##
+    isDefault: true
+
+  ## Specify the job policy
+  ## Default: OnFailure
+  ##
+  restartPolicy: OnFailure
+
+SetDashboard:
+  enabled: true
+  backoffLimit: 10
+## When upgrade if overwrite = true, dashboards in old release will be overwrited by dashboards in new chart.
+  overwrite: true
+  tinytools:
+    imageRepo: cpro/grafana-registry1/grafana-tiny-tools
+    imageTag: "1.8.0"
+    imagePullPolicy: IfNotPresent
+  resourcesTinytools:
+    limits:
+      cpu: 200m
+      memory: 128Mi
+    requests:
+      cpu: 100m
+      memory: 64Mi
+
+## Configure grafana dashboard providers
+## ref: http://docs.grafana.org/administration/provisioning/#dashboards
+##
+dashboardProviders: {}
+#  dashboardproviders.yaml:
+#    apiVersion: 1
+#    providers:
+#    - name: 'default'
+#      orgId: 1
+#      folder: ''
+#      type: file
+#      disableDeletion: false
+#      editable: true
+#      options:
+#        path: /var/lib/grafana/dashboards
+
+## Configure grafana dashboard to import
+## NOTE: To use dashboards you must also enable/configure dashboardProviders
+## ref: https://grafana.com/dashboards
+##
+dashboards: {}
+#  some-dashboard:
+#    json: |
+#      $RAW_JSON
+#  prometheus-stats:
+#    gnetId: 2
+#    revision: 2
+#    datasource: Prometheus
+#  local-dashboard:
+#    url: https://example.com/repository/test.json
+
+livenessProbe:
+  scheme: HTTPS
+  initialDelaySeconds: 60
+  timeoutSeconds: 1
+  failureThreshold: 10
+  periodSeconds: 3
+readinessProbe:
+  scheme: HTTPS
+  initialDelaySeconds: 60
+  timeoutSeconds: 30
+  failureThreshold: 10
+  periodSeconds: 10
+
+keycloak:
+# Update ckeyUrl with the deployed keyclock baseurl, ex: 10.76.84.192:32443, ckey.example.com, ckeyistio.example.com:31390i(istio ingress), 10.76.84.192/ckey (ingress)
+  url: "10.76.84.192:32443"
+  protocol: https
+  realm: cpro
+## if secret is null, then keycloak use cert. If secret is not null and it is a existing secret name, then use secret.
+  cert: "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURrakNDQW5xZ0F3SUJBZ0lFRjJFNFNEQU5CZ2txaGtpRzl3MEJBUXNGQURCeE1SQXdEZ1lEVlFRR0V3ZFYKYm10dWIzZHVNUkF3RGdZRFZRUUlFd2RWYm10dWIzZHVNUkF3RGdZRFZRUUhFd2RWYm10dWIzZHVNUkF3RGdZRApWUVFLRXdkVmJtdHViM2R1TVJBd0RnWURWUVFMRXdkVmJtdHViM2R1TVJVd0V3WURWUVFERXd3eE1DNDNOaTQ0Ck5DNHhPVEl3SGhjTk1UZ3dPRE14TVRreU5USTJXaGNOTkRnd09ESXpNVGt5TlRJMldqQnhNUkF3RGdZRFZRUUcKRXdkVmJtdHViM2R1TVJBd0RnWURWUVFJRXdkVmJtdHViM2R1TVJBd0RnWURWUVFIRXdkVmJtdHViM2R1TVJBdwpEZ1lEVlFRS0V3ZFZibXR1YjNkdU1SQXdEZ1lEVlFRTEV3ZFZibXR1YjNkdU1SVXdFd1lEVlFRREV3d3hNQzQzCk5pNDROQzR4T1RJd2dnRWlNQTBHQ1NxR1NJYjNEUUVCQVFVQUE0SUJEd0F3Z2dFS0FvSUJBUUNndlFhQXdKdDkKVmJjeVJGY2kwUFpJc3VkZ1p4cmtheFBEK1ppd0NKVTlLRUU3dUY2b2YyQTRwTFRudm9aMWZwVUNQQTBteWxEYwp0OU1Xdk5qMVJoQlBKaTBlY2YvT1BVYThoUUJLRUlJakhCM2dGb3l5TnhmN0hFczREcHltY2ZCN3ErN0FBWDQxCjhJOGhqWUdwT3NJa2pwUVE3Rk5NYmxBdHRPRG96OEFmanVTRHEvcDMvVHZ3aUIyRGxBeERxWXFmZ0Q1MysyTmoKU2EwTHFsZjl6TWxIcW5TcTJDbVpUbTdib3pGMWpSYjdCT2hOaTUwOWQ2cTl4alQzbmFGTE1QeUJuMXNBT3gwRgpNWW9aWUVaY1VwckdTa0I1RWxFTnhWZ09WY1FvZEdxOTQvb0I3SFo1NDFZVW5zdDBZRzA0YXVMZlppSzhpUDhLCjRaMm93dzBuQU1lekFnTUJBQUdqTWpBd01BOEdBMVVkRVFRSU1BYUhCQXBNVk1Bd0hRWURWUjBPQkJZRUZEeHoKanZWWUVoTWN0NDd5RE84RE5GQmpsZVdLTUEwR0NTcUdTSWIzRFFFQkN3VUFBNElCQVFDRTBWcDYvY0xrVytEMQpQMnNsWWliSTNDNnh1OXc1SHVkbUZkd2poeHZMNkZmNWVWMmJkblZMN1JPbmRZV2RHTjdINjhPR3Z6OVoza1ZjCjdaaDlmMzl4Z2RyRk1kTHBZSGZmeXJiSE82ZUNQMUpKVmUzalV6LzBPT2lzeVg2eFlsM2lpZGZySWJuN0VWT00KSWNmMkhFd2tDcDYzZ0drV2I3emg3QXlDeDE1cVBkSkR3UnlOWThwTnZ2WmdZM0Rab09MVXNRVnNSMWJJME15aApiSlp0OWdwOUtJRlRueTRUeWVNYSt0U01GV0t2ZTB1UnRCaUxuNi8xK2NPNkdiQk0rWDB2Q0dnSjJQNGM1ZmoxCnQvcUZrLzgvUEYyRW9TS3hkQzBrSXdWVjFxb28zMXdlS1ByQmlqRUZtalIxb2Q5dTFhVmQveFM4U2R4dTBlRCsKM2h1bjBKcXEKLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQ=="
+  secret:
+## please notice if use upper secret, please fill existing secret name, not base64 code.
+scheme: https
+
+grafana:
+  ##mounted to file /etc/grafana/ssl/server.crt
+  server_cert: "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUM5ekNDQWQrZ0F3SUJBZ0lKQU1BMTBFMmdUNHl1TUEwR0NTcUdTSWIzRFFFQkN3VUFNQkl4RURBT0JnTlYKQkFNTUJ6QXVNQzR3TGpBd0hoY05NVGt3T1RBNU1ETTBOVFF5V2hjTk1qa3dPVEEyTURNME5UUXlXakFTTVJBdwpEZ1lEVlFRRERBY3dMakF1TUM0d01JSUJJakFOQmdrcWhraUc5dzBCQVFFRkFBT0NBUThBTUlJQkNnS0NBUUVBCnAyL1E2dVRoVUhCUGFGVWk1OFRJUGd5VGlFWTd4cmhaQVpRT2NVVXZNWU04cUJuMndDOHVwSGs0WnpwRHlhbkUKdHc0c2ZLNDl6ZHNINmZ5UlR1ODdWU3RVWWcrWnFHUXdadTJrQVRPd2pKR0ZRbXhJaWErR2YrWGRjMnlXYm5MMApyOVRKcTVjSlMrL2dQWFhnZmJBU0FHQXl2THFKRDBOa3M2RUx2MUhLNytnTStVcmFUeSt0MXVPMndoRDdLRE5NCnlVRThyc2NFQkxrTmU1TTRNcGI5UklpWFlWblhPZFI0dnMxRjM1dlJuTSt4SjY5TFRPZTJkRXNZS2ptL2Q0QkgKd0dRS2dqdDVScWpxR2hxZGJGRURiRnQ5VFBiZmR4UmF6cFRXcGpEaXR6em13aUZaWkxpcW1xekMvZmVkSGcrNgpYU2M0Z1VXUjlJYU8yS0g2cWNDTHp3SURBUUFCbzFBd1RqQWRCZ05WSFE0RUZnUVVHUTlINWVFdkEvYTJVTVlJCjVzaFpzZ1F1SWFzd0h3WURWUjBqQkJnd0ZvQVVHUTlINWVFdkEvYTJVTVlJNXNoWnNnUXVJYXN3REFZRFZSMFQKQkFVd0F3RUIvekFOQmdrcWhraUc5dzBCQVFzRkFBT0NBUUVBallERXRTU3JaWUJHNnVhMGRZYVZpOXZYOHMvQgpsNkgreDRESGE4dXE3OFZCdGRGNmxMVUdrUVo2eUFsNTNZUzdUUFAvbVZsMHpWS0hCUWNWdmowdXRoK1FBSnUvCjRvcmF6UUNMQzNXUWczZ0d0cmRFRTd1UXRKZGZRUFVoZjZsT3FzT2c1V1hPc0tMUUVFWTNYYmh2VDlsUWF5eUcKajVSWXkrTzBCd1A3bVBDU0U2bHh4ZGV0R0tFU2FTYjU2bytieEYvNGFFQnpYYU9JT2RGMEg2aDhxQXcxNitKSApDREZlSE8yVHE2aFdoeVorOUl0dUdpdkVtQlJmTUZGTXB1RlZ0V0hZQ3B2STdNajZtYUtIZWlsRUkzS3BLWjdGCi9ZYXJkZGtkeW92L0FKS2ErQlBGNGVUZ1AvbittUi9OZEV1STJFWllGL2huSkwrVWJNZEhvWHMvenc9PQotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0t"
+
+  ##mounted to file /etc/grafana/ssl/server.key
+  server_key: "LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tCk1JSUV2d0lCQURBTkJna3Foa2lHOXcwQkFRRUZBQVNDQktrd2dnU2xBZ0VBQW9JQkFRQ25iOURxNU9GUWNFOW8KVlNMbnhNZytESk9JUmp2R3VGa0JsQTV4UlM4eGd6eW9HZmJBTHk2a2VUaG5Pa1BKcWNTM0RpeDhyajNOMndmcAovSkZPN3p0VksxUmlENW1vWkRCbTdhUUJNN0NNa1lWQ2JFaUpyNFovNWQxemJKWnVjdlN2MU1tcmx3bEw3K0E5CmRlQjlzQklBWURLOHVva1BRMlN6b1F1L1VjcnY2QXo1U3RwUEw2M1c0N2JDRVBzb00wekpRVHl1eHdRRXVRMTcKa3pneWx2MUVpSmRoV2RjNTFIaSt6VVhmbTlHY3o3RW5yMHRNNTdaMFN4Z3FPYjkzZ0VmQVpBcUNPM2xHcU9vYQpHcDFzVVFOc1czMU05dDkzRkZyT2xOYW1NT0szUE9iQ0lWbGt1S3Fhck1MOTk1MGVEN3BkSnppQlJaSDBobzdZCm9mcXB3SXZQQWdNQkFBRUNnZ0VBY2lYWjBQbWUzZDdqVSthT3VHRkFmb1RHWTZZMkJHRVRWTzhoOVhqTUZyNDQKc1FXYVlpVUljRnF2NkRnaGxLOG5qQUNldFpWNFR3b2UyQmMyM1JCZGE4L3haRFRzZFk5d0xBdWd2cTBGbEo5MApzUGJ2Y09aNEZHT2FXS0ZUNFJKLzNBdCtQWHZuZTV5YVRHdzdVcFNoZ1I0VUdQUTJrbkJJaSttai81ZDhlWmFuCnE4b0FzaGVheXF5dFc0ai9uQVRKYmN2MWhjL3d6TnNGUlJnb1RRZ1RsalRFVTFvLzU4WjBya0h4N3luZ2ZqaHYKS3hTeU5Ud3VJbHhUdWE2eXJ6alZpRVAydEZ2WGg3NGNEbXZ2OXdzeDEvbXJCRlJ3S0MzUTNWeWxkd2diL0xncwpHMkswMmVLSzgyaW4xa0czZFVMNEs2ODhIZkREWGVUdnRlOE84Mnp5VVFLQmdRRGRhdE9rK3lIM3RuSlhRaGhECkJ2VWZnY2RQNDdBcGMvbmdzVEJDeHJaaDZTOGxseXRhU1Q2T2RMaURSSWlRM0wxQy9aTk9hSFVxdy8zU1lmNHYKWEFKV0piOC9tbjdBYjRDSktIUUt5YzdPWDVHcW56bWpSRlZCSTlIcncyYmd4Rk1pL09wV2Y0NXBzTEtzc0tPdQo3dVJQcDRlZTh4dWhwL2w2a250WDlmYUF5UUtCZ1FEQmxxQnYySWtPZ2JiZWY3TkJyRFJhZnNFNWF6RitYKzRrCkh1dkhBbDRNKzJ0eHdUU2JIOEE5QXZjblJYVGJDK1R6Yy9ZRDNETTVWT3ZFektqTEFRcFk1TmRlankrenFFdkwKcFhCc29TQjRPQTU5RENKb2tscDZ6QU9WcUZTdDN4QjRZdTE1WlF1YkpBdG9JcEEvemdsR3hNYTlyNnFhdTVTbQpoVzBPRTBQTDF3S0JnUUMycmVlMmk3aG52ekN4UzRmbTdUdWFaaUhDaVJHVDhlcnM5bVBpQkQ3L296dFI0VnBVCllHL3JhdU84OGZOV3liaWhKOE84Z2pTQk56a1l0ZDdZeGluclY3Tmx6NXJhUEdTcFJTWVFySllpOFBpbTlEM0MKdGFNOVhrZFpKRnVpQUhpek9rWkJYWFpyUHV6N3k3VVFwR3JjU1ZWODBBa3hJL3lTbzM1K2dTR0MrUUtCZ1FDSQpObFVDL2FoS05ja1hPMkZFNTBjYkdhOFptS3dGa0xnK1lDZGtLdTFFVXkraHBlRSsrUk5KbXFtT3oxZE92VXJHClppU0hTTXdlSGZ1YXlLcEgxSjZVTjhpMmR5ZUlVUFdyLytkZjkrdWh5MGVlZ3dnKzdpT04zYmp6OTdKRmVQdmMKeVRid3dNRnUwdWpYeCtJWmt2NkI5ZmtsQk5LVTkwRzcvWXZqYUhpK2x3S0JnUURLOW1KVTZjQ1lxeEFrZDN4dwpoZlkvckpkQ25pUnJsRTZ5NVJDU2N5UkNyWHZBeG15SG1YSXVLcGlhM1RXYmVoci9rTTRJcGZWSmxvc202ZjQxCm04a0w1cUtmYmZ6UEI4YitFd1RIcE9ES3hQak1tQ2dVcDl1UnZKK3IxeDBIdFlJaGZSM0drbVA4dTJlVWZRWG4KVm1BRk4rdHAwdmRaWUJZcFlGd0hvdUsySEE9PQotLS0tLUVORCBQUklWQVRFIEtFWS0tLS0t"
+
+## Grafana's primary configuration
+## NOTE: values in map will be converted to ini format
+## ref: http://docs.grafana.org/installation/configuration/
+##
+grafana_ini:
+  paths:
+    data: /var/lib/grafana/data
+    logs: /var/log/grafana
+    plugins: /var/lib/grafana/plugins
+    provisioning: /etc/grafana/provisioning
+  analytics:
+    check_for_updates: false
+    reporting_enabled: false
+  log:
+    mode: console
+  grafana_net:
+    url: https://grafana.net
+  server:
+    protocol: https
+    # when istio is enabled: root_url path and Contextroot path should match
+    root_url: "%(protocol)s://%(domain)s:%(http_port)s/grafana"
+    cert_file: /etc/grafana/ssl/server.crt
+    cert_key: /etc/grafana/ssl/server.key
+    #set to true when istio is enabled
+    serve_from_sub_path: true
+  security:
+    # Set to true if you host Grafana behind HTTPS. Default is false
+    cookie_secure: false
+  users:
+    allow_sign_up: true
+    allow_org_create: true
+    auto_assign_org: true
+    auto_assign_org_role: Viewer
+  auth:
+    disable_login_form: false
+    disable_signout_menu: false
+    #OAuth state max age cookie duration. Defaults to 60 seconds.
+    #oauth_state_cookie_max_age is only available from Grafana v7.0+.
+    oauth_state_cookie_max_age: 60
+    ;signout_redirect_url: "{{ .Values.keycloak.protocol }}://{{ .Values.keycloak.url }}/auth/realms/{{ .Values.keycloak.realm }}/protocol/openid-connect/logout?redirect_uri=https://10.76.62.42"
+  auth.generic_oauth:
+    enabled: false
+    name: "{{ .Values.keycloak.realm }}"
+    client_id: grafana
+    client_secret: 1a1a7188-b5b7-4c19-8459-c45c32a64437
+    scopes: openid
+    auth_url: "{{ .Values.keycloak.protocol }}://{{ .Values.keycloak.url }}/auth/realms/{{ .Values.keycloak.realm }}/protocol/openid-connect/auth"
+    token_url: "{{ .Values.keycloak.protocol }}://{{ .Values.keycloak.url }}/auth/realms/{{ .Values.keycloak.realm }}/protocol/openid-connect/token"
+    api_url: "{{ .Values.keycloak.protocol }}://{{ .Values.keycloak.url }}/auth/realms/{{ .Values.keycloak.realm }}/protocol/openid-connect/userinfo"
+    introspect_url: "{{ .Values.keycloak.protocol }}://{{ .Values.keycloak.url }}/auth/realms/{{ .Values.keycloak.realm }}/protocol/openid-connect/token/introspect"
+    allow_sign_up: true
+    tls_client_ca: /etc/grafana/keycloak/keycloak.crt
+    tls_skip_verify_insecure: false
+    # role_attribute_path is only available from Grafana v6.5+.
+    ;role_attribute_path:
+  database:
+    type: sqlite3
+    host: grafanadb-cmdb-mysql:3306
+    name: grafana
+    user: grafana
+    password: grafana
+    ;ssl_mode: true
+    ;ca_cert_path: /etc/grafana/cmdbtls/ca.crt
+    ;client_key_path: /etc/grafana/cmdbtls/client.key
+    ;client_cert_path: /etc/grafana/cmdbtls/client.crt
+    ;server_cert_name: grafanadb-cmdb-mysql.default.svc.cluster.local
+  #session has been removed since grafana 6.2(chart 3.0.x)
+  #session:
+    #provider:
+    #provider_config:
+    #provider: mysql
+    #provider_config: '`grafana:grafana@tcp(grafanadb-cmdb-mysql:3306)/grafana`'
+## LDAP Authentication can be enabled with the following values on grafana.ini
+## NOTE: Grafana will fail to start if the value for ldap.toml is invalid
+  # auth.ldap:
+  #   enabled: true
+  #   allow_sign_up: true
+  #   config_file: /etc/grafana/ldap.toml
+
+## Grafana's LDAP configuration
+## Templated by the template in _helpers.tpl
+## NOTE: To enable the grafana.ini must be configured with auth.ldap.enabled
+## ref: http://docs.grafana.org/installation/configuration/#auth-ldap
+## ref: http://docs.grafana.org/installation/ldap/#configuration
+ldap:
+  # `existingSecret` is a reference to an existing secret containing the ldap configuration
+  # for Grafana in a key `ldap-toml`.
+  existingSecret: ""
+  # `config` is the content of `ldap.toml` that will be stored in the created secret
+  config: ""
+  # config: |-
+  #   verbose_logging = true
+
+  #   [[servers]]
+  #   host = "my-ldap-server"
+  #   port = 636
+  #   use_ssl = true
+  #   start_tls = false
+  #   ssl_skip_verify = false
+  #   bind_dn = "uid=%s,ou=users,dc=myorg,dc=com"
+
+## Grafana's SMTP configuration
+## NOTE: To enable, grafana.ini must be configured with smtp.enabled
+## ref: http://docs.grafana.org/installation/configuration/#smtp
+smtp:
+  # `existingSecret` is a reference to an existing secret containing the smtp configuration
+  # for Grafana in keys `user` and `password`.
+  existingSecret: ""
+
+## Sidecars that collect the configmaps with specified label and stores the included files them into the respective folders
+## Requires at least Grafana 5 to work and can't be used together with parameters dashboardProviders, datasources and dashboards
+sidecar:
+  imageRepo: kiwigrid/k8s-sidecar
+  imageTag: 0.1.209
+  imagePullPolicy: IfNotPresent
+  resources:
+   limits:
+     cpu: 100m
+     memory: 100Mi
+   requests:
+     cpu: 50m
+     memory: 50Mi
+  dashboards:
+    enabled: false
+    # label that the configmaps with dashboards are marked with
+    label: grafana_dashboard
+    # folder in the pod that should hold the collected dashboards
+    folder: /tmp/dashboards
+  datasources:
+    enabled: false
+    # label that the configmaps with datasources are marked with
+    label: grafana_datasource

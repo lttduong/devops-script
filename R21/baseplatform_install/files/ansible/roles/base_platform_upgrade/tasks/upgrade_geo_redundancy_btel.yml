@@ -1,0 +1,7 @@
+- name: "Upgrade geo redundancy BTEL"
+  shell: >
+    {{ helm }}  upgrade {{ geoRedundancyBtelHelmName }} {{ chartsPath }}/geo-redundancy-btel
+    --namespace {{ BP_NAMESPACE }}
+    --reuse-values
+    --values {{ chartsPath }}/values/upgrade-global-values.yaml
+    --install

@@ -1,0 +1,10 @@
+config:
+  ckey:
+    netguard:
+      clientSecret:
+      clientId: netguard-admin
+      authRealm: netguard
+    master:
+      clientSecret:
+      clientId: master-admin
+      authRealm: master

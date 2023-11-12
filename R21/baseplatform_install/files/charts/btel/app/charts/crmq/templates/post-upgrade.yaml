@@ -1,0 +1,83 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "postUpgradeJobName" . }}
+  labels:
+    app: {{ template "rabbitmq.name" . }}-post-upgrade
+    chart: {{ template "rabbitmq.chart" .  }}
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+  annotations:
+    "helm.sh/hook": post-upgrade
+    "helm.sh/hook-delete-policy": hook-succeeded, hook-failed
+spec:
+  template:
+    metadata:
+      {{- if .Values.istio.enabled }}
+      annotations:
+        sidecar.istio.io/inject: "false"
+      {{- end }}
+      labels:
+        app: {{ template "rabbitmq.name" . }}-post-ugrade-job
+        chart: {{ template "rabbitmq.chart" .  }}
+        release: "{{ .Release.Name }}"
+        heritage: "{{ .Release.Service }}"
+    spec:
+      hostname: {{ template "rabbitmq.fullname" . }}-post-upgrade-pod
+      subdomain: {{ template "rabbitmq.fullname" . }}
+      restartPolicy: Never     
+      {{- if .Values.rbac.enabled }}
+      {{- if and .Values.persistence.data.enabled (not .Values.persistence.reservePvcForScalein) }}
+      serviceAccountName: {{ template "rabbitmq.fullname" . }}-scale
+      {{- else }}
+      serviceAccountName: {{ template "rabbitmq.fullname" . }}-admin-forgetnode
+      {{- end }}
+      {{ else }}
+      {{- if and .Values.persistence.data.enabled (not .Values.persistence.reservePvcForScalein) }}
+        {{- if not ( empty .Values.rbac.serviceAccountNameScale )}}
+      serviceAccountName: "{{ .Values.rbac.serviceAccountNameScale }}"
+        {{- else }}
+      serviceAccountName: "{{ .Values.rbac.serviceAccountName }}"
+        {{- end }}
+      {{- else }}
+        {{- if not ( empty .Values.rbac.serviceAccountNameAdminForgetnode )}}
+      serviceAccountName: "{{ .Values.rbac.serviceAccountNameAdminForgetnode }}"
+        {{- else}}
+      serviceAccountName: "{{ .Values.rbac.serviceAccountName }}"
+        {{- end }}
+      {{- end }}
+      {{- end }}
+      containers:
+      - name: {{ template "postUpgradeContainerName" . }}
+        image: "{{ .Values.global.registry1 }}/{{ .Values.kubectlImage.repository }}:{{ .Values.kubectlImage.tag }}"
+        {{ if empty .Values.global.podNamePrefix }}
+        command:
+          - bash
+          - -ec
+          - kubectl exec {{ template "rabbitmq.fullname" . }}-0 -- rabbitmqctl change_password $RABBITMQ_USER $RABBITMQ_PASSWORD
+        {{ else }}
+        command:
+          - bash
+          - -ec
+          - kubectl exec {{ .Values.global.podNamePrefix }}{{ template "rabbitmq.fullname" . }}-0 -- rabbitmqctl change_password $RABBITMQ_USER $RABBITMQ_PASSWORD
+        {{ end }}
+        env:
+          - name: LC_ALL
+            value: en_US.UTF-8
+          - name: RABBITMQ_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: {{ template "rabbitmq.fullname" . }}
+                key: rabbitmq-password
+          - name: RABBITMQ_USER
+            valueFrom:
+              secretKeyRef:
+                name: {{ template "rabbitmq.fullname" . }}
+                key: rabbitmq-user
+        {{- if .Values.resources }}
+        resources:
+{{ toYaml .Values.resources | indent 10 }}
+        {{- end }}
+      dnsConfig:
+        searches:
+          - {{ template "rabbitmq.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local

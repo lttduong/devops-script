@@ -1,0 +1,141 @@
+{{- if .Values.pushgateway.enabled -}}
+{{- if not .Values.deployOnComPaaS }}
+apiVersion: {{ template "prometheus.apiVersionExtensionsV1Beta1orV1" . }}
+kind: Deployment
+metadata:
+  labels:
+    app: {{ template "prometheus.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    component: "{{ .Values.pushgateway.name }}"
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+{{- include "prometheus-labels" (tuple .Values.global.labels) | indent 4}}
+  name: {{ template "prometheus.pushgateway.deploymentName" . }}
+{{- if .Values.global.annotations }}
+  annotations:
+{{- include "prometheus-annotations" (tuple .Values.global.annotations) | indent 4}}
+{{- end }}
+spec:
+  replicas: {{ .Values.pushgateway.replicaCount }}
+  {{- if semverCompare ">=1.16.0-0" .Capabilities.KubeVersion.GitVersion }}
+  selector:
+   matchLabels:
+    app: {{ template "prometheus.name" . }}
+    component: "{{ .Values.pushgateway.name }}"
+    release: {{ .Release.Name }}
+  {{- end }}
+  template:
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "{{ .Values.istio.enable }}"
+{{- if and (.Values.istio.enable) (.Values.istio.mtls_enable) }}
+        sidecar.istio.io/rewriteAppHTTPProbers: "true"
+{{- end }}
+      {{- if .Values.pushgateway.podAnnotations }}
+{{ toYaml .Values.pushgateway.podAnnotations | indent 8 }}
+      {{- end }}
+{{- include "custom-annotations" (tuple .Values.custom.pod.annotations) | indent 8}}
+{{- if .Values.rbac.pspUseAppArmor }}
+{{- include "custom-annotations" (tuple .Values.custom.pod.apparmorAnnotations) | indent 8}}
+{{- end }}
+      labels:
+        app: {{ template "prometheus.name" . }}
+        component: "{{ .Values.pushgateway.name }}"
+        release: {{ .Release.Name }}
+        {{- include "custom-labels" (tuple .Values.custom.pod.labels) | indent 8}}
+    spec:
+      serviceAccountName: {{ template "prometheus.serviceAccountName" . }}
+      {{- if or .Values.pushgateway.securityContext .Values.seLinuxOptions.enabled }}
+      securityContext:
+{{- if .Values.pushgateway.securityContext }}
+{{ toYaml .Values.pushgateway.securityContext | indent 8 }}
+{{- end }}
+{{- if .Values.seLinuxOptions.enabled }}
+        seLinuxOptions:
+          level: {{ .Values.seLinuxOptions.level }}
+          role: {{ .Values.seLinuxOptions.role }}
+          type: {{ .Values.seLinuxOptions.type }}
+          user: {{ .Values.seLinuxOptions.user }}
+{{- end }}
+      {{- end }}
+      containers:
+        - name: {{ template "prometheus.pushgateway.ContainerName" . }}
+          image: "{{ .Values.global.registry1 }}/{{ .Values.pushgateway.image.imageRepo }}:{{ .Values.pushgateway.image.imageTag }}"
+          imagePullPolicy: "{{ .Values.pushgateway.image.imagePullPolicy }}"
+          args:
+          {{- range $key, $value := .Values.pushgateway.extraArgs }}
+            {{- if eq $value "" }}
+            - --{{ $key }}
+            {{- else }}
+            - --{{ $key }}={{ $value }}
+            {{- end }}
+          {{- end }}
+          {{- if .Values.pushgateway.baseURL }}
+            - --web.external-url={{ .Values.pushgateway.baseURL }}
+          {{- end }}
+          {{- if ne .Values.pushgateway.prefixURL "" }}
+            - --web.route-prefix=/{{ .Values.pushgateway.prefixURL }}
+          {{- end }}
+          ports:
+            - name: tcp-9091
+              containerPort: 9091
+          readinessProbe:
+            httpGet:
+              path: {{ template "pushgateway.routePrefixURL" . }}/#/status
+              port: tcp-9091
+            initialDelaySeconds: 10
+            timeoutSeconds: 10
+          resources:
+{{ toYaml .Values.pushgateway.resources | indent 12 }}
+    {{- if .Values.pushgateway.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.pushgateway.nodeSelector | indent 8 }}
+    {{- end }}
+    {{- if .Values.pushgateway.tolerations }}
+      tolerations:
+{{ toYaml .Values.pushgateway.tolerations | indent 8 }}
+    {{- end }}
+      affinity:
+    {{- if .Values.pushgateway.affinity }}
+{{ toYaml .Values.pushgateway.affinity | indent 8 }}
+    {{- end }}
+        podAntiAffinity:
+{{- if eq .Values.pushgateway.antiAffinityMode "hard" }}
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - {{ template "prometheus.name" . }}
+              - key: component
+                operator: In
+                values:
+                - {{  .Values.pushgateway.name }}
+              - key: release
+                operator: In
+                values:
+                - {{ .Release.Name }}
+            topologyKey: "kubernetes.io/hostname"
+{{- else }}
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - {{ template "prometheus.name" . }}
+                - key: component
+                  operator: In
+                  values:
+                  - {{  .Values.pushgateway.name }}
+                - key: release
+                  operator: In
+                  values:
+                  - {{ .Release.Name }}
+              topologyKey: "kubernetes.io/hostname"
+{{- end }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,85 @@
+---
+# Docker registry for WAS images
+bcmt_registry: wasr21containerregistry.azurecr.io
+
+BP_DEPLOYMENT_PROFILE:
+  CONFIGURATION: prod
+  RESOURCES: main
+# Storageclass
+  STORAGE: nfs-client
+
+BP_CONFIG_NAMESPACE: netguard-configuration
+BP_NAMESPACE: netguard-base
+DNS_DOMAIN: "cluster.local"
+
+# IPV4_ONLY (default), IPV4_DUALSTACK, IPV6_ONLY
+NETWORK_STACK: IPV4_ONLY
+
+ACCESS_FQDNS: [172.17.2.4,172.17.0.5,23.97.189.72]
+ACCESS_IPS: [172.17.2.4,172.17.0.5,23.97.189.72]
+
+INGRESS_CLASS: "netguard"
+INSTALL_NAMESPACE: true
+NAMESPACE: netguard-was
+
+# One of 'schema' or 'upgrade'
+NOS_DBSCHEMATOOL_OPERATION: schema
+WAS_DBSCHEMATOOL_OPERATION: schema
+
+SERVER_REPLICAS: 1
+UI_REPLICAS: 1
+
+# 'prod' or 'lab'
+RESOURCE_PROFILE: lab
+
+# Controls if the Keycloak configuration will be imported as part of the install process
+IMPORT_KEYCLOAK_CONFIG: true
+
+# NokiaMail session settings:
+MAIL_HOST: mailrelay.int.nokia.com
+MAIL_PORT: 25
+MAIL_FROM: noreply@nokia.com
+
+# Size of the diagnostic volume on each server
+# A value of '0' disables this store (just '0', not '0Gi').
+# If disabled then the internal storage is used, which will not survive restarts:
+DIAGNOSTIC_VOLUME_SIZE: 32Gi
+
+# Path to the directory containing the custom configuration files.
+# The directory structure can be copied from the packages files/config_dir_template directory
+CUSTOM_CONFIG_DIR_PATH:
+
+# Path to the SSH private key used for public key authentication to NEs and file servers
+SSH_PRIVATE_KEY_PATH:
+
+# Global flag to control encryption key generation.
+# If set to 'true' then the ENCRYPTION_PASSWORD field is used, as defined below.
+# If set to 'false' then the legacy encryption key is used.
+ENCRYPTION_KEY_GENERATION_ENABLED: false
+
+# Encryption key password, used to encrypt sensitive internal data (including data stored in the database).
+# - If this field is empty: a new password is generated during installation. NOTE: in this case, configuration
+#   backup/restore is required to preserve/restore the encryption keys from previous installations.
+# - If this field is populated: the given password is used to calculate a deterministic encryption key.
+# Notes for Customers:
+# - Customers should not in general set this value, instead preferring a generated value
+#   (thus ensuring the password is always kept secret).
+# - If this value is set, then this file should itself be encrypted or moved to a secure area after installation
+ENCRYPTION_PASSWORD:
+
+# The wildfly server global transaction timeout, given in seconds:
+TRANSACTION_TIMEOUT_SECONDS: 600
+
+# Backup and Restore options
+CBUR:
+  ENABLED: false
+  COPIES: 3
+  SCHEDULE:
+    ENABLED: false
+    CRONJOB: 0 0 * * *
+  BACKEND_MODE: local
+
+# The following properties should not be modified
+CKEY_REALM_NAME: netguard
+HELM_PATH: /exec/helm3
+KUBECTL_PATH: kubectl

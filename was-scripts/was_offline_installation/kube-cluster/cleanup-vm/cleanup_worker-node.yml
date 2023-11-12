@@ -1,0 +1,46 @@
+- name: Clean up Worker Node
+  hosts: localhost
+  connection: local
+  collections:
+   - azure.azcollection
+
+  vars_files:
+   - variables_file.yml
+  
+  tasks:
+   
+  - name: Get OS Disk of VM
+    shell: sudo az vm show -d -g "{{ resource_group }}" -n "{{ nworker }}" --query "storageProfile.osDisk.managedDisk.id" | awk -F '[/]' '{print $9}' | sed 's/"//'
+    register: diskname
+
+  - name: show osDisk
+    set_fact:
+     osdisk: "{{ diskname.stdout }}"
+  
+  - name: Remove a VM and all resources that were autocreated
+    azure_rm_virtualmachine:
+      resource_group: "{{ resource_group }}"
+      name: "{{ nworker }}"
+      remove_on_absent: all_autocreated
+      state: absent
+
+  - name: Remove network interface
+    azure_rm_networkinterface:
+      resource_group: "{{ resource_group }}"
+      name: "{{ nworker }}" 
+      state: absent
+
+  - name: Remove managed disk
+    azure_rm_manageddisk:
+      name: "{{ osdisk }}"
+      location: "{{ location }}"
+      resource_group: "{{ resource_group }}"
+      state: absent
+
+  - name: Delete public ip
+    azure_rm_publicipaddress:
+      resource_group: "{{ resource_group }}"
+      name: "{{ nworker }}"
+      state: absent
+    ignore_errors: yes  
+

@@ -1,0 +1,7 @@
+---
+ - import_playbook: backup-restore-was/restore-new-was/restore-replace-existing-master.yml
+ - import_playbook: backup-restore-was/restore-new-was/restore-replace-existing-worker.yml
+ - import_playbook: backup-restore-was/restore-new-was/restore-replace-existing-dpa.yml
+ - import_playbook: backup-restore-was/restore-new-was/reinstall-was.yml
+ - import_playbook: backup-restore-was/restore-new-was/reinstall-for-new-dpa.yml
+#  - import_playbook: backup-restore-was/getinfo-was.yml

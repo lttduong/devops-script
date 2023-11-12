@@ -1,0 +1,137 @@
+HELM_PATH: helm3
+BP_NAMESPACE: netguard-base
+BP_CONFIG_NAMESPACE: netguard-configuration
+DNS_DOMAIN: "cluster.local"
+ACCESS_FQDNS: []
+ACCESS_IPS: [172.17.2.4,172.17.2.5,20.105.254.175]
+# Kubernetes master API server URL address
+K8S_MASTER_API_SERVER_URL: "https://172.17.2.4:6443"
+# Escaped comma separated bind addresses for ingress component, eg. BIND_ADDRESSES: "10.42.207.82\\,10.42.207.83"
+BIND_ADDRESSES: "172.17.2.4\\,172.17.2.5\\,20.105.254.175"
+VIRTUAL_IP:
+ ENABLED: false
+ # must match ACCESS_IPS if IPv4 address provided or
+ # must match IPv4 address of FQDN from ACCESS_FQDNS
+ # network mask match mask of edge node IP
+ ADDRESS_IPV4: "IPv4 with network mask"
+ # must match IPv6 address of FQDN from ACCESS_FQDNS
+ # network mask match mask of edge node IP
+ ADDRESS_IPV6: "IPv6 with network mask"
+ INTERFACE: "eth0"
+BP_DEPLOYMENT_PROFILE:
+ CONFIGURATION: devel
+ RESOURCES: main
+ STORAGE: nfs
+CBUR:
+ NFS_SERVER:
+  ADDRESS:
+  BACKUPS_PATH: /var/nfsshare/bp
+ CMDB:
+  ENABLED: false
+  # Possible values for COPIES parameter: [1 - 10]
+  COPIES: 3
+  SCHEDULE:
+   ENABLED: false
+   CRONJOB: 0 0 * * *
+ BTEL:
+  ENABLED: false
+  ELASTIC:
+   BACKUPS_SUBPATH: elasticsearch-backup
+   SNAPSHOTS_CLEANUP_INTERVAL_DAYS: 7
+ # Possible values for COPIES parameter: [1 - 10]
+  COPIES: 3
+  SCHEDULE:
+   ENABLED: false
+   CRONJOB: 0 0 * * *
+ CONFIG_SECRETS:
+  ENABLED: false
+  # Possible values for COPIES parameter: [1 - 10]
+  COPIES: 1
+  SCHEDULE:
+   ENABLED: false
+   CRONJOB: 0 0 * * *
+ BACKEND_MODE: local
+CMDB_STORAGE_SIZE_GB: 626
+BELK_DATA_STORAGE_SIZE_GB: 50
+BELK_DATA_RETENTION_DAYS: 7
+CPRO_STORAGE_SIZE_GB: 80
+CPRO_RETENTION_SIZE_GB: 60
+# Configure SNMP version, This parameter can be SNMPv2 or SNMPv3, default is SNMPv2
+SNMP_VERSION: SNMPv2
+# IP Address to send SNMP trap, up to 6 addresses
+SNMP_TRAP_RECEIVER: [ ]
+# Default SNMP port is 162
+# To specify a specific port for the receiver IP, Provide a SNMP port list in the same order as the IP addresses.
+# First port will match first IP and so on.
+SNMP_TRAP_PORT: [ ]
+LDAPS_CERT:
+# SMTP server for alarm notification
+EMAIL_SERVER:
+ ID:
+ HOST:
+ PORT:
+ AUTH:
+ USERNAME:
+ PASSWORD:
+ FROM:
+ TO:
+ SEND_AS_HTML:
+ TLS:
+ STARTTLS:
+ TRUSTCERT:
+ DESCRIPTION:
+NETGUARD_ADMIN_PASSWORD: Admin123456!!!
+ # password for netguard realm admin user (at least one uppercase letter, one lowercase letter, one digit, one special character, minimum length: 8 characters, maximum length: 150 characters)
+CKEY_EVENT_LISTENER_ENABLED: yes
+# To be enabled only on the direction of Nokia Services
+FINE_GRAINED_PERMISSIONS_ENABLED: false
+# Comma separated list of Custom User Attributes (e.g. attribute1,atttribute2,attribute3)
+CKEY_CUSTOM_USER_ATTRIBUTES:
+# IPV4_ONLY (default), IPV4_DUALSTACK, IPV6_ONLY
+NETWORK_STACK: IPV4_ONLY
+INGRESS_CLASS: "netguard"
+EGRESS:
+ ENABLED: false
+ # Allow edge egress for control and/or workers. Allowed values: controlworker, controlonly, workeronly
+ EGRESS_MODE: controlworker
+ # the following ignored if IPV6_ONLY
+ EDGE_SNAT_INTERFACES_IPV4: [eth0]
+ EDGE_BFD_PEER_INTERFACE_IPV4: eth1
+ CONTROL_BFD_PEER_INTERFACE_IPV4: eth0
+ WORKER_BFD_PEER_INTERFACE_IPV4: eth0
+ # the following ignored if IPV4_ONLY
+ EDGE_SNAT_INTERFACES_IPV6: [eth0]
+ EDGE_BFD_PEER_INTERFACE_IPV6: eth1
+ CONTROL_BFD_PEER_INTERFACE_IPV6: eth0
+ WORKER_BFD_PEER_INTERFACE_IPV6: eth0
+GEO_REDUNDANCY:
+ ENABLED: false
+ # Possible values for MODE parameter: active|passive
+ MODE: active
+ # Possible values for SITE_INDEX parameter: 1|2
+ SITE_INDEX: 1
+ CMDB:
+  REMOTE_DC_ADDRESS:
+ BTEL:
+  RESTORE_SCHEDULE: 0 * * * *
+BP_INITIAL_NODE_PORT: 30000
+# RABBITMQ_TLS_NODE_PORT: 30672
+# RABBITMQ_MANAGEMENT_NODE_PORT: 30156
+# RABBITMQ_PROMETHEUS_NODE_PORT: 30157
+# MARIADB_MASTER_NODE_PORT: 32426
+# MAXSCALE_NODE_PORT: 30342
+# NODE_EXPORTER_HOST_PORT: 9100
+# The following parameters are auto-generated if not specified
+KEYCLOAK_DB_PASSWORD: 12345678x@X123
+KEYCLOAK_ADMIN_PASSWORD: 12345678x@X123
+MARIADB_USER_PASSWORD: 12345678x@X123
+MAXSCALE_USER_PASSWORD: 12345678x@X123
+REPL_USER_PASSWORD: 12345678x@X123
+METRICS_USER_PASSWORD: 12345678x@X123
+BASE_PLATFORM_SSO_SECRET:
+GRAFANA_DB_PASSWORD: 12345678x@X123
+CALM_DB_PASSWORD: 12345678x@X123
+CMDB_ROOT_PASSWORD: 12345678x@X123
+LOGIN_SECURITY_BANNER: "You are about to access a private system. This system is for the use of
+authorized users only. All connections are logged. Any unauthorized access or access attempts may be
+punished to the fullest extent possible under the applicable local legislation."

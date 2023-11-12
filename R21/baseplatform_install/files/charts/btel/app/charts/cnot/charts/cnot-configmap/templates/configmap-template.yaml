@@ -1,0 +1,17 @@
+{{- if not .Values.global.templateOverrideName -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    app: {{ template "cnot_configmap.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    component: "{{ .Values.cnot_configmap.name }}"
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+  name: {{ template "cnot_configmap.fullname" . }}-templates
+data:
+{{- range $key, $value := .Values.cnotTemplates }}
+  {{ $key }}: |
+{{ $value | default "" | indent 4 }}
+{{- end -}}
+{{- end -}}

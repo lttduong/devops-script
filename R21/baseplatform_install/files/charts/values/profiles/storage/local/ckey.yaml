@@ -1,0 +1,8 @@
+volumes:
+  path:
+    ckeyBackup: ""
+
+ckey:
+  persistence:
+    backup:
+      createPv: false

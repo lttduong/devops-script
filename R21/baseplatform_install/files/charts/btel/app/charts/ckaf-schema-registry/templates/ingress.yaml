@@ -1,0 +1,35 @@
+{{- if eq .Values.ingress.enabled true }}
+{{- $name := include "schema-registry.name" . }}
+{{- $releaseNamespace := .Release.Namespace }}
+apiVersion: networking.k8s.io/v1beta1
+kind: Ingress
+metadata:
+  annotations:
+      nginx.ingress.kubernetes.io/rewrite-target: /$2
+      {{- if (.Values.sr_ssl.enabled) }}
+      nginx.ingress.kubernetes.io/secure-backends: "true"
+      {{- end }}
+  name : {{ $name }}-ingress
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ $name }}
+    chart: {{ .Chart.Name }}
+    release: {{ .Release.Name }}
+spec:
+  {{- if eq .Values.ingress.tls.enabled true }}
+  tls:
+    - hosts:
+      - {{ template "ingressHost.name" . }}
+      secretName: {{ .Values.ingress.tls.secretName }}
+  {{- end }}
+  rules:
+  - host: {{ template "ingressHost.name" . }}
+    http:
+      paths:
+      - path: /{{ .Chart.Name }}/{{ .Release.Name }}(/|$)(.*)
+        backend:
+          serviceName: {{ $name }}
+          servicePort: {{ .Values.servicePort }}
+{{- end }}
+
+

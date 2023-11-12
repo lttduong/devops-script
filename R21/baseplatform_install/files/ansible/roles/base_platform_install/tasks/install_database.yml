@@ -1,0 +1,90 @@
+---
+- name: "Read CMDB chart values"
+  include_vars:
+    file: "{{ files_path }}/charts/cmdb/app/values.yaml"
+    name: cmdb_values
+
+- name: "Installing CMDB configurator config"
+  shell: >
+    {{ helm }} install {{ chartsPath }}/cmdb/configurator-config
+    --name-template {{ cmdbConfiguratorConfigHelmName }}
+    --namespace {{ BP_CONFIG_NAMESPACE }}
+    --values {{ chartsPath }}/values/global-values.yaml
+    --set dns.domain={{ svcDnsDomain }}
+    --set basePlatformNamespace={{ BP_NAMESPACE }}
+    --set global.registry={{ bcmtRegistry }}
+    --set mariadb.password="{{ cmdbUserPassword }}"
+    --set mariadb.username={{ cmdbUsername }}
+    --set cbur.enabled={{ CBUR.CONFIG_SECRETS.ENABLED | default(false) }}
+    --set cbur.cronSpec="{{ CBUR.CONFIG_SECRETS.SCHEDULE.CRONJOB | default('0 0 * * *') }}"
+    --set cbur.maxiCopy={{ CBUR.CONFIG_SECRETS.COPIES | default(1) }}
+    --set cbur.autoEnableCron={{ CBUR.CONFIG_SECRETS.SCHEDULE.ENABLED }}
+    --set cbur.autoUpdateCron={{ CBUR.CONFIG_SECRETS.SCHEDULE.ENABLED }}
+    --set cbur.backendMode={{ CBUR.BACKEND_MODE }}
+    {{ configuratorsConfigGeoSettings | default('') }}
+  no_log: "{{ no_log }}"
+
+- name: "Installing CMDB"
+  shell: >
+    {{ helm }} install {{ chartsPath }}/cmdb/app
+    --name-template {{ cmdbHelmName }}
+    --namespace {{ BP_NAMESPACE }}
+    --values {{ chartsPath }}/values/global-values.yaml
+    --values {{ chartsPath }}/cmdb/app/override.yaml
+    {{ cmdbConfigurationOverride }}
+    {{ cmdbResourcesOverride }}
+    {{ cmdbStorageOverride }}
+    --set global.registry={{ bcmtRegistry }}
+    --set global.registry1={{ bcmtRegistry }}
+    --set global.registry2={{ bcmtRegistry }}
+    --set dns.domain={{ svcDnsDomain }}
+    --set clusterDomain={{ DNS_DOMAIN }}
+    --set mariadb.persistence.size={{ cmdbStorageSize }}
+    --set mariadb.root_password={{ base64_cmdb_root_password.stdout }}
+    --set mariadb.users[0].password="{{ base64_cmdb_user_password.stdout }}"
+    --set mariadb.users[0].name={{ cmdbUsername }}
+    --set maxscale.maxscale_user_password="{{ base64_maxscale_user_password.stdout }}"
+    --set mariadb.repl_user_password="{{ base64_mariadb_repl_user_password.stdout }}"
+    --set mariadb.metrics.metrics_password="{{ base64_metrics_user_password.stdout }}"
+    --set cbur.enabled={{ CBUR.CMDB.ENABLED | default(false) }}
+    --set cbur.maxiCopy={{ CBUR.CMDB.COPIES | default(3) }}
+    --set cbur.cronSpec="{{ CBUR.CMDB.SCHEDULE.CRONJOB | default('0 0 * * *') }}"
+    --set cbur.autoEnableCron={{ CBUR.CMDB.SCHEDULE.ENABLED }}
+    --set cbur.autoUpdateCron={{ CBUR.CMDB.SCHEDULE.ENABLED }}
+    --set cbur.backendMode={{ CBUR.BACKEND_MODE }}
+    --set cbur.cbura.volume_size={{ (CMDB_STORAGE_SIZE_GB / 5 * 2) | int }}
+    --set geo_redundancy.enabled={{ GEO_REDUNDANCY.ENABLED }}
+    --set services.mysql.nodePort={{ (BP_INITIAL_NODE_PORT + cmdbNodePortOffset) | int }}
+    --set services.mysql.nodePort_readonly={{ (BP_INITIAL_NODE_PORT + cmdbReadOnlyNodePortOffset) | int }}
+    --set services.mysql.nodePort_mstronly={{ (BP_INITIAL_NODE_PORT + cmdbMasterOnlyNodePortOffset) | int }}
+    --set services.mariadb_master.nodePort={{ MARIADB_MASTER_NODE_PORT | default (((BP_INITIAL_NODE_PORT + cmdbMasterNodePortOffset) | int), true) }}
+    --set services.maxscale.nodePort={{ MAXSCALE_NODE_PORT | default (((BP_INITIAL_NODE_PORT + cmdbMaxscaleNodePortOffset) | int), true) }}
+    {{ cmdbGeoSettings | default('') }}
+    {{ siteIndexSettings  | default('') }}
+    {{ cmdbGeoPassiveSettings | default('') }}
+    {{ cmdbGeoRemoteAddressActiveSettings | default('') }}
+    --timeout {{ wait_timeout }}s
+    --wait
+  no_log: "{{ no_log }}"
+
+- name: "Applying MariaDB configuration"
+  shell: >
+    {{ helm }} install {{ chartsPath }}/cmdb/db-config
+    --name-template {{ cmdbPasswordPolicyConfigHelmName }}
+    --namespace {{ BP_CONFIG_NAMESPACE }}
+    --values {{ chartsPath }}/values/global-values.yaml
+    {{ cmdbConfigurationOverride }}
+    {{ cmdbResourcesOverride }}
+    --set image.registry={{ bcmtRegistry }}
+    --set cmdbConfiguratorEnabled={{ dbPopulatingEnabled }}
+    --timeout {{ wait_timeout }}s
+    --wait
+
+- name: "Restarting MaxScale"
+  shell: >
+    . {{ temporaryAppFilesDirectory }}/functions.sh {{ BP_NAMESPACE }}
+    && restartStatefulSet cmdb-maxscale
+  args:
+    executable: /bin/bash
+  async: 700
+  poll: 5

@@ -1,0 +1,13 @@
+apiVersion: v1
+appVersion: "1"
+description: Alarm Service
+engine: gotpl
+home: https://csf.gitlabe2-pages.ext.net.nokia.com/fpm/calm/
+keywords:
+- Alarm Service
+- snmp
+maintainers:
+- email: hunor.demeter@nokia.com
+  name: Hunor Demeter
+name: calm
+version: 20.9.2

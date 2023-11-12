@@ -1,0 +1,41 @@
+{{- include "elasticsearch.istio.initIstio" . }}
+{{- if .Values.istio.enabled }}
+## Istio mesh requirement for pods & services - A pod must belong to at least one Kubernetes service even if the pod does NOT expose any port. Hence creating one service for elasticsaerch data pods when istio is enabled.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "elasticsearch.fullname" . }}-dhl
+  labels:
+    component: elasticsearch
+    release: {{ .Release.Name | quote }}
+spec:
+  clusterIP : None
+  selector:
+    component: elasticsearch
+    role: data
+    release: {{ .Release.Name | quote }}
+  ports:
+    - name: tcp-headless
+      port: {{.Values.service.master_port}}
+      protocol: TCP
+---
+{{- if eq $.istioVersion 1.4 }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "elasticsearch.fullname" . }}-chl
+  labels:
+    component: elasticsearch
+    release: {{ .Release.Name | quote }}
+spec:
+  clusterIP : None
+  selector:
+    component: elasticsearch
+    role: client
+    release: {{ .Release.Name | quote }}
+  ports:
+    - name: tcp-transport
+      port: {{.Values.service.master_port}}
+      protocol: TCP
+{{- end }}
+{{- end }}

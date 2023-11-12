@@ -1,0 +1,27 @@
+---
+- name: "Waiting for start page to be ready"
+  shell: >
+    . {{ temporaryAppFilesDirectory }}/functions.sh {{ BP_NAMESPACE }}
+    && waitForReadyDeployment start-page-citm-server
+  args:
+    executable: /bin/bash
+  async: 700
+  poll: 5
+
+- name: "Waiting for CITM to be ready"
+  shell: >
+    . {{ temporaryAppFilesDirectory }}/functions.sh {{ BP_NAMESPACE }}
+    && waitForReady citm-citm-ingress-controller
+  args:
+    executable: /bin/bash
+  async: 700
+  poll: 5
+
+- name: "Waiting for CITM default backend to be ready"
+  shell: >
+    . {{ temporaryAppFilesDirectory }}/functions.sh {{ BP_NAMESPACE }}
+    && waitForReady citm-default404
+  args:
+    executable: /bin/bash
+  async: 700
+  poll: 5

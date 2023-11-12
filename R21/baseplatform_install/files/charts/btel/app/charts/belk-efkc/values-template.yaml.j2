@@ -1,0 +1,181 @@
+## global registry
+global:
+  registry: {{ (imagesregistry | default("")).registry | default(model.properties.imagesregistry.properties.registry.default) }}
+  registry1: {{ (imagesregistry | default("")).registry1 | default(model.properties.imagesregistry.properties.registry1.default) }}
+
+## Enable or disable components of umbrella chart for EFKC.
+tags:
+  belk-fluentd: {{ (efkc | default("")).belkFluentd | default(model.properties.efkc.properties.belkFluentd.default) }}
+  belk-elasticsearch: {{ (efkc | default("")).belkElasticsearch | default(model.properties.efkc.properties.belkElasticsearch.default) }}
+  belk-kibana: {{ (efkc | default("")).belkKibana | default(model.properties.efkc.properties.belkKibana.default) }}
+  belk-curator: {{ (efkc | default("")).belkCurator | default(model.properties.efkc.properties.belkCurator.default) }}
+
+## To overwrite child helm chart values by parent define:
+## chart_name:
+##   parameters in values.yaml in child chart
+belk-fluentd:
+  fluentd:
+    resources:
+      limits:
+        cpu: {{ (fluentd | default("")).fluentdCpuLimit | default(model.properties.fluentd.properties.fluentdCpuLimit.default) }}
+        memory: {{ (fluentd | default(512)).fluentdMemoryLimit | default(model.properties.fluentd.properties.fluentdMemoryLimit.default) }}
+      requests:
+        cpu: {{ (fluentd | default("")).fluentdCpuRequest | default(model.properties.fluentd.properties.fluentdCpuRequest.default) }}
+        memory: {{ (fluentd | default(512)).fluentdMemoryRequest | default(model.properties.fluentd.properties.fluentdMemoryRequest.default) }}
+    enable_root_privilege: false
+    kind: {{ (fluentd | default("")).kind | default(model.properties.fluentd.properties.kind.default) }}
+    #fluentd_certificates:
+      #This part will be added when CSFP provides a way to configure a text box & maintain the indentation
+      #enabled: {{ (fluentd | default("")).enabledCertificates | default(model.properties.fluentd.properties.enabledCertificates.default) }}
+      #This part will be added when CSFP provides a way to configure a text box & maintain the indentation
+      #data: {{ (fluentd | default("")).dataCertificates | default(model.properties.fluentd.properties.dataCertificates.default) }}
+    service:
+      enabled: {{ (fluentd | default("")).enabledService | default(model.properties.fluentd.properties.enabledService.default) }}
+      custom_name: {{ (fluentd | default("")).custom_name | default(model.properties.fluentd.properties.custom_name.default) }}  
+      type: {{ (fluentd | default("")).type | default(model.properties.fluentd.properties.type.default) }}
+      port: {{ (fluentd | default("")).port | default(model.properties.fluentd.properties.port.default) }}
+      metricsPort: {{ (fluentd | default("")).metricsPort | default(model.properties.fluentd.properties.metricsPort.default) }}	
+    volume_mount_enable: false
+    persistence:
+      storageClassName: {{ (fluentd | default("")).storageClassNameFluentd | default(model.properties.fluentd.properties.storageClassNameFluentd.default) }}
+      size: {{ (fluentd | default("")).sizeFluentd | default(model.properties.fluentd.properties.sizeFluentd.default) }}
+      pvc_auto_delete: {{ (fluentd | default("")).pvc_auto_delete | default(model.properties.fluentd.properties.pvc_auto_delete.default) }}
+    fluentd_config: custom-value    
+    configFile: {{ (fluentd | default("")).configFile | default(model.properties.fluentd.properties.configFile.default) }}
+  cbur:
+    enabled: {{ (fluentd | default("")).enableCburFluentd | default(model.properties.fluentd.properties.enableCburFluentd.default) }}
+    maxCopy: {{ (fluentd | default("")).maxCopyCburFluentd | default(model.properties.fluentd.properties.maxCopyCburFluentd.default) }}
+    backendMode: {{ (fluentd | default("")).backendModeCburFluentd | default(model.properties.fluentd.properties.backendModeCburFluentd.default) }}
+    cronJob: {{ (fluentd | default("")).cronJobCburFluentd | default(model.properties.fluentd.properties.cronJobCburFluentd.default) }}
+    autoEnableCron: {{ (fluentd | default("")).autoEnableCronCburFluentd | default(model.properties.fluentd.properties.autoEnableCronCburFluentd.default) }}
+
+
+## Overwrite values for elasticsearch
+belk-elasticsearch:
+  elasticsearch_master:
+    replicas: {{ (elasticsearch | default(1)).replicasMaster | default(model.properties.elasticsearch.properties.replicasMaster.default) }}
+    resources:
+      limits:
+        cpu: {{ (elasticsearch | default("")).masterCpuLimit | default(model.properties.elasticsearch.properties.masterCpuLimit.default) }}
+        memory: {{ (elasticsearch | default(512)).masterMemoryLimit | default(model.properties.elasticsearch.properties.masterMemoryLimit.default) }}
+      requests:
+        cpu: {{ (elasticsearch | default("")).masterCpuRequest | default(model.properties.elasticsearch.properties.masterCpuRequest.default) }}
+        memory: {{ (elasticsearch | default(512)).masterMemoryRequest | default(model.properties.elasticsearch.properties.masterMemoryRequest.default) }}
+    es_java_opts: {{ (elasticsearch | default("")).jvmOptsMaster | default(model.properties.elasticsearch.properties.jvmOptsMaster.default) }}
+
+  elasticsearch_client:
+    replicas: {{ (elasticsearch | default(1)).replicasClient | default(model.properties.elasticsearch.properties.replicasClient.default) }}
+    resources:
+      limits:
+        cpu: {{ (elasticsearch | default("")).clientCpuLimit | default(model.properties.elasticsearch.properties.clientCpuLimit.default) }}
+        memory: {{ (elasticsearch | default(512)).clientMemoryLimit | default(model.properties.elasticsearch.properties.clientMemoryLimit.default) }}
+      requests:
+        cpu: {{ (elasticsearch | default("")).clientCpuRequest | default(model.properties.elasticsearch.properties.clientCpuRequest.default) }}
+        memory: {{ (elasticsearch | default(512)).clientMemoryRequest | default(model.properties.elasticsearch.properties.clientMemoryRequest.default) }}
+    es_java_opts: {{ (elasticsearch | default("")).jvmOptsClient | default(model.properties.elasticsearch.properties.jvmOptsClient.default) }}
+
+  esdata:
+    replicas: {{ (elasticsearch | default(1)).replicasData | default(model.properties.elasticsearch.properties.replicasData.default) }}
+    resources:
+      limits:
+        cpu: {{ (elasticsearch | default("")).dataCpuLimit | default(model.properties.elasticsearch.properties.dataCpuLimit.default) }}
+        memory: {{ (elasticsearch | default(512)).dataMemoryLimit | default(model.properties.elasticsearch.properties.dataMemoryLimit.default) }}
+      requests:
+        cpu: {{ (elasticsearch | default("")).dataCpuRequest | default(model.properties.elasticsearch.properties.dataCpuRequest.default) }}
+        memory: {{ (elasticsearch | default(512)).dataMemoryRequest | default(model.properties.elasticsearch.properties.dataMemoryRequest.default) }}
+    es_java_opts: {{ (elasticsearch | default("")).jvmOptsData | default(model.properties.elasticsearch.properties.jvmOptsData.default) }}
+
+  persistence:
+    size: {{ (elasticsearch | default(5)).storageData | default(model.properties.elasticsearch.properties.storageData.default) }}
+    masterStorage: {{ (elasticsearch | default(1)).storageMaster | default(model.properties.elasticsearch.properties.storageMaster.default) }}
+    auto_delete:  {{ (elasticsearch | default("")).autoDeletePvc | default(model.properties.elasticsearch.properties.autoDeletePvc.default) }}
+    storageClassName: {{ (elasticsearch | default("")).storageClassNameElasticsearch | default(model.properties.elasticsearch.properties.storageClassNameElasticsearch.default) }}
+  backup_restore:
+    size:  {{ (elasticsearch | default(1)).storageBackup | default(model.properties.elasticsearch.properties.storageBackup.default) }}
+  cbur:
+    enabled: {{ (elasticsearch | default("")).enableCburElasticsearch | default(model.properties.elasticsearch.properties.enableCburElasticsearch.default) }}
+    maxCopy: {{ (elasticsearch | default("")).maxCopyCburElasticsearch | default(model.properties.elasticsearch.properties.maxCopyCburElasticsearch.default) }}
+    backendMode: {{ (elasticsearch | default("")).backendModeCburElasticsearch | default(model.properties.elasticsearch.properties.backendModeCburElasticsearch.default) }}
+    cronJob: {{ (elasticsearch | default("")).cronJobCburElasticsearch | default(model.properties.elasticsearch.properties.cronJobCburElasticsearch.default) }}
+    autoEnableCron: {{ (elasticsearch | default("")).autoEnableCronCburElasticsearch | default(model.properties.elasticsearch.properties.autoEnableCronCburElasticsearch.default) }}
+    cbura:
+      tmp_size: {{ (elasticsearch | default(1)).storageTmp | default(model.properties.elasticsearch.properties.storageTmp.default) }}
+
+  service:
+    name:  {{ (elasticsearch | default("")).serviceNameElasticsearch | default(model.properties.elasticsearch.properties.serviceNameElasticsearch.default) }}
+
+  searchguard:
+    enable: {{ (elasticsearch | default("")).enableSearchGuard | default(model.properties.elasticsearch.properties.enableSearchGuard.default) }}
+    user_name: {{ (elasticsearch | default("")).user_name | default(model.properties.elasticsearch.properties.user_name.default) }}
+    keystore_type: {{ (elasticsearch | default("")).keystore_type | default(model.properties.elasticsearch.properties.keystore_type.default) }}
+    truststore_type: {{ (elasticsearch | default("")).truststore_type | default(model.properties.elasticsearch.properties.truststore_type.default) }}
+    base64Keystore: {{ (elasticsearch | default("")).base64Keystore | default(model.properties.elasticsearch.properties.base64Keystore.default) }}
+    base64KeystorePasswd: {{ (elasticsearch | default("")).base64KeystorePasswd | default(model.properties.elasticsearch.properties.base64KeystorePasswd.default) }}
+    base64Truststore: {{ (elasticsearch | default("")).base64Truststore | default(model.properties.elasticsearch.properties.base64Truststore.default) }}
+    base64TruststorePasswd: {{ (elasticsearch | default("")).base64TruststorePasswd | default(model.properties.elasticsearch.properties.base64TruststorePasswd.default) }}
+    base64ClientKeystore: {{ (elasticsearch | default("")).base64ClientKeystore | default(model.properties.elasticsearch.properties.base64ClientKeystore.default) }}
+    base64RootCA: {{ (elasticsearch | default("")).base64RootCA | default(model.properties.elasticsearch.properties.base64RootCA.default) }}
+    base64_client_cert: {{ (elasticsearch | default("")).base64_client_cert | default(model.properties.elasticsearch.properties.base64_client_cert.default) }}
+    base64_client_key: {{ (elasticsearch | default("")).base64_client_key | default(model.properties.elasticsearch.properties.base64_client_key.default) }}
+    auth_admin_identity: {{ (elasticsearch | default("")).auth_admin_identity | default(model.properties.elasticsearch.properties.auth_admin_identity.default) }}
+    sg_configmap:
+      sg_internal_users_yml: {{ (elasticsearch | default("")).sg_internal_users_yml | default(model.properties.elasticsearch.properties.sg_internal_users_yml.default) }}
+      sg_action_groups_yml: {{ (elasticsearch | default("")).sg_action_groups_yml | default(model.properties.elasticsearch.properties.sg_action_groups_yml.default) }}
+      sg_config_yml: {{ (elasticsearch | default("")).sg_config_yml | default(model.properties.elasticsearch.properties.sg_config_yml.default) }}
+      sg_roles_yml: {{ (elasticsearch | default("")).sg_roles_yml | default(model.properties.elasticsearch.properties.sg_roles_yml.default) }}
+      sg_roles_mapping_yml: {{ (elasticsearch | default("")).sg_roles_mapping_yml | default(model.properties.elasticsearch.properties.sg_roles_mapping_yml.default) }}
+
+## Overwrite values for curator
+belk-curator:
+  searchguard:
+    enable: {{ (curator | default("")).enableSearchGuardCurator | default(model.properties.curator.properties.enableSearchGuardCurator.default) }}
+    base64_ca_certificate: {{ (curator | default("")).base64_ca_certificate | default(model.properties.curator.properties.base64_ca_certificate.default) }}
+  curator:
+    resources:
+      limits:
+        cpu: {{ (curator | default("")).curatorCpuLimit | default(model.properties.curator.properties.curatorCpuLimit.default) }}
+        memory: {{ (curator | default(512)).curatorMemoryLimit | default(model.properties.curator.properties.curatorMemoryLimit.default) }}
+      requests:
+        cpu: {{ (curator | default("")).curatorCpuRequest | default(model.properties.curator.properties.curatorCpuRequest.default) }}
+        memory: {{ (curator | default("")).curatorMemoryRequest | default(model.properties.curator.properties.curatorMemoryRequest.default) }}
+
+    schedule: {{ (curator | default("")).scheduleCurator | default(model.properties.curator.properties.scheduleCurator.default) }}
+    configMaps:
+      action_file_yml: {{ (curator | default("")).action_file_ymlCurator | default(model.properties.curator.properties.action_file_ymlCurator.default) }}
+      config_yml: {{ (curator | default("")).config_ymlCurator | default(model.properties.curator.properties.config_ymlCurator.default) }}
+
+## Overwrite values for kibana
+belk-kibana:
+  searchguard:
+    enable: {{ (kibana | default("")).enableSearchGuardKibana | default(model.properties.kibana.properties.enableSearchGuardKibana.default) }}
+    #base64_keycloak_rootca_pem: {{ (kibana | default("")).base64_keycloak_rootca_pem | default(model.properties.kibana.properties.base64_keycloak_rootca_pem.default) }}
+    base64_kib_es_username: {{ (kibana | default("")).base64_kib_es_username | default(model.properties.kibana.properties.base64_kib_es_username.default) }}
+    base64_kib_es_password: {{ (kibana | default("")).base64_kib_es_password | default(model.properties.kibana.properties.base64_kib_es_password.default) }}
+    base64_ES_RootCA: {{ (kibana | default("")).base64_ES_RootCA | default(model.properties.kibana.properties.base64_ES_RootCA.default) }}
+    base64ServerCrt: {{ (kibana | default("")).base64ServerCrt | default(model.properties.kibana.properties.base64ServerCrt.default) }}
+    base64ServerKey: {{ (kibana | default("")).base64ServerKey | default(model.properties.kibana.properties.base64ServerKey.default) }}
+  kibana:
+    resources:
+      limits:
+        cpu: {{ (kibana | default("")).kibanaCpuLimit | default(model.properties.kibana.properties.kibanaCpuLimit.default) }}
+        memory: {{ (kibana | default(512)).kibanaMemoryLimit | default(model.properties.kibana.properties.kibanaMemoryLimit.default) }}
+      requests:
+        cpu: {{ (kibana | default("")).kibanaCpuRequest | default(model.properties.kibana.properties.kibanaCpuRequest.default) }}
+        memory: {{ (kibana | default("")).kibanaMemoryRequest | default(model.properties.kibana.properties.kibanaMemoryRequest.default) }}
+    initialDelaySeconds: {{ (kibana | default("")).initialDelaySeconds | default(model.properties.kibana.properties.initialDelaySeconds.default) }}
+    configMaps:
+      kibana_configmap_yml: {{ (kibana | default("")).kibana_configmap_yml | default(model.properties.kibana.properties.kibana_configmap_yml.default) }}
+    #This part will be added when CSFP provides a way to configure a text box & maintain the indentation.
+    #env: {{ (kibana | default("")).envKibana | default(model.properties.kibana.properties.envKibana.default) }}
+  service:
+    name: {{ (kibana | default("")).serviceNameKibana | default(model.properties.kibana.properties.serviceNameKibana.default) }} 
+    type: {{ (kibana | default("")).type | default(model.properties.kibana.properties.type.default) }}
+  kibanabaseurl:
+    url: {{ (kibana | default("")).urlKibana | default(model.properties.kibana.properties.urlKibana.default) }}
+    cg: {{ (kibana | default("")).cg | default(model.properties.kibana.properties.cg.default) }}
+  cbur:
+    enabled: {{ (kibana | default("")).enableCburKibana | default(model.properties.kibana.properties.enableCburKibana.default) }}
+    maxCopy: {{ (kibana | default("")).maxCopyCburKibana | default(model.properties.kibana.properties.maxCopyCburKibana.default) }}
+    backendMode: {{ (kibana | default("")).backendModeCburKibana | default(model.properties.kibana.properties.backendModeCburKibana.default) }}
+    cronJob: {{ (kibana | default("")).cronJobCburKibana | default(model.properties.kibana.properties.cronJobCburKibana.default) }}
+    autoEnableCron: {{ (kibana | default("")).autoEnableCronCburKibana | default(model.properties.kibana.properties.autoEnableCronCburKibana.default) }}

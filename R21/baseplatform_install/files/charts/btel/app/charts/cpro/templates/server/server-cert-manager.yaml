@@ -1,0 +1,41 @@
+{{- if .Values.certManager.used }}
+apiVersion: {{ .Values.certManager.api }}
+kind: Certificate
+metadata:
+  name: {{ template "certManager.resourceName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ template "prometheus.name" . }}
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+spec:
+  secretName: {{ template "certManager.secretName" . }}
+  duration: {{ .Values.certManager.duration }}
+  renewBefore: {{ .Values.certManager.renewBefore }}
+  keySize: {{ .Values.certManager.keySize }}
+# commonName seems to be deprecated. To be removed ?
+# https://cert-manager.io/docs/usage/certificate/
+# The use of the common name field has been deprecated since 2000 and is discouraged from being used
+{{- if .Values.certManager.servername }}
+  commonName: {{ .Values.certManager.servername }}
+{{- end }}
+  dnsNames:
+{{- if .Values.certManager.dnsNames }}
+{{ toYaml .Values.certManager.dnsNames | indent 2 }}
+{{- else }}
+  - ""
+{{- end }}
+{{- if .Values.certManager.ipAddresses }}
+  ipAddresses:
+{{ toYaml .Values.certManager.ipAddresses | indent 2 }}
+{{- end }}
+  usages:
+    - server auth
+    - client auth
+  issuerRef:
+    name: {{ .Values.certManager.issuerRef.name }}
+    # We can reference ClusterIssuers by changing the kind here.
+    # The default value is Issuer (i.e. a locally namespaced Issuer)
+    kind: {{ .Values.certManager.issuerRef.kind }}
+{{- end }}

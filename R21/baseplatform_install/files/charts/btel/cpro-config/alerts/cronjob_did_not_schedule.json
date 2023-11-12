@@ -1,0 +1,12 @@
+{
+  "alert": "CronJobDidNotSchedule",
+  "expr": "time() - kube_cronjob_next_schedule_time > 3600",
+  "for": "0s",
+  "labels": {
+    "severity": "WARNING"
+  },
+  "annotations": {
+    "description": "CronJob {{$labels.namespace}}/{{$labels.cronjob}} should have started over an hour ago",
+    "summary": "CronJob has not started"
+  }
+}

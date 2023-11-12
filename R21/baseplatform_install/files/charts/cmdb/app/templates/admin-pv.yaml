@@ -1,0 +1,21 @@
+## Start of custom chart file
+{{- if .Values.admin.persistence.createPv }}
+---
+kind: PersistentVolume
+apiVersion: v1
+metadata:
+  name: {{ $.Chart.Name }}-admin-pv
+  labels:
+    type: local
+{{ $.Values.admin.persistence.labels | indent 4 }}
+spec:
+  storageClassName: {{ $.Values.admin.persistence.storageClass }}
+  capacity:
+    storage: {{ quote $.Values.admin.persistence.size }}
+  accessModes:
+    - {{ quote $.Values.admin.persistence.accessMode }}
+  hostPath:
+    path: {{ $.Values.volumes.path.admin }}
+  persistentVolumeReclaimPolicy: {{ default "Delete" $.Values.admin.persistence.resourcePolicyPv }}
+{{- end }}
+## End of custom chart file

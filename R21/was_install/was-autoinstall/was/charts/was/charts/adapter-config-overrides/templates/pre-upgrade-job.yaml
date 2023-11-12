@@ -1,0 +1,83 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Chart.Name }}-sa
+  namespace: "{{.Release.Namespace}}"
+  labels:
+    app: {{ .Chart.Name }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+  annotations:
+    "helm.sh/hook": pre-upgrade
+    "helm.sh/hook-weight": "-28"
+    "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded
+
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ .Chart.Name }}-rb
+  namespace: "{{.Release.Namespace}}"
+  labels:
+    app: {{ .Chart.Name }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+  annotations:
+    "helm.sh/hook": pre-upgrade
+    "helm.sh/hook-weight": "-27"
+    "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded
+subjects:
+- kind: ServiceAccount
+  name: {{ .Chart.Name }}-sa
+  namespace: "{{.Release.Namespace}}"
+  apiGroup: ""
+roleRef:
+  kind: Role
+  name: {{ .Chart.Name }}-role
+  apiGroup: ""
+
+---
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1beta1
+metadata:
+  namespace: "{{.Release.Namespace}}"
+  name: {{ .Chart.Name }}-role
+  labels:
+    app: {{ .Chart.Name }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+  annotations:
+    "helm.sh/hook": pre-upgrade
+    "helm.sh/hook-weight": "-28"
+    "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded
+rules:
+- apiGroups: ["","batch"]
+  resources: ["configmaps"]
+  verbs: ["delete"]
+
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Chart.Name }}-pre-upgrade
+  namespace: "{{.Release.Namespace}}"
+  annotations:
+    # This is what defines this resource as a hook. Without this line, the
+    # job is considered part of the release.
+    "helm.sh/hook": pre-upgrade
+    "helm.sh/hook-weight": "-26"
+    "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded
+spec:
+  template:
+    metadata:
+      name: "{{ .Release.Name }}"
+    spec:
+      serviceAccountName: {{ .Chart.Name }}-sa
+      restartPolicy: Never
+      containers:
+      - name: upgrade-adapterconfigoverride-job
+        image: "{{ .Values.global.registry }}/{{ .Values.global.kubectl.image.repo }}:{{ .Values.global.kubectl.image.tag }}"
+        command:
+        - sh
+        - -c
+        - |
+          kubectl delete cm {{ .Values.global.adapterConfigOverridesConfigMapName }} --namespace {{ .Release.Namespace }} --ignore-not-found=true

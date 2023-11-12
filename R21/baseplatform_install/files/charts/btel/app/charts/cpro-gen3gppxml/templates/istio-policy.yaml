@@ -1,0 +1,31 @@
+{{- if and (.Values.istio.enable) (eq .Values.global.istioVersion 1.4) }}
+apiVersion: "authentication.istio.io/v1alpha1"
+kind: "Policy"
+metadata:
+  name: {{ template "gen3gppxml.fullname" . }}
+  namespace: "{{.Release.Namespace}}"
+  labels:
+    app: {{ template "gen3gppxml.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+    {{- if .Values.global.labels }}
+{{ toYaml .Values.global.labels | indent 4}}
+    {{- end }}
+{{- if .Values.global.annotations }}
+  annotations:
+{{- include "gen3gpp-annotations" (tuple .Values.global.annotations) | indent 4}}
+{{- end }}
+spec:
+  targets:
+  - name: {{ template "gen3gppxml.fullname" . }}
+{{- if .Values.istio.mtls_enable }}
+  peers:
+  - mtls:
+      mode: STRICT
+{{- else }}
+  peers:
+  - mtls:
+      mode: PERMISSIVE
+{{- end }}
+{{- end }}

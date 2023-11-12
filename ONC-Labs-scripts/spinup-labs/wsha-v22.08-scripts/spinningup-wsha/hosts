@@ -1,0 +1,6 @@
+[restore_wsha_vm]
+wshaforreplicatevm ansible_host=172.17.0.6 ansible_user=WSHA_Admin ansible_port=22
+
+[kubernetes:children]
+restore_wsha_vm
+

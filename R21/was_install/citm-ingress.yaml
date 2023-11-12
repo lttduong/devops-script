@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    meta.helm.sh/release-name: citm
+    meta.helm.sh/release-namespace: netguard-base
+  labels:
+    app: citm-ingress
+    app.kubernetes.io/managed-by: Helm
+    chart: citm-ingress-1.18.2
+    component: controller
+    heritage: Helm
+    release: citm
+  name: citm-citm-ingress-controller-lb
+  namespace: netguard-base
+spec:
+  ports:
+  - name: tcp-http-citm-ingress
+    port: 80
+    protocol: TCP
+    targetPort: 80
+  - name: tcp-https-citm-ingress
+    port: 443
+    protocol: TCP
+    targetPort: 443
+  selector:
+    app: citm-ingress
+    component: controller
+    release: citm
+  sessionAffinity: None
+  type: LoadBalancer

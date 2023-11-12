@@ -1,0 +1,71 @@
+---
+# Values for umbrella charts need to be redefined and provided for upgrade as helm omits subcharts values
+# during upgrade operation and use defaults instead (https://github.com/helm/helm/issues/2948).
+# After switch to helm3 it should work properly.
+
+- name: "Retrieving current BTEL values"
+  shell: >
+    {{ helm }} get values {{ btelHelmName }} --namespace {{ BP_NAMESPACE }} > {{ chartsPath }}/btel/app/{{ btelHelmName }}-helm-values.yaml
+
+- name: "Retrieving grafana db password"
+  shell: >
+    {{ helm }} get values btel-db-config --namespace {{ BP_CONFIG_NAMESPACE }}| grep grafana_db_password | awk '{print $2}'
+  register: grafana_db_password
+
+- name: "Upgrade BTEL"
+  shell: >
+    {{ helm }}  upgrade {{ btelHelmName }} {{ chartsPath }}/btel/app
+    --namespace {{ BP_NAMESPACE }}
+    --values {{ chartsPath }}/btel/app/{{ btelHelmName }}-helm-values.yaml
+    --values {{ chartsPath }}/values/upgrade-global-values.yaml
+    --values {{ chartsPath }}/btel/app/upgrade-override.yaml
+    {{ btelResourcesOverride }}
+    --set bpNamespace={{ BP_NAMESPACE }}
+    --set grafana.grafana_ini.database.password={{ grafana_db_password.stdout }}
+    --set global.registry4={{ bcmtRegistry }}
+    --set global.registry5={{ bcmtRegistry }}
+    --set belk.belk-kibana.ingress.annotations."kubernetes\.io\/ingress\.class"={{ INGRESS_CLASS }}
+    --set cnot.cnot.ingress.annotations."kubernetes\.io\/ingress\.class"={{ INGRESS_CLASS }}
+    --set grafana.ingress.annotations."kubernetes\.io\/ingress\.class"={{ INGRESS_CLASS }}
+    --set dns.domain={{ svcDnsDomain }}
+    --set belk.belk-elasticsearch.dns.domain={{ svcDnsDomain }}
+    --set belk.belk-fluentd.dns.domain={{ svcDnsDomain }}
+    --set belk.belk-kibana.dns.domain={{ svcDnsDomain }}
+    --set grafana.dns.domain={{ svcDnsDomain }}
+    --set cpro.dns.domain={{ svcDnsDomain }}
+    --set cnot.dns.domain={{ svcDnsDomain }}
+    --set calm.dns.domain={{ svcDnsDomain }}
+    --set cpro-gen3gppxml.dns.domain={{ svcDnsDomain }}
+    --set cpro-grafana.clusterDomain={{ DNS_DOMAIN }}
+    --set belk.belk-kibana.kibana.env[0].value="https://elasticsearch.{{ BP_NAMESPACE }}.{{ svcDnsDomain }}:9200"
+    --set calm.url="jdbc:mariadb:failover//cmdb-mysql.{{ BP_NAMESPACE }}.{{ svcDnsDomain }}:3306/calm_alma?useSSL=true&enabledSslProtocolSuites=TLSv1.2&trustServerCertificate=true"
+    --set calm.cnot.serverURL="https://cnot.{{ BP_NAMESPACE }}.{{ svcDnsDomain }}:443"
+    --set calm.mq.hostname="crmq-crmq-ext.{{ BP_NAMESPACE }}.{{ svcDnsDomain }}:5671"
+    --set cpro.alertmanagerFiles.alertmanager.yml.receivers[0].webhook_configs[0].url="https://cnot.{{ BP_NAMESPACE }}.{{ svcDnsDomain }}:443/api/cnot/v1/notif"
+    --set cpro.prometheus.yml.scrape_configs[0].targets[0]="fluentd.{{ BP_NAMESPACE }}.{{ svcDnsDomain }}:24224"
+    --set grafana.grafana_ini.database.host="cmdb-mysql.{{ BP_NAMESPACE }}.{{ svcDnsDomain }}:3306"
+    --set grafana.grafana_ini.database.server_cert_name="cmdb-mysql.{{ BP_NAMESPACE }}.{{ svcDnsDomain }}"
+    --set cpro.restserver.BCMT.serverURL={{ K8S_MASTER_API_SERVER_URL | quote }}
+    --set calm.snmpNodePort={{ (BP_INITIAL_NODE_PORT + btelCalmSnmpNodePortOffset) | int }}
+    --set calm.restNodePort={{ (BP_INITIAL_NODE_PORT + btelCalmRestNodePortOffset) | int }}
+    --set calm.snmpTrapNodePort={{ (BP_INITIAL_NODE_PORT + btelCalmSnmpTrapNodePortOffset) | int }}
+    --set belk.belk-elasticsearch.service.client_nodeport={{ (BP_INITIAL_NODE_PORT + btelBelkEsClientNodePortOffset) | int }}
+    --set belk.belk-elasticsearch.service.master_nodeport={{ (BP_INITIAL_NODE_PORT + btelBelkEsMasterNodePortOffset) | int }}
+    --set belk.belk-elasticsearch.kibana.node_port={{ (BP_INITIAL_NODE_PORT + btelBelkKibanaNodePortOffset) | int }}
+    --set cnot.service.nodePort={{ (BP_INITIAL_NODE_PORT + btelCnotServiceNodePortOffset) | int }}
+    --set cnot.service.nodePortHTTPS={{ (BP_INITIAL_NODE_PORT + btelCnotServiceHttpsNodePortOffset) | int }}
+    --set cpro.server.service.nodePort={{ (BP_INITIAL_NODE_PORT + btelCproServerNodePortOffset) | int }}
+    --set cpro.restserver.service.nodePort={{ (BP_INITIAL_NODE_PORT + btelCproRestserverNodePortOffset) | int }}
+    --set cpro.pushgateway.service.nodePort={{ (BP_INITIAL_NODE_PORT + btelCproPushgatewayNodePortOffset) | int }}
+    --set cpro.alertmanager.service.nodePort={{ (BP_INITIAL_NODE_PORT + btelCproAlertmanagerNodePortOffset) | int }}
+    --set cpro.nodeExporter.service.podHostPort={{ NODE_EXPORTER_HOST_PORT | default (((BP_INITIAL_NODE_PORT + btelCproNodeExporterHostPortOffset) | int), true)}}
+    --set cpro.nodeExporter.service.podContainerPort={{ NODE_EXPORTER_HOST_PORT | default (((BP_INITIAL_NODE_PORT + btelCproNodeExporterHostPortOffset) | int), true) }}
+    --set cpro.nodeExporter.extraArgs."web\.listen-address"=":{{ NODE_EXPORTER_HOST_PORT | default (((BP_INITIAL_NODE_PORT + btelCproNodeExporterHostPortOffset) | int), true) }}"
+    --set cpro-gen3gppxml.service.sftpNodePort={{ (BP_INITIAL_NODE_PORT + btelCproGen3gppXmlSftpNodePortOffset) | int }}
+    --set cpro-gen3gppxml.service.restHttpNodePort={{ (BP_INITIAL_NODE_PORT + btelCproGen3gppXmlHttpNodePortOffset) | int }}
+    --set cpro-gen3gppxml.service.restHttpsNodePort={{ (BP_INITIAL_NODE_PORT + btelCproGen3gppXmlHttpsNodePortOffset) | int }}
+    {{ btelGeoPassiveSettings | default('') }}
+    --wait
+    --timeout 3000s
+  no_log: "{{ no_log }}"
+

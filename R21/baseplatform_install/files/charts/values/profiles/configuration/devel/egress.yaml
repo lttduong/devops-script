@@ -1,0 +1,17 @@
+egress:
+  ipv4:
+    edge:
+      snatInterfaces: <IPV4_SNAT_IF_PLACEHOLDER>
+      bfdPeerInterface: <IPV4_EDGE_BFD_PEER_PLACEHOLDER>
+    control:
+      bfdPeerInterface: <IPV4_CONTROL_BFD_PEER_PLACEHOLDER>
+    worker:
+      bfdPeerInterface: <IPV4_WORKER_BFD_PEER_PLACEHOLDER>
+  ipv6:
+    edge:
+      snatInterfaces: <IPV6_SNAT_IF_PLACEHOLDER>
+      bfdPeerInterface: <IPV6_EDGE_BFD_PEER_PLACEHOLDER>
+    control:
+      bfdPeerInterface: <IPV6_CONTROL_BFD_PEER_PLACEHOLDER>
+    worker:
+      bfdPeerInterface: <IPV6_WORKER_BFD_PEER_PLACEHOLDER>

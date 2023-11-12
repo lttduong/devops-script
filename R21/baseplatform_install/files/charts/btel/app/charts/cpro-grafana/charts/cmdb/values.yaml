@@ -1,0 +1,840 @@
+---
+##
+## Common, cluster-level values
+##
+
+## Image Registry
+global:
+  # this registry is used for CMDB container images
+  registry: "csf-docker-delivered.repo.lab.pl.alcatel-lucent.com"
+  # this registry is used for docker.io mirrored container images
+  registry1: "registry1-docker-io.repo.lab.pl.alcatel-lucent.com"
+  # this registry is used for CBUR and OSDB container images
+  registry2: "csf-docker-delivered.repo.lab.pl.alcatel-lucent.com"
+
+  # ncms parameters
+  postheal: 0
+  postrestore: 0
+  jobtimeout: 600
+
+  # istio version in deployment environment
+  istioVersion: 1.4
+
+  # pod/container prefix (make sure to terminate with dash (-))
+  #podNamePrefix:
+  #containerNamePrefix:
+
+lcm:
+  heal:
+    timeout: 300
+  scale:
+    timeout: 600
+
+## RBAC enabled flag
+rbac_enabled: true
+
+## Service account to use instead of generating one.
+## Only set if a sufficient SA has already been pre-created
+## Can also be set in global
+serviceAccountName:
+
+## istio environment enabled flag
+istio:
+  enabled: false
+
+## If cluster_name not specified, the release name will be used
+#cluster_name: "my-cluster"
+## Cluster Type is one of master-slave, master-master, galera, simplex
+cluster_type: "galera"
+
+## Cluster domain (tail end of the hostname) used in raw k8s installs
+# E.g. myrel-cmdb-mysql.default.svc.cluster.local)
+clusterDomain: "cluster.local"
+
+## Times (in minutes) to wait for other pods to come up during pod restart:
+# Maximum time pod should wait for all other pods to become available
+max_node_wait: 15
+# Maximum time (in seconds) pod should wait for additional pods after quorum
+# reached.  To continue immediately after quorum reached, set to 0.
+quorum_node_wait: 120
+
+## Speficies the type of anti-affinity for scheduling pods to nodes.
+## If hard, pods cannot be scheduled together on nodes, if soft,
+## best-effort to avoid sharing nodes will be done
+nodeAntiAffinity: hard
+
+## Indicates if passwords should be displayed by the helm NOTES - which
+## are displayed when helm install completes.
+## displayPasswords is one of never, if-generated, always
+displayPasswords: "if-generated"
+
+## Values on how to expose services
+services:
+  ##
+  ## MySQL service exposes the mysql database service
+  ##
+  mysql:
+    ## If not set, will be <release>-mysql
+    #name:
+    ## By default, set to ClusterIP to expose database only within cluster
+    ## Set as NodePort to expose database externally
+    type: ClusterIP
+    ## If set to NodePort, optionally set a specific nodePort port to use
+    ## instead of having one assigned by the infrastructure.  Ignored if
+    ## not using NodePort, random assigned if commented out.
+    ## NOTE:  If assigning nodePort here, you must ensure that the port
+    ##        is not currently assigned in the assignment range.
+    # nodePort for base mysql service (or maxscale rwSplit service)
+    #nodePort:
+    # nodePort for maxscale readOnly service
+    #nodePort_readonly:
+    # nodePort for maxscale masterOnly service
+    #nodePort_mstronly:
+    ## Enable service CluterIP session affinity and timeout (seconds)
+    ## Defaults to disabled and timeout defaults to 10800 (k8s defined)
+    sessionAffinity:
+      enabled: false
+      #timeout: 60
+
+    ## mariadb-exporter metrics port (used if mariadb.metrics is enabled)
+    exporter_port: 9104
+
+  ##
+  ## MariaDB Master exposes the pod that is master
+  ## (only if using MaxScale and geo_redundancy.enabled)
+  ##
+  mariadb_master:
+    ## If not set, will be <release>-mariadb-master
+    #name:
+    ## Set as NodePort to expose master externally for replication among
+    ## Datacenters
+    type: NodePort
+    ## If set to NodePort, optionally set a specific nodePort port to use
+    ## instead of having one assigned by the infrastructure.  Ignored if
+    ## not using NodePort, random assigned if commented out.
+    ## NOTE:  If assigning nodePort here, you must ensure that the port
+    ##        is not currently assigned in the assignment range.
+    #nodePort:
+
+  ##
+  ## Maxscale exposes the administrative REST API interface of Maxscale
+  ## (only if using MaxScale)
+  ## Enabling geo-redundancy will automatically set type to "NodePort".
+  ##
+  maxscale:
+    ## If not set, will be <release>-maxscale
+    #name:
+    ## Set as NodePort to expose maxscale service externally
+    type: ClusterIP
+    port: 8989
+    ## If set to NodePort, optionally set a specific nodePort port to use
+    ## instead of having one assigned by the infrastructure.  Ignored if
+    ## not using NodePort, random assigned if commented out.
+    ## NOTE:  If assigning nodePort here, you must ensure that the port
+    ##        is not currently assigned in the assignment range.
+    #nodePort:
+
+    ## maxscale-exporter metrics port (used if maxscale.metrics is enabled)
+    exporter_port: 9195
+
+  ##
+  ## Admin exposes the admin container DB (redis.io) interface to all
+  ## cluster pods.  (only if not Simplex)
+  ##
+  admin:
+    ## If not set, will be <release>-admin
+    #name:
+    type: ClusterIP
+
+##
+## Values specific to the MariaDB (server)
+##
+mariadb:
+  image:
+    name: "cmdb/mariadb"
+    tag: "4.20-3.2816"
+    pullPolicy: IfNotPresent
+
+  ## The number of MariaDB pods to create
+  count: 3
+
+  ## Termination grace period (in seconds).  Defaults to 30 seconds.
+  ## Set higher if a Master switchover can take longer than 30 seconds.
+  #terminationGracePeriodSeconds: 30
+
+  ## Perform automatic tc-heuristic-recover of the database on pod restarts.
+  ## Set to one of the following:
+  ##   rollback - perform auto rollback of uncommitted transactions
+  ##   commit   - perform auto commit of uncommitted transactions
+  ##   none     - disable automatic tc-hauristic-recover
+  ## Defaults to rollback for non-simplex deployments, none for simplex.
+  #heuristic_recover: rollback
+
+  ## Interval (in seconds) when clean-logs should be performed on Master to
+  ## cleanup binlogs that have been replicated to all slaves
+  clean_log_interval: 3600
+
+  ## Enable/disable server audit logging.
+  ## If enabled, set events which will be logged.
+  ## ref: https://mariadb.com/kb/en/library/mariadb-audit-plugin-log-settings/
+  audit_logging:
+    enabled: true
+    events: "CONNECT,QUERY_DCL,QUERY_DDL"
+
+  ## Data in Flight TLS/SSL Encryption
+  ##
+  ## use TLS for data in flight to/from client
+  use_tls: false
+  ##
+  ## also use TLS/SSL for internal replication traffic
+  ## (ignored unless use_tls is true)
+  repl_use_ssl: false
+
+  ## Three interfaces are supported as specified by the certificates.secret
+  ## value, which must be one of these values (details follow):
+  ##   - none (or empty) = No certificates
+  ##   - cmgr            = Automatically generated certificates
+  ##   - <secret>        = User supplied certificates in the specified <secret>
+  ##
+  ## NOTE: These interfaces are valid only when use_tls is set.
+  ##
+  ## 1. No certificates
+  ##    P/V:   certificates.secret: none (or empty)
+  ##    Descr: No certificates are configured and only TLS (aka SSL) ciphers
+  ##           will be used.
+  ##
+  ## 2. Manually supplied certificates
+  ##    P/V:   certificates.secret: <secret>
+  ##    Descr: The <secret> value is a kubectl secret object that contains
+  ##           six files as specified by the following 6 parameters.
+  ##           - client_ca_cert
+  ##           - server_ca_cert
+  ##           - client_cert
+  ##           - client_key
+  ##           - server_cert
+  ##           - server_key
+  ##    Notes:
+  ##      - The secret resource containing all the certificate files must be
+  ##        pre-populated before CMDB deployment.
+  ##      - Certificates are stored in the /etc/my.cnf.d/ssl directory.
+  ##
+  ## 3. Automatically generated certificates
+  ##    P/V:   certificates.secret: cmgr
+  ##    Descr: This interface creates two kubectl secret objects with the
+  ##           following names:
+  ##           - {{cmdb.fullname}}-client-cert
+  ##           - {{cmdb.fullname}}-server-cert
+  ##           and will automatically generate the 6 files as specified by the
+  ##           (above mentioned) 6 parameters.
+  ##    Notes:
+  ##      - Certificates are stored in the /etc/my.cnf.d/ssl directory.
+  certificates:
+    client_ca_cert:     client-ca-cert.pem
+    server_ca_cert:     server-ca-cert.pem
+    client_cert:        client-cert.pem
+    client_key:         client-key.pem
+    server_cert:        server-cert.pem
+    server_key:         server-key.pem
+    secret:
+    # secret:		mdb-certificates
+    # secret:		cmgr
+
+  ## Data at Rest Encryption (DARE)
+  ##
+  ## - secret     = this is a kube secret that contains objects that are
+  ##                identified by the keyFile and keyFileKey parameters.
+  ## - keyFile    = (required) this is the name of the key-file in <secret> used
+  ##                to encrypt/decrypt the database. By default, this file is
+  ##                plain-text. The installer may encrypt this file - in this
+  ##                case the keyFileKey param must be specified.
+  ## - keyFileKey = (optional) this is the name of the file in <secret> to
+  ##                decrypt "keyFile". This is required only if the "keyFile"
+  ##                is encrypted. Use the following command to encrypt "keyFile"
+  ##                (eg: filename.plain -> filename.enc):
+  ##                # openssl enc -aes-256-cbc -md sha1 -pass file:<keyFileKey>
+  ##                       -in ./filename.plain -out ./filename.enc
+  ## - keyFileId  = (optional) this specifies a particular key in "keyFile".
+  ##                If not present, then assume keyid "1".
+  encryption:
+    enabled: false
+    secret:
+    keyFile:
+    keyFileKey:
+    keyFileId:
+
+  ## Resource QOS (per MariaDB container)
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 250m
+    limits:
+      memory: 768Mi
+      cpu: 1
+
+  ## Node tolerations for mariadb scheduling to nodes with taints
+  ## Ref: https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
+  tolerations: []
+  ## Node labels for mariadb pod assignment
+  ## Ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#nodeselector
+  nodeSelector: {}
+  ## BCMT nodeAffinity rules (mutually-exclusive with nodeSelector above):
+  ## Default to not enabled.
+  nodeAffinity:
+    enabled: false
+    key: is_worker
+    value: true
+
+  ## Enable persistence using Persistent Volume Claims
+  ## ref: http://kubernetes.io/docs/user-guide/persistent-volumes/
+  ##
+  persistence:
+    accessMode: ReadWriteOnce
+    size: 20Gi
+    storageClass: ""
+    resourcePolicy: delete
+    preserve_pvc: false
+    backup:
+      enabled: true
+      storageClass: ""
+      accessMode: ReadWriteOnce
+      size: 20Gi
+      dir: /mariadb/backup
+
+
+  ## A base64 encoded password.
+  ## If not provided a random password will be generated.
+  #root_password:
+
+  ## If root user should be allowed from all hosts
+  allow_root_all: false
+
+  ## List of databases to be created
+  #databases:
+  #  - name: mydb
+  #    character_set: keybcs2
+  #    collate: keybcs2_bin
+  #  - name: anotherdb
+
+  ## List of users to be created
+  #users:
+  #  - name: test
+  #    # base64 encoded
+  #    password:  YWJjMTIz
+  #    host: "%"
+  #    privilege: ALL
+  #    object: "mydb.*"
+  #    #if use_tls set, require SSL/X509 or not
+  #    requires: ""
+  #    with: "GRANT OPTION"
+
+  ## A customized mysqld.conf to import
+  mysqld_site_conf: |-
+    [mysqld]
+    userstat = on
+
+  ## Replication
+  ## The replication username to use in the database (default: repl@b.c)
+  repl_user: "repl@b.c"
+  ## A base64 encoded password for the replication user in the database
+  ## Default password used here, user should change when deploying
+  ## IMPORTANT: When deploying a geo-redundant solution, must use the same
+  ##            repl_user/repl_user_password for both sites, so you MUST
+  ##            define repl_user_password here when deploying geo-redundant.
+  ## UNCOMMENT this and set base64 encoded password if deploying with geo_redundancy.enabled=true
+  #repl_user_password: "cmVwbGJjNDU2Nw=="
+
+  ## metrics
+  metrics:
+    enabled: false
+
+    user: exporter
+    ## Provide base64 encoded password. If empty random password will be generated.
+    #metrics_password:
+    image:
+      name: "prom/mysqld-exporter"
+      tag: "v0.12.1"
+      pullPolicy: IfNotPresent
+
+    ## Note that prometheus.io/port is specified in mariadb-metrics-service
+    annotations:
+      prometheus.io/scrape: "true"
+
+    ## Resource QOS (per MariaDB-Metrics container)
+    resources:
+      requests:
+        memory: 256Mi
+        cpu: 250m
+      limits:
+        memory: 256Mi
+        cpu: 250m
+
+  ## Grafana dashboard
+  dashboard:
+    enabled: false
+
+##
+## Values specific to the MaxScale (proxy)
+##
+maxscale:
+  image:
+    name: "cmdb/maxscale"
+    tag: "4.20-3.2816"
+    pullPolicy: IfNotPresent
+
+  ## The number of MaxScale pods
+  count: 0
+
+  ## Termination grace period (in seconds).  Defaults to 30 seconds.
+  #terminationGracePeriodSeconds: 30
+
+  ## Master Switchover timeout when Master pod is being deleted.
+  ## This is used on mariadb preStop hook (defaults to 30 seconds)
+  masterSwitchoverTimeout: 30
+
+  ## Resource QOS (per MaxScale container)
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 250m
+    limits:
+      memory: 512Mi
+      cpu: 500m
+
+  ## Node tolerations for maxscale scheduling to nodes with taints
+  ## Ref: https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
+  ## These values should not be changed.
+  tolerations:
+    - key: 'is_edge'
+      operator: 'Equal'
+      value: 'true'
+      effect: 'NoExecute'
+
+  ## Node labels for maxscale pod assignment
+  ## Ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#nodeselector
+  nodeSelector: {}
+  ## BCMT nodeAffinity rules (mutually-exclusive with nodeSelector above):
+  ## Default to deploy maxscale pods to edge nodes (recommended).
+  ## Set to is_worker to deploy maxscale pods to worker nodes (not recommended).
+  nodeAffinity:
+    enabled: true
+    key: is_edge
+    value: true
+
+  ## The time (in seconds) to allow the maxscale pod to pull the keystore
+  ## from one of the mariadb pods
+  keystorePullTimeout: 300
+
+  ## The maxscale username to use in the database
+  maxscale_user: maxscale
+  ## A base64 encoded password for the maxscale user in the database
+  ## Default password used here, user should change when deploying
+  ## IMPORTANT: When deploying a geo_redundant solution, must use the same
+  ##            maxscale_user/maxscale_user_password for both sites, so you MUST
+  ##            define maxscale_user_password here when deploying geo_redundant.
+  ## UNCOMMENT this and set base64 encoded password if deploying with geo_redundancy.enabled=true
+  #maxscale_user_password: "bWF4YmM0NTY3"
+
+  ## Maxscale optional listeners/service ports to be configured
+  ## The default listener/service is the ReadWriteSplit listener:
+  ##   rwSplit    - writes to master, reads distributed to slaves (3306)
+  ## Additionally the following listener/services can be configured:
+  ##   readOnly   - read-only access load-balanced between all slaves (3307)
+  ##   masterOnly - read-write access directed only to current Master (3308)
+  ##   maxInfo    - metrics scrape port if maxscale metrics is enabled (8003)
+  ##                (will be auto-enabled if maxscale.metrics is true)
+  ## The listener can be disabled by commenting out or setting port to '0'.
+  listeners:
+    rwSplit: 3306
+    readOnly: 3307
+    #masterOnly: 3308
+    #maxInfo: 8003
+
+  ## A customized maxscale configuration to import
+  maxscale_site_conf: |-
+    [maxscale]
+    threads = auto
+    query_retries = 2
+    query_retry_timeout = 10
+
+  ## A customized maxscale logrotate configuration to import
+  logrotate_conf: |-
+    [maxscale]
+    maxsize = 2097152
+    rotate = 5
+    compress = no
+
+  ##
+  ## Lists of SQL to inject at certain MaxScale events
+  ##
+  sql:
+    ## Mariadb Node promoted to master
+    promotion: []
+
+    ## Mariadb Node demoted to slave
+    demotion: []
+
+  ## leader-elector
+  elector:
+    image:
+      name: "osdb/leader-elector"
+      tag: "4.6-2.18"
+      pullPolicy: IfNotPresent
+
+    resources:
+      requests:
+        memory: 256Mi
+        cpu: 250m
+      limits:
+        memory: 256Mi
+        cpu: 250m
+
+  ## metrics
+  metrics:
+    enabled: false
+
+    image:
+      name: "cmdb/maxscale-exporter"
+      tag: "0.2.2-2.7"
+      pullPolicy: IfNotPresent
+
+    ## Note that prometheus.io/port is specified in maxscale-metrics-service
+    annotations:
+      prometheus.io/scrape: "true"
+
+    ## Resource QOS (per MaxScale-Metrics container)
+    resources:
+      requests:
+        memory: 256Mi
+        cpu: 250m
+      limits:
+        memory: 256Mi
+        cpu: 250m
+#
+##
+## Geo-redundancy replication values
+## (Requires MaxScale, e.g. maxscale.count > 0)
+##
+geo_redundancy:
+  ## Only enable geo_redundancy for multiple datacenters
+  enabled: false
+
+  ## Values used to setup replication properly among sites and prevent
+  ## id generation conflicts
+  ## The (1-based) index of this site - each site much have unique indes
+  ## (Only 1 or 2 supported currently)
+  site_index: 1
+
+  ## Threshold (seconds) at which to alarm on lag between datacenters
+  lag_threshold: 30
+
+  ## Interval (minutes) at which to purge slave logs
+  slave_purge_interval: 60
+
+  ##
+  ## Remote Datacenter definitions
+  ## The maxscale and master definitions in this section represent the
+  ## IP and port of the associated service at the remote datacenter.
+  ## The IP:port here can be in any one of the following forms:
+  ##   IPv4:port        - IPv6 address and port
+  ##   "[IPv6]:port"    - IPv6 address and port (quotes needed)
+  ##   FQDN:port        - Fully qualified domain name and port
+  ## IPv6 will be the preferred family in a dual-stack installation,
+  ## otherwise IPv4 will be used.
+  ##
+  remote:
+    ## Name to associate with remote datacenter
+    name: remote
+
+    ## MaxScale node at remote datacenter
+    maxscale:
+
+    ## Master MariaDB node at remote datacenter
+    master:
+
+    ## mariadb-master-remote ClusterIP for replicating to remote DC
+    ## You must set this to the original service IP assigned by kubernetes
+    ## to the mariadb-master-remote service if re-deploying charts using
+    ## preserve PVC.  If unset, the service IP will be autogenerated.
+    #master_remote_service_ip:
+
+##
+## Values specific to the CMDB Administrative container
+## (used for lifecycle and administrative Jobs)
+##
+admin:
+  image:
+    name: "cmdb/admin"
+    tag: "4.20-3.2816"
+    pullPolicy: IfNotPresent
+
+  ## Resource QOS (per Admin container)
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 250m
+    limits:
+      memory: 512Mi
+      cpu: 500m
+
+  ## Termination grace period (in seconds).  Defaults to 120 seconds.
+  ## This controls how long the pre_stop hook can take to add temporary
+  ## advertisements to admin-deploy configmap
+  #terminationGracePeriodSeconds: 120
+
+  ## Node tolerations for admin scheduling to nodes with taints
+  ## Ref: https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
+  tolerations: []
+  ## Node labels for admin pod assignment
+  ## Ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#nodeselector
+  nodeSelector: {}
+  ## BCMT nodeAffinity rules (mutually-exclusive with nodeSelector above):
+  ## Default to not enabled
+  nodeAffinity:
+    enabled: false
+    key: is_worker
+    value: true
+
+  ## Enable persistence using Persistent Volume Claims
+  ## ref: http://kubernetes.io/docs/user-guide/persistent-volumes/
+  ##
+  persistence:
+    enabled: true
+    accessMode: ReadWriteOnce
+    size: 20Gi
+    storageClass: ""
+    resourcePolicy: delete
+
+  ## A recovery flag.  If changed, will trigger a heal of the database to occur
+  #recovery: none
+
+  ## Set to true to change update config behavior to cause statefulset update
+  ## (resulting in rolling pod restarts) when mariadb and maxscale configuration
+  ## is changed.  Default behavior is to not affect statefulset and services
+  ## will be restarted within the pod.
+  configAnnotation: false
+
+  ## Should auto-heal be enabled?
+  ## This will enable automated heal operations on cluster (Galera supported).
+  ## the pauseDelay is how long (seconds) to wait to re-enable auto-heal after
+  ## the cluster comes [back] up.
+  autoHeal:
+    enabled: true
+    pauseDelay: 900
+
+  ## Should slave-rebuild be enabled?
+  ## This will enable automated slave rebuild operation in master-slave
+  ## topology for a failed Master that does not come back as a Slave within
+  ## the rebuildDelay time.  The configurable parameters are as follows:
+  ##   preferredDonor   - preferred donor to use for rebuild:
+  ##                      slave =  use most up-to-date Slave for donor server
+  ##                               (will use Master if no suitable Slave found)
+  ##                      master = use Master for donor server
+  ##   allowMasterDonor - allow Master to be used as Donor?
+  ##                      (only valid for preferredDonor = slave)
+  ##   timeout          - time to allow rebuild to complete before abort
+  ##   parallel         - number of donor threads to use for rebuild
+  ##   useMemory        - amount of memory (eg, 512M) to use for joining server.
+  ##                      NOTE: do not set to more than half of
+  ##                            resources.limits.memory
+  rebuildSlave:
+    enabled: true
+    preferredDonor: slave
+    allowMasterDonor: true
+    timeout: 300
+    parallel: 2
+    useMemory: 256M
+
+  ## Set to 'yes' for quick install deployment.  This will tell the post-install
+  ## hook to not wait for SDC to come up and not wait for pods to start.
+  ## It is highly recommended that this value be left blank however if you are
+  ## deploying a large number of charts you can set this to 'yes' to speed up
+  ## deployment.  Setting to 'yes' will not discover pods that fail to start
+  ## and may not set initial SDC values.
+  quickInstall: ""
+
+  ## If set, administrative jobs will be more verbose to stdout (kubectl logs)
+  debug: false
+
+  ## The activeDeadlineSeconds applies to the duration of the job, no matter
+  ## how many Pods are created.  Once a Job reaches activeDeadlineSeconds, the
+  ## Job and all of its Pods are terminated.  The result is that the job has a
+  ## status with reason: DeadlineExceeded.  It's used in pre-upgrade hook to
+  ## prevent too many failed pods being started in failure cases.
+  activeDeadlineSeconds: 120
+
+  ## Name of a Secret (in our same namespace) to be used for performing
+  ## the password change of database user(s).
+  ## The secret can contain any number of data items, confirming to the
+  ## convention of user_<username>, and the contents of the
+  ## If changed, and the named secret exists, the password change will be
+  ## attempted.  After a successful password change, the secret will be
+  ## automatically deleted. If the password change fails, the secret will
+  ## be marked as invalid, thus causing any future upgrades to ignore
+  ## this secret.  Future attempts (after failure) must recreate the
+  ## secret for it to be processed.
+  #pwChangeSecret: ""
+
+hooks:
+  ## Exposes the hook-delete-policy.  By default, this is set to delete the
+  ## hooks only upon success or prior to creation.  This can also be unset to
+  ## avoid hook deletion for troubleshooting and debugging purposes
+  deletePolicy: "hook-succeeded,before-hook-creation"
+
+  ## Here you can configure all pre- and post- jobs as follows:
+  ##    enabled        - Indicates if the job is enabled to run.
+  ##    name           - The job name with global.podNamePrefix (if defined)
+  ##    containerName  - The job container name with global.containerNamePrefix
+  ##                     (if defined)
+  ##    timeout        - The job timeout (in seconds) allowed for job
+  ##                     execution.  If job timeout occurs. the job will fail,
+  ##                     however the job process will run to completion.
+  ##                     Set to 0 to disable job timing operations.
+  ## This may be useful for umbrella charts where you don't want the
+  ## CMDB upgrade jobs to run when the parent chart upgrade is performed.
+  ## WARNING: Be verify careful when disabling jobs, it may cause unexpected
+  ##          side-effects since the jobs are there to perform the tasks
+  ##          necessary to carry out an action, and this will disable those.
+  # K8S Jobs
+  preInstallJob:
+    enabled: true
+    name: "pre-install"
+    containerName: "pre-install-admin"
+    timeout: 120
+  postInstallJob:
+    enabled: true
+    name: "post-install"
+    containerName: "post-install-admin"
+    timeout: 900
+  preUpgradeJob:
+    enabled: true
+    name: "pre-upgrade"
+    containerName: "pre-upgrade-admin"
+    timeout: 180
+  postUpgradeJob:
+    enabled: true
+    name: "post-upgrade"
+    containerName: "post-upgrade-admin"
+    timeout: 1800
+  preRollbackJob:
+    enabled: true
+    name: "pre-rollback"
+    containerName: "pre-rollback-admin"
+    timeout: 180
+  postRollbackJob:
+    enabled: true
+    name: "post-rollback"
+    containerName: "post-rollback-admin"
+    timeout: 300
+  preDeleteJob:
+    enabled: true
+    name: "pre-delete"
+    containerName: "pre-delete-admin"
+    timeout: 120
+  postDeleteJob:
+    enabled: true
+    name: "post-delete"
+    containerName: "post-delete-admin"
+    timeout: 180
+
+  # NCMS Jobs
+  postHealJob:
+    name: "post-heal"
+    containerName: "post-heal-admin"
+    timeout: 1800
+  preRestoreJob:
+    name: "pre-restore"
+    containerName: "pre-restore-admin"
+    timeout: 180
+  postRestoreJob:
+    name: "post-restore"
+    containerName: "post-restore-admin"
+    timeout: 1800
+
+  ## If debug is true, you can add a termination delay to all of the pre/port
+  ## job hooks as follows (time in seconds).  To terminate early, create a
+  ## /tmp/exit file in the container [with exit value if want to override].
+  ## Delay will not apply to pre-delete job since that is where old jobs are
+  ## deleted and it will delete itself in the process.
+  #jobDelay: 0
+
+## ---------------------------
+## CBUR Parameters
+## ---------------------------
+
+cbur:
+  enabled: true
+  ## Exposes jobhookenable to control BrPolicy behaviour for galera
+  ## When enabled, no action in postRestoreCmd and postrestore job hook for
+  ## helm restore should run. When disabled, postRestoreCmd is executed and
+  ## subsequent out-of-band helm heal is required.
+  ## Interim solution for CSFS-12078, set to disabled in ComPaas.
+  jobhookenable: true
+  ## Exposes legacy NCMS Helm plugin hooks to override the BrHook mechanism added to
+  #  ## BCMT in 20.03 (CSFID-2617).
+  legacyHooks: false
+  ## defines the backup storage options, i.e. local, NetBackup, S3, Avamar.
+  backendMode: local
+  ## specifies if the backup scheduling cron job should be auto-scheduled
+  autoEnableCron: false
+  ## specifies cron update will be triggered automatically by BrPolicy update
+  autoUpdateCron: false
+  ## allows user to schedule backups
+  cronSpec: "0 0 * * *"
+  ## should backups be encrypted?
+  dataEncryption: true
+  ## defines how many backup copies should be saved
+  maxiCopy : 5
+  ## Interface to BrPolicy to ignore file changes during building tarball for target app's volumes.
+  ignoreFileChanged: false
+  image:
+    name: "cbur/cbura"
+    tag: "1.0.3-1665"
+    pullPolicy: "IfNotPresent"
+
+  prebackup: 0
+  # Ex: prebackup_mariabackup_args: "--tables-exclude=rick.local,art.local"
+  # Beware: "helm backup" will NOT automatically pick up changes to the "*_mariabackup_args" parameters when
+  # changed after installation. In this case, use "kubectl edit BrPolicy <cmdb-fullname>-mariadb" to manually
+  # reflect any changes.
+  prebackup_mariabackup_args:
+  postbackup: 0
+  prerestore: 0
+  postrestore: 0
+  postrestore_mariabackup_args:
+
+  preBackupTimeout: 180
+  postBackupTimeout: 120
+  preRestoreTimeout: 120
+  postRestoreTimeout: 600
+
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 250m
+    limits:
+      memory: 256Mi
+      cpu: 250m
+
+  ## Exposes the BrHook parameters which may be used to control the execution
+  ## and sequencing of the hooks per CBUR logic.
+  brhookType: brpolicy
+  brhookWeight: 0
+  brhookEnable: true
+  brhookTimeout: 600
+
+# Defaults:
+# - certManager.apiVersion    :: Required (eg: certmanager.k8s.io/v1alpha1)
+# - certManager.caIssuer.name :: ncms-ca-issuer
+# - certManager.duration      :: 8760h
+# - certManager.renewBefore   :: 360h
+# - certManager.commonName    :: ((cmdb.fullname))-mariadb
+certManager:
+  apiVersion:
+  duration:
+  renewBefore:
+  commonName:
+  caIssuer:
+    name:
+  dnsName1:
+  dnsName2:
+

@@ -1,0 +1,17 @@
+{{- if eq .Values.ingress.enableExternalAccess true }}
+{{- $servicePort := .Values.ingress.edgeNodePort }}
+{{- $clientPort := "2181" }}
+{{- $fullName := include "zookeeper.name" . }}
+{{- $root := . }}
+{{- $citmName := .Values.ingress.citmReleaseName }}
+{{- $releaseNamespace :=  .Release.Namespace }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $citmName }}-citm-ingress-tcp-{{ $fullName }}
+  namespace: {{ $releaseNamespace }}
+data:
+  {{ $servicePort }}: {{ $releaseNamespace }}/{{ $fullName }}:{{ $clientPort }}
+{{- end }}
+

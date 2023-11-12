@@ -1,0 +1,75 @@
+{{- if not (eq (default "enable" .Values.hooks.postUpgradeJob) "disable") }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "cmdb.fullname" . }}-post-upgrade
+  labels:
+    {{- include "cmdb-admin.labels" . | indent 4 }}
+  annotations:
+    "helm.sh/hook": post-upgrade
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": {{ .Values.hooks.deletePolicy | quote }}
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        {{- include "cmdb-admin.labels" . | indent 8 }}
+        type: admin
+      {{- if .Values.istio.enabled }}
+      annotations:
+        sidecar.istio.io/inject: "true"
+      {{- end }}
+    spec:
+      {{- include "cmdb-admin.secctx" . | nindent 6 }}
+      {{- include "cmdb.simplex-job-sa" . | nindent 6 }}
+      restartPolicy: Never
+
+      containers:
+      - name: post-upgrade-admin
+        {{- include "cmdb-admin.image" . | indent 8 }}
+        args: [ "upgrade" ]
+        env:
+        - name: CLUSTER_TYPE
+          value: "{{ .Values.cluster_type }}"
+        - name: CLUSTER_NAME
+          value: "{{ .Values.cluster_name | default .Release.Name | trunc 32 }}"
+        {{- if .Values.admin.configAnnotation }}
+        - name: RUN_UPDATECFG
+          value: "no"
+        {{- end }} 
+        - name: HOOK_TYPE
+          value: "post"
+        {{- if gt (int .Values.admin.postUpgradeTimeout) 0 }}
+        - name: HOOK_TIMEOUT
+          value: "{{ .Values.admin.postUpgradeTimeout }}"
+        {{- end }}
+        {{- if and .Values.admin.debug (gt (int (default '0' .Values.admin.jobDelay)) 0) }}
+        - name: HOOK_DELAY
+          value: "{{ .Values.admin.jobDelay }}"
+        {{- end }}
+        {{- include "cmdb-k8s.env" . | nindent 8 }}
+        {{- include "cmdb-admin.service" . | nindent 8 }}
+        resources:
+{{ toYaml .Values.admin.resources | indent 10 }}
+        volumeMounts:
+        - name: cluster-cm
+          mountPath: /chart
+        - name: event-cm
+          mountPath: /event
+        {{- if eq (.Values.cluster_type) "simplex" }}
+        - name: import
+          mountPath: /import
+        {{- end }}
+      volumes:
+      - name: cluster-cm
+        configMap:
+          name: {{ template "cmdb.fullname" . }}-mariadb-cluster
+      - name: event-cm
+        configMap:
+          name: {{ template "cmdb.fullname" . }}-admin-event
+      {{- if eq (.Values.cluster_type) "simplex" }}
+      - name: import
+        emptyDir: {}
+      {{- end }}
+{{- end }}

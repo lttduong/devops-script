@@ -1,0 +1,164 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}-victor-cm
+  labels:
+    app: {{ .Release.Name }}
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+  annotations:
+    "helm.sh/hook": post-delete, post-upgrade, pre-rollback, pre-install
+    "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded, hook-failed
+spec:
+  backoffLimit: 1 
+  template:
+    metadata:
+      name: "{{ .Release.Name }}"
+      annotations:
+        sidecar.istio.io/inject: "false"
+      labels:
+        app.kubernetes.io/managed-by: {{ .Release.Service | quote }}
+        app.kubernetes.io/instance: {{ .Release.Name | quote }}
+        helm.sh/chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    spec:
+      serviceAccountName: {{ if .Values.rbac.create }}"{{ .Release.Name }}-victor"{{ else }}"{{ tpl .Values.rbac.serviceAccountName . }}"{{ end }}
+      securityContext:
+        runAsUser: 1000
+        runAsGroup:  1000
+        fsGroup: 1000
+      restartPolicy: Never 
+      containers:
+      - image: "{{ .Values.global.registry }}/{{ .Values.controller.imageRepo }}:{{ .Values.controller.imageTag }}"
+        name: {{ .Release.Name }}
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "256Mi"
+            cpu: "250m"
+        command:
+        - sh
+        - -c
+        - |
+          /kubectl -n {{ .Release.Namespace }} delete cm {{ tpl .Values.controller.electionID . }}-{{ .Values.controller.ingressClass }}
+          /kubectl -n {{ .Release.Namespace }} delete cm ingress-controller-leader-{{ .Values.controller.ingressClass }}
+          exit 0 
+---
+{{- if .Values.certManager.used }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}-victor-secret
+  annotations:
+    sidecar.istio.io/inject: "false"
+  labels:
+    app: {{ .Release.Name }}
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+  annotations:
+    "helm.sh/hook": post-delete
+    "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded, hook-failed
+spec:
+  backoffLimit: 1 
+  template:
+    metadata:
+      name: "{{ .Release.Name }}"
+      labels:
+        app.kubernetes.io/managed-by: {{ .Release.Service | quote }}
+        app.kubernetes.io/instance: {{ .Release.Name | quote }}
+        helm.sh/chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    spec:
+      serviceAccountName: {{ if .Values.rbac.create }}"{{ .Release.Name }}-victor"{{ else }}"{{ .Values.rbac.serviceAccountName }}"{{ end }}      
+      securityContext:
+        runAsUser: 1000
+        runAsGroup:  1000
+        fsGroup: 1000
+      restartPolicy: Never 
+      containers:
+      - image: "{{ .Values.global.registry }}/{{ .Values.controller.imageRepo }}:{{ .Values.controller.imageTag }}"
+        name: {{ .Release.Name }}
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "256Mi"
+            cpu: "250m"
+        command:
+        - sh
+        - -c
+        - |
+          /kubectl -n {{ .Release.Namespace }} delete secret tls-{{ template "fullname" . }}
+          exit 0 
+{{- end }}      
+---
+{{- if .Values.rbac.create }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Release.Name }}-victor
+  namespace: "{{ .Release.Namespace }}"
+  labels:
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+  annotations:
+    "helm.sh/hook": post-delete, post-upgrade, pre-rollback, pre-install
+    "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded, hook-failed
+    "helm.sh/hook-weight": "-43"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: "{{ .Release.Namespace }}"
+  name: {{ .Release.Name }}-victor
+  labels:
+    release: {{ .Release.Name }}
+  annotations:
+    "helm.sh/hook": post-delete, post-upgrade, pre-rollback, pre-install
+    "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded, hook-failed
+    "helm.sh/hook-weight": "-42"
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  resourceNames:
+  - {{ tpl .Values.controller.electionID . }}-{{ .Values.controller.ingressClass }}
+  - ingress-controller-leader-{{ .Values.controller.ingressClass }}  
+  verbs:
+  - delete
+{{- if .Values.certManager.used }}
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  resourceNames:
+  - tls-{{ template "fullname" . }}
+  verbs:
+  - delete
+{{- end }}  
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ .Release.Name }}-victor
+  namespace: "{{ .Release.Namespace }}"
+  labels:
+    release: {{ .Release.Name }}
+  annotations:    
+    "helm.sh/hook": post-delete, post-upgrade, pre-rollback, pre-install
+    "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded, hook-failed
+    "helm.sh/hook-weight": "-41"
+subjects:
+- kind: ServiceAccount
+  name: {{ .Release.Name }}-victor
+  namespace: "{{ .Release.Namespace }}"
+roleRef:
+  kind: Role
+  name: {{ .Release.Name }}-victor
+  apiGroup: rbac.authorization.k8s.io
+---
+{{- end }}

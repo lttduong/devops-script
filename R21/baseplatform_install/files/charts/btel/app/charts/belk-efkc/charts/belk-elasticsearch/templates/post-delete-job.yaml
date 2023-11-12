@@ -1,0 +1,259 @@
+{{- if and ( .Values.global.rbac.enabled  ) ( eq .Values.serviceAccountName "" ) ( eq .Values.global.serviceAccountName "") }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ template "elasticsearch.fullname" . }}-del-sa
+  namespace: "{{.Release.Namespace}}"
+  labels:
+    app: {{ template "elasticsearch.fullname" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+  annotations:
+    "helm.sh/hook": post-delete
+    "helm.sh/hook-weight": "-8"
+    "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded, hook-failed
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: {{ .Values.global.seccompAllowedProfileNames }}
+    seccomp.security.alpha.kubernetes.io/defaultProfileName: {{ .Values.global.seccompDefaultProfileName }}
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ template "elasticsearch.fullname" . }}-del-rb
+  namespace: "{{.Release.Namespace}}"
+  labels:
+    app: {{ template "elasticsearch.fullname" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+  annotations:
+    "helm.sh/hook": post-delete
+    "helm.sh/hook-weight": "-7"
+    "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded, hook-failed
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: {{ .Values.global.seccompAllowedProfileNames }}
+    seccomp.security.alpha.kubernetes.io/defaultProfileName: {{ .Values.global.seccompDefaultProfileName }}
+
+subjects:
+- kind: ServiceAccount
+  name: {{ template "elasticsearch.fullname" . }}-del-sa
+  namespace: "{{.Release.Namespace}}"
+  apiGroup: ""
+roleRef:
+  kind: Role
+  name: {{ template "elasticsearch.fullname" . }}-del-role
+  apiGroup: ""
+
+---
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  namespace: "{{.Release.Namespace}}"
+  name: {{ template "elasticsearch.fullname" . }}-del-role
+  labels:
+    app: {{ template "elasticsearch.fullname" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+  annotations:
+    "helm.sh/hook": post-delete
+    "helm.sh/hook-weight": "-8"
+    "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded, hook-failed
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: {{ .Values.global.seccompAllowedProfileNames }}
+    seccomp.security.alpha.kubernetes.io/defaultProfileName: {{ .Values.global.seccompDefaultProfileName }}
+
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - endpoints
+  - persistentvolumeclaims
+  - replicationcontrollers
+  - secrets
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - patch
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - persistentvolumeclaims
+  - configmaps
+  verbs:
+  - get
+  - list
+  - watch
+  - update
+
+- apiGroups:
+  - batch
+  resources:
+  - cronjobs
+  - jobs
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - patch
+  - update
+  - get
+  - list
+  - watch
+
+- apiGroups:
+  - extensions
+  resources:
+  - deployments
+  - deployments/rollback
+  - deployments/scale
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - patch
+  - update
+- apiGroups:
+  - extensions
+  resources:
+  - deployments
+  - deployments/scale
+  - deployments/status
+  verbs:
+  - get
+  - list
+  - watch
+{{- end }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "es.delete.preHealJob.name" . }}
+  labels:
+    app: {{ template "elasticsearch.name" . }}
+  annotations:
+    "helm.sh/hook-weight": "-6"
+    "helm.sh/hook": post-delete
+    "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: {{ .Values.global.seccompAllowedProfileNames }}
+    seccomp.security.alpha.kubernetes.io/defaultProfileName: {{ .Values.global.seccompDefaultProfileName }}
+
+spec:
+  template:
+    metadata:
+      labels:
+        app: {{ template "elasticsearch.name" . }}
+      {{- if .Values.istio.enabled }}
+      annotations:
+        sidecar.istio.io/inject: "false"
+      {{- end }}
+    spec:
+      serviceAccountName: {{ default ( default (printf "%s-del-sa" ( include "elasticsearch.fullname" . )) .Values.global.serviceAccountName ) .Values.serviceAccountName }}
+      restartPolicy: Never
+      containers:
+      - name: {{ template "es.delete.preHealContainer.name" . }}
+        image: "{{ .Values.global.registry1 }}/{{ .Values.kubectl.image.repo }}:{{ .Values.kubectl.image.tag }}"
+        resources:
+{{ toYaml .Values.jobResources | indent 10 }}
+        command:
+        - sh
+        - "-c"
+        - |
+          kubectl delete job {{ template "es.delete.preHealJob.name" . }} --namespace {{ .Release.Namespace }} --ignore-not-found=true
+---
+{{- if .Values.persistence.auto_delete }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "es.delete.pvcJob.name" . }}
+  labels:
+    app: {{ template "elasticsearch.name" . }}
+  annotations:
+    "helm.sh/hook-weight": "-6"
+    "helm.sh/hook": post-delete
+    "helm.sh/hook-delete-policy": hook-succeeded
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: {{ .Values.global.seccompAllowedProfileNames }}
+    seccomp.security.alpha.kubernetes.io/defaultProfileName: {{ .Values.global.seccompDefaultProfileName }}
+spec:
+  template:
+    metadata:
+      labels:
+        app: {{ template "elasticsearch.name" . }}
+      {{- if .Values.istio.enabled }}
+      annotations:
+        sidecar.istio.io/inject: "false"
+      {{- end }}
+    spec:
+      serviceAccountName: {{ default ( default (printf "%s-del-sa" ( include "elasticsearch.fullname" . )) .Values.global.serviceAccountName ) .Values.serviceAccountName }}
+      restartPolicy: Never
+      containers:
+      - name: {{ template "es.delete.pvcContainer.name" .}}
+        image: "{{ .Values.global.registry1 }}/{{ .Values.kubectl.image.repo }}:{{ .Values.kubectl.image.tag }}"
+        securityContext:
+          allowPrivilegeEscalation: false
+          privileged: false
+          capabilities:
+            drop:
+              - all
+        resources:
+{{ toYaml .Values.jobResources | indent 10 }}
+        command:
+        - sh
+        - "-c"
+        - |
+          kubectl delete pvc --namespace {{ .Release.Namespace }} -l release={{ .Release.Name }},component=elasticsearch
+---
+{{- end }}
+## Start of custom modification of original chart
+{{- if .Values.cbur.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "es.delete.cleanUpJob.name" . }}
+  labels:
+    app: {{ template "elasticsearch.name" . }}
+  annotations:
+    "helm.sh/hook-weight": "-6"
+    "helm.sh/hook": post-delete
+    "helm.sh/hook-delete-policy": hook-succeeded
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: {{ .Values.global.seccompAllowedProfileNames }}
+    seccomp.security.alpha.kubernetes.io/defaultProfileName: {{ .Values.global.seccompDefaultProfileName }}
+spec:
+  template:
+    metadata:
+      labels:
+        app: {{ template "elasticsearch.name" . }}
+      {{- if .Values.istio.enabled }}
+      annotations:
+        sidecar.istio.io/inject: "false"
+      {{- end }}
+    spec:
+      serviceAccountName: {{ default ( default (printf "%s-del-sa" ( include "elasticsearch.fullname" . )) .Values.global.serviceAccountName ) .Values.serviceAccountName }}
+
+      restartPolicy: Never
+      containers:
+      - name: {{ template "es.delete.cleanUpContainer.name" . }}
+        image: "{{ .Values.global.registry1 }}/{{ .Values.kubectl.image.repo }}:{{ .Values.kubectl.image.tag }}"
+        securityContext:
+          allowPrivilegeEscalation: false
+          privileged: false
+          capabilities:
+            drop:
+              - all
+        resources:
+{{ toYaml .Values.jobResources | indent 10 }}
+        command:
+        - sh
+        - "-c"
+        - |
+          #following code is added to delete configmaps that get created as part of elk6 to elk7 upgrade.
+          #In case of failed upgrade these resources do not get deleted even after release is purged.
+          kubectl delete cm {{ template "elasticsearch.fullname" . }}-searchguard-config-6 --namespace {{ .Release.Namespace }} --ignore-not-found=true
+          kubectl delete cm elk-version-check --namespace {{ .Release.Namespace }} --ignore-not-found=true
+          #deleting deployment because in elk6 elasticsearch master pod was brought up as a deploymet set which was later
+          #changed to statefulset. in case of failed upgrade, this resource also does not get deleted even after purging
+          #the release.
+          kubectl delete deployments --namespace {{ .Release.Namespace }} -l release={{ .Release.Name }},component=elasticsearch --ignore-not-found=true
+          # Helm-hook-delete policy of pre/post upgrade jobs has been made user configurable. If user has modified it to retain the jobs even on hook-succeeded, these jobs should be deleted on deletion of the helm release. Following code is added to handle this job deletion.
+          kubectl delete job --namespace {{ .Release.Namespace }} {{ template "es.preUpgradeJob.name" . }} {{ template "es.postUpgradejob.name" . }} --ignore-not-found=true
+
+---
+{{- end }}
+## End of custom modification of original chart

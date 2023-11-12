@@ -1,0 +1,52 @@
+- name: Clean up Master Node
+  hosts: localhost
+  connection: local
+  collections:
+    - azure.azcollection
+
+  vars:
+    resourceGroup: open-wavehub-dev
+    newRG: "{{ lookup('env', 'rg') }}"
+    nmaster: "{{ lookup('env', 'masterName') }}"
+    location: "{{ lookup('env', 'region') }}"
+    wasVaultName: "{{ lookup('env', 'wasVaultName') }}"
+
+  tasks:
+    - name: Get OS Disk of VM
+      shell: sudo az vm show -d -g "{{ newRG }}" -n "{{ nmaster }}" --query "storageProfile.osDisk.managedDisk.id" | awk -F '[/]' '{print $9}' | sed 's/"//'
+      register: diskname
+
+    - name: show osDisk
+      set_fact:
+        osdisk: "{{ diskname.stdout }}"
+
+    - name: Remove a VM and all resources that were autocreated
+      azure_rm_virtualmachine:
+        resource_group: "{{ newRG }}"
+        name: "{{ nmaster }}"
+        remove_on_absent: all_autocreated
+        state: absent
+
+    - name: Remove network interface
+      azure_rm_networkinterface:
+        resource_group: "{{ newRG }}"
+        name: "{{ nmaster }}"
+        state: absent
+
+    - name: Remove managed disk
+      azure_rm_manageddisk:
+        name: "{{ osdisk }}"
+        location: "{{ location }}"
+        resource_group: "{{ newRG }}"
+        state: absent
+
+    - name: Delete public ip
+      azure_rm_publicipaddress:
+        resource_group: "{{ newRG }}"
+        name: "{{ nmaster }}"
+        state: absent
+      ignore_errors: yes
+
+    - name: Delete Backup Item of Itself
+      shell: az backup protection disable --container-name {{ nmaster }} --backup-management-type AzureIaasVM --delete-backup-data true --item-name {{ nmaster }} --resource-group {{ resourceGroup }} --vault-name {{ wasVaultName }} --yes
+      ignore_errors: yes

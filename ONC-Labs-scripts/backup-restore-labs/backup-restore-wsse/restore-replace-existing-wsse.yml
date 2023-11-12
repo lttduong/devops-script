@@ -1,0 +1,71 @@
+---
+- name: Recovery Existing WSSE VM
+  hosts: localhost
+  connection: local
+  collections:
+   - azure.azcollection
+
+  vars_files:
+    se_env_variables
+
+  tasks:
+  # - name: Resume backup if VM is disabled
+  #   shell: sudo  az backup protection resume --vault-name "{{ wsseVaultName }}" --resource-group "{{ resourceGroup }}" --container-name "{{ wsseName }}" --backup-management-type AzureIaasVM --item-name "{{ wsseName }}" --policy-name "{{ policyVault }}"
+  #   ignore_errors: yes
+
+  - name: Restore the disk from your recovery point
+    shell: sudo az backup restore restore-disks --resource-group "{{ resourceGroup }}" --vault-name "{{ wsseVaultName }}" --container-name onc-wsse-2202 --item-name onc-wsse-2202 --storage-account "{{ wsseStorageName }}" --rp-name "{{ wsseRecoveryPoint }}" --target-resource-group "{{ newRG }}" --query name
+    register: backupjob
+
+  - name: Pause for 5 minutes for restore disk
+    pause:
+      minutes: 5
+  
+  # - name: Disable backup of VM
+  #   shell: sudo az backup protection disable --resource-group "{{ resourceGroup }}" --vault-name "{{ wsseVaultName }}" --container-name "{{ wsseName}}" --item-name "{{ wsseName }}" --backup-management-type AzureIaaSVM -y
+  
+  - name: Change VM name to lower and cut special characters in name
+    shell: echo "onc-wsse-2202" | tr -dc '[:alnum:]\n\r' | tr '[:upper:]' '[:lower:]'
+    register: vmname
+  
+  - name: Get new Id disk
+    shell: sudo az disk list -g "{{ newRG }}" --query '[?managedBy==`null`].[id]' -o tsv | grep -i "{{ vmname.stdout }}"
+    register: newiddisk
+
+  - name: Get old Id disk
+    shell: sudo az vm show -d -g "{{ newRG }}" -n "{{ wsseName }}" --query "storageProfile.osDisk.managedDisk.id" | awk -F '[/]' '{print $9}' | sed 's/"//'
+    register: oldiddisk
+
+  - name: Stop WSSE VM
+    shell: sudo az vm stop -n "{{ wsseName }}" -g "{{ newRG }}"
+
+  - name: Swap disk for wsse vm
+    shell: sudo az vm update -g "{{ newRG }}" -n "{{ wsseName }}" --os-disk {{ newiddisk.stdout }}
+
+  - name: Start WSSE VM
+    shell: sudo az vm start -n "{{ wsseName }}" -g "{{ newRG }}"
+
+  - name: Remove Os Disk
+    azure_rm_manageddisk:
+      name: "{{ oldiddisk.stdout }}"
+      location: eastus
+      resource_group: "{{ newRG }}"
+      state: absent
+
+  - name: Get public IP new restore vm
+    shell: sudo az vm show -g "{{ newRG }}" -n "{{ wsseName }}"  --query publicIps -d --out tsv
+    register: publicip
+
+  - name: Get private IP new store vm
+    shell: sudo az vm show -g "{{ newRG }}" -n "{{ wsseName }}"  --query privateIps -d --out tsv
+    register: privateip
+
+  - name: Replace public ip of wsse hosts
+    shell: sudo sed -i "s/172.17.0.7/"{{ publicip.stdout }}"/g" ../hosts
+
+  - name: Refresh inventory to ensure new instances exist in inventory
+    meta: refresh_inventory
+
+  - name: Pause 2 minutes for sync hosts file
+    pause:
+     minutes: 2

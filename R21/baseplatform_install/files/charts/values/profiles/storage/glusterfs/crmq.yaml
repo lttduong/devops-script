@@ -1,0 +1,4 @@
+persistence:
+  data:
+    storageClass: glusterfs-storageclass
+    enabled: true

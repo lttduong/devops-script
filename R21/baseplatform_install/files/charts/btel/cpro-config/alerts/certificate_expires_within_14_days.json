@@ -1,0 +1,12 @@
+{
+  "alert": "CertificateExpiresWithin14Days",
+  "expr": "((certmanager_certificate_expiration_timestamp_seconds - time()) / 60 / 60 / 24) <= 14",
+  "for": "5m",
+  "labels": {
+    "severity": "MAJOR"
+  },
+  "annotations": {
+    "summary": "Certificate expires within 14 days (name {{ $labels.name }})",
+    "description": "Certificate expires within 14 days.\n  VALUE = {{ $value }}\n  LABELS: {{ $labels }}"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "alert": "PendingTasks",
+  "expr": "es_cluster_pending_tasks_number > 0",
+  "for": "5m",
+  "labels": {
+    "alert_id": "6003",
+    "alert_severity": "WARNING"
+  },
+  "annotations": {
+    "description": "Alarm - `There are pending tasks running for over 5 minutes. Cluster might get slow.`",
+    "summary": "Instance - {{ $labels.instance }}"
+  }
+}

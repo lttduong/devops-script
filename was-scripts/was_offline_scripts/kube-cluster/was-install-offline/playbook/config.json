@@ -1,0 +1,7 @@
+{
+        "auths": {
+                "wasr21containerregistry.azurecr.io": {
+                        "auth": "V0FTUjIxQ29udGFpbmVyUmVnaXN0cnk6c0RXNTFIeHArcDQxcmxnU0RHTFIzQlRHM0d4Q2hRV2w="
+                }
+        }
+}

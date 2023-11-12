@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<AlarmTypes>
+	<AlarmType alarmCode="CBAM_COMPONENT_DOWN">
+		<SourceAdapter>CBAM_OWN_ALARM_ADAPTER</SourceAdapter>
+		<SourceObjectType>Component</SourceObjectType>
+		<Severity>MAJOR</Severity>
+		<COAData>
+			<ComponentAlarmType>DOWN</ComponentAlarmType>
+		</COAData>
+		<AlarmText>Component down</AlarmText>
+		<ExtraData>
+			<SpecificProblem>20001</SpecificProblem>
+			<ProbableCause>302</ProbableCause>
+			<EventType>PROCESSINGERROR</EventType>
+		</ExtraData>
+	</AlarmType>
+
+	<AlarmType alarmCode="CBAM_INTERFACE_COMPONENT_UNREACHABLE">
+		<SourceAdapter>CBAM_OWN_ALARM_ADAPTER</SourceAdapter>
+		<SourceObjectType>Machine</SourceObjectType>
+		<Severity>CRITICAL</Severity>
+		<COAData>
+			<InterfacingAlarmType>UNREACHABLE</InterfacingAlarmType>
+		</COAData>
+		<AlarmText>Interfacing component unreachable</AlarmText>
+		<ExtraData>
+			<SpecificProblem>20006</SpecificProblem>
+			<ProbableCause>566</ProbableCause>
+			<EventType>COMMUNICATION</EventType>
+		</ExtraData>
+	</AlarmType>
+
+	<AlarmType alarmCode="CBAM_CPU_USAGE_HIGH">
+		<SourceAdapter>CBAM_OWN_ALARM_ADAPTER</SourceAdapter>
+		<SourceObjectType>Machine</SourceObjectType>
+		<Severity>MAJOR</Severity>
+		<COAData>
+			<ResourceAlarmType>CPU_USAGE_HIGH</ResourceAlarmType>
+		</COAData>
+		<AlarmText>CPU usage high</AlarmText>
+		<ExtraData>
+			<SpecificProblem>20005</SpecificProblem>
+			<ProbableCause>154</ProbableCause>
+			<EventType>PROCESSINGERROR</EventType>
+		</ExtraData>
+	</AlarmType>
+
+	<AlarmType alarmCode="CBAM_MEMORY_LOW">
+		<SourceAdapter>CBAM_OWN_ALARM_ADAPTER</SourceAdapter>
+		<SourceObjectType>Machine</SourceObjectType>
+		<Severity>MAJOR</Severity>
+		<COAData>
+			<ResourceAlarmType>MEMORY_LOW</ResourceAlarmType>
+		</COAData>
+		<AlarmText>Memory low</AlarmText>
+		<ExtraData>
+			<SpecificProblem>20004</SpecificProblem>
+			<ProbableCause>332</ProbableCause>
+			<EventType>PROCESSINGERROR</EventType>
+		</ExtraData>
+	</AlarmType>
+
+	<AlarmType alarmCode="CBAM_DISK_SPACE_LOW">
+		<SourceAdapter>CBAM_OWN_ALARM_ADAPTER</SourceAdapter>
+		<SourceObjectType>Machine</SourceObjectType>
+		<Severity>MAJOR</Severity>
+		<COAData>
+			<ResourceAlarmType>DISK_SPACE_LOW</ResourceAlarmType>
+		</COAData>
+		<AlarmText>Disk space low</AlarmText>
+		<ExtraData>
+			<SpecificProblem>20003</SpecificProblem>
+			<ProbableCause>151</ProbableCause>
+			<EventType>PROCESSINGERROR</EventType>
+		</ExtraData>
+	</AlarmType>
+
+	<AlarmType alarmCode="CBAM_MM_JOB_FAILED">
+		<SourceAdapter>CBAM_OWN_ALARM_ADAPTER</SourceAdapter>
+		<SourceObjectType>Component</SourceObjectType>
+		<Severity>MAJOR</Severity>
+		<COAData>
+			<MaintenanceModeAlarmType>FAILED</MaintenanceModeAlarmType>
+		</COAData>
+		<AlarmText>Switch to maintenance mode or operation mode failed</AlarmText>
+		<ExtraData>
+			<SpecificProblem>20050</SpecificProblem>
+			<ProbableCause>346</ProbableCause>
+			<EventType>PROCESSINGERROR</EventType>
+		</ExtraData>
+	</AlarmType>
+
+	<AlarmType alarmCode="CBAM_MM_SET_STATE_TIMEOUT">
+		<SourceAdapter>CBAM_OWN_ALARM_ADAPTER</SourceAdapter>
+		<SourceObjectType>Component</SourceObjectType>
+		<Severity>MINOR</Severity>
+		<COAData>
+			<MaintenanceModeAlarmType>TIME_OUT</MaintenanceModeAlarmType>
+		</COAData>
+		<AlarmText>Switch to maintenance mode timeout</AlarmText>
+		<ExtraData>
+			<SpecificProblem>20052</SpecificProblem>
+			<ProbableCause>548</ProbableCause>
+			<EventType>EQUIPMENT</EventType>
+		</ExtraData>
+	</AlarmType>
+
+	<AlarmType alarmCode="CBAM_MM_STATE_CHANGED">
+		<SourceAdapter>CBAM_OWN_ALARM_ADAPTER</SourceAdapter>
+		<SourceObjectType>Component</SourceObjectType>
+		<Severity>MINOR</Severity>
+		<COAData>
+			<MaintenanceModeAlarmType>CHANGED</MaintenanceModeAlarmType>
+		</COAData>
+		<AlarmText>CBAM is in maintenance mode</AlarmText>
+		<ExtraData>
+			<SpecificProblem>20051</SpecificProblem>
+			<ProbableCause>0</ProbableCause>
+			<EventType>PROCESSINGERROR</EventType>
+		</ExtraData>
+	</AlarmType>
+	<AlarmType alarmCode="CBAM_DNS_UNREACHABLE">
+		<SourceAdapter>CBAM_OWN_ALARM_ADAPTER</SourceAdapter>
+		<SourceObjectType>Machine</SourceObjectType>
+		<Severity>MAJOR</Severity>
+		<COAData>
+			<DnsAlarmType>UNREACHABLE</DnsAlarmType>
+		</COAData>
+		<AlarmText>DNS server is unreachable or not configured</AlarmText>
+		<ExtraData>
+			<SpecificProblem>20007</SpecificProblem>
+			<ProbableCause>566</ProbableCause>
+			<EventType>COMMUNICATION</EventType>
+		</ExtraData>
+	</AlarmType>
+	<AlarmType alarmCode="CBAM_DNS_ERROR">
+		<SourceAdapter>CBAM_OWN_ALARM_ADAPTER</SourceAdapter>
+		<SourceObjectType>Machine</SourceObjectType>
+		<Severity>MAJOR</Severity>
+		<COAData>
+			<DnsAlarmType>ERROR</DnsAlarmType>
+		</COAData>
+		<AlarmText>DNS error</AlarmText>
+		<ExtraData>
+			<SpecificProblem>20008</SpecificProblem>
+			<ProbableCause>585</ProbableCause>
+			<EventType>PROCESSINGERROR</EventType>
+		</ExtraData>
+	</AlarmType>
+</AlarmTypes>

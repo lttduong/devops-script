@@ -1,0 +1,22 @@
+---
+- name: "Generate Keycloak admin password"
+  set_fact:
+    keycloakPassword: "{{ lookup('password', '/dev/null length=1 chars=ascii_uppercase') +
+                         lookup('password', '/dev/null length=1 chars=ascii_lowercase') +
+                         lookup('password', '/dev/null length=1 chars=digits') +
+                         lookup('password', '/dev/null length=1 chars={{ passwordSigns }}') +
+                         lookup('password', '/dev/null length={{ passwordLength-4 }}
+                                 chars=ascii_letters,digits,{{ passwordSigns }}') | shuffle | join | trim }}"
+  no_log: true
+  when: keycloakPassword is not defined
+
+- name: "Generate dbKeycloak password to database"
+  set_fact:
+    dbPassword: "{{ lookup('password', '/dev/null length=1 chars=ascii_uppercase') +
+                   lookup('password', '/dev/null length=1 chars=ascii_lowercase') +
+                   lookup('password', '/dev/null length=1 chars=digits') +
+                   lookup('password', '/dev/null length=1 chars={{ passwordSigns }}') +
+                   lookup('password', '/dev/null length={{ passwordLength-4 }}
+                           chars=ascii_letters,digits,{{ passwordSigns }}') | shuffle | join | trim }}"
+  no_log: true
+  when: dbPassword is not defined

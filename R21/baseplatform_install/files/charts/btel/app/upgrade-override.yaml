@@ -1,0 +1,1442 @@
+global:
+  istioVersion: 1.5
+  podNamePrefix: ""
+  containerNamePrefix: ""
+
+belk:
+  global:
+    podNamePrefix:
+    containerNamePrefix:
+    istio:
+      version: 1.4
+    rbac:
+      enabled: true
+    serviceAccountName: ""
+
+  belk-fluentd:
+    customResourceNames:
+      resourceNameLimit: 63
+      fluentdPod:
+        fluentdContainerName: ""
+      scaleinJob:
+        name: ""
+        postscaleinContainerName: ""
+      deletePvcJob:
+        name: ""
+        deletePvcContainerName: ""
+    nameOverride:
+    fullnameOverride:
+    fluentd:
+      image:
+        repo: elk_f
+        tag: 1.11.1-20.08.0
+      statefulsetSuffix: "-statefulset"
+      daemonsetSuffix: "-daemonset"
+      replicas: 1
+      serviceAccountName: ""
+      securityContext:
+        fsGroup: 998
+      livenessProbe:
+        initialDelaySeconds: 30
+        periodSeconds: 20
+        timeoutSeconds: 1
+        successThreshold: 1
+        failureThreshold: 3
+      readinessProbe:
+        initialDelaySeconds: 30
+        periodSeconds: 15
+        timeoutSeconds: 1
+        successThreshold: 1
+        failureThreshold: 3
+    istio:
+      enabled: false
+      version:
+    cvea_log:
+      enable: false
+      cvea_connection: 0.0.0.0:9991
+      rpc_timeout: 300
+      cvea_retrytimes: 10
+      cvea_retryinterval: 200
+
+  belk-elasticsearch:
+    global:
+      podNamePrefix:
+      containerNamePrefix:
+      istio:
+        version: 1.4
+      rbac:
+        enabled: true
+      serviceAccountName: ""
+    serviceAccountName: ""
+    customResourceNames:
+      resourceNameLimit: 63
+      masterPod:
+        masterContainerName: ""
+      dataPod:
+        dataContainerName: ""
+      clientPod:
+        clientContainerName: ""
+      postScaleInJob:
+        name: ""
+        postScaleInContainerName: ""
+      preUpgradeSgMigrateJob:
+        name: ""
+        preUpgradeSgMigrateContainerName: ""
+      postUpgradeSgMigrateJob:
+        name: ""
+        postUpgradeSgMigrateContainerName: ""
+      preHealJob:
+        name: ""
+        preHealContainerName: ""
+      postDeletePrehealJob:
+        name: ""
+        postDeletePrehealContainerName: ""
+      postDeleteCleanupJob:
+        name: ""
+        postDeleteCleanupContainerName: ""
+      postDeletePvcJob:
+        name: ""
+        postDeletePvcContainerName: ""
+    nameOverride:
+    fullnameOverride:
+    es_securityContext:
+      fsGroup: 1000
+    istio:
+      enabled: false
+      envoy_health_chk_port: 15020
+      version:
+    upgrade:
+      hookDelPolicy: before-hook-creation, hook-succeeded
+    elasticsearch_master:
+      image:
+        repo: elk_e_cos7
+        tag: 7.8.0-20.09.03
+      podAffinity: {}
+      livenessProbe:
+        initialDelaySeconds: 30
+        periodSeconds: 20
+        timeoutSeconds: 1
+        successThreshold: 1
+        failureThreshold: 3
+      readinessProbe:
+        initialDelaySeconds: 30
+        periodSeconds: 20
+        timeoutSeconds: 1
+        successThreshold: 1
+        failureThreshold: 3
+    esdata:
+      podAffinity: {}
+      livenessProbe:
+        initialDelaySeconds: 30
+        periodSeconds: 20
+        timeoutSeconds: 1
+        successThreshold: 1
+        failureThreshold: 3
+      readinessProbe:
+        initialDelaySeconds: 30
+        periodSeconds: 20
+        timeoutSeconds: 1
+        successThreshold: 1
+        failureThreshold: 3
+    elasticsearch_client:
+      podAffinity: {}
+      livenessProbe:
+        initialDelaySeconds: 90
+        periodSeconds: 20
+        timeoutSeconds: 1
+        successThreshold: 1
+        failureThreshold: 3
+      readinessProbe:
+        initialDelaySeconds: 90
+        periodSeconds: 20
+        timeoutSeconds: 1
+        successThreshold: 1
+        failureThreshold: 3
+    cbur:
+      cbura:
+        imageRepo: cbur/cbura
+        imageTag: 1.0.3-1665
+    searchguard:
+      image:
+        repo: elk_e_sg_cos7
+        tag: 7.8.0-20.09.04
+      adminUsername: ""
+      adminPwd: ""
+      istio:
+        extCkeyHostname: "ckey.io"
+        extCkeyLocation: "MESH_INTERNAL"
+        extCkeyIP: ""
+      http_ssl: true
+      nodes_dn: 'CN=elasticsearch'
+
+      sg_configmap:
+        sg_blocks_yml: |-
+          ---
+          _sg_meta:
+            type: "blocks"
+            config_version: 2
+
+  belk-kibana:
+    global:
+      podNamePrefix:
+      containerNamePrefix:
+      rbac:
+        enabled: true
+      serviceAccountName: ""
+      istio:
+        version: 1.4
+    customResourceNames:
+      resourceNameLimit: 63
+      kibanaPod:
+        kibanaContainerName: ""
+    nameOverride:
+    fullnameOverride:
+    kibana:
+      image:
+        repo: elk_k_cos7
+        tag: 7.8.0-20.09.02
+      serviceAccountName: ""
+      securityContext:
+        fsGroup: 1000
+      livenessProbe:
+        initialDelaySeconds: 120
+        periodSeconds: 30
+        timeoutSeconds: 1
+        successThreshold: 1
+        failureThreshold: 3
+      readinessProbe:
+        initialDelaySeconds: 120
+        periodSeconds: 15
+        timeoutSeconds: 1
+        successThreshold: 1
+        failureThreshold: 3
+      configMaps:
+        kibana_configmap_yml: |-
+          ---
+          # Donot change sever name and host. This is default configuration.
+          server.name: kibana
+          server.host: "0"
+          #Enable server.ssl.supportedProtocols when SG is enabled.
+          server.ssl.supportedProtocols: ["TLSv1.2"]
+          server.ssl.enabled: true
+          server.ssl.certificate: /usr/share/kibana/ssl/tls.crt
+          server.ssl.key: /usr/share/kibana/ssl/tls.key
+          elasticsearch.requestHeadersWhitelist: [ "sgtenant", "x-forwarded-for", "x-forwarded-by", "netguard-proxy-user", "netguard-proxy-roles", "cookie", "x-real-ip" ]
+          elasticsearch.ssl.certificate: /usr/share/kibana/client-ssl/tls.crt
+          elasticsearch.ssl.key: /usr/share/kibana/client-ssl/tls.key
+          elasticsearch.ssl.alwaysPresentCertificate: false
+          searchguard.allow_client_certificates: true
+          searchguard.auth.type: "proxy"
+          csp.strict: true
+      env:
+        - name: "ELASTICSEARCH_HOSTS"
+          value: "https://elasticsearch.<BP_NAMESPACE_PLACEHOLDER>.<DNS_DOMAIN_PLACEHOLDER>:9200"
+        - name: "LOG_INDICES"
+          value: '["log-*", journal]'
+        - name: "DEFAULT_FIELDS"
+          value: "log,message"
+        - name: "EXPORT_CHUNK_SIZE"
+          value: "500"
+        - name: "SCROLL_TIME"
+          value: "10m"
+        - name: "EXPORT_TIMEOUT"
+          value: "40s"
+        - name: "TIMESTAMP_FIELD"
+          value: "@timestamp"
+    istio:
+      enabled: false
+      version: 1.5
+      virtual_svc:
+        hosts:
+          - "*"
+      gateway:
+        existing_gw_name: "btel-common-istio-gateway"
+        selector:
+          istio: ingressgateway
+        port:
+          number: 80
+          protocol: HTTP
+          name: http
+        hosts:
+          - "*"
+        tls: [ ]
+    searchguard:
+      image:
+        repo: elk_k_sg_cos7
+        tag: 7.8.0-20.09.03
+      istio:
+        extCkeyHostname: ""
+        extCkeyLocation: "MESH_INTERNAL"
+        extCkeyIP: ""
+        extCkeyPort: ""         # Ex. extCkeyPort: 31390
+        extCkeyProtocol: ""     # accepted values: HTTP, HTTPS
+        ckeyK8sSvcName: ""     # Ex. keycloak-ckey.default.svc.cluster.local
+        ckeyK8sSvcPort: ""    # Ex. ckeyK8sSvcPort: 8443
+
+  belk-curator:
+    global:
+      podNamePrefix:
+      containerNamePrefix:
+      rbac:
+        enabled: true
+      serviceAccountName: ""
+    istio:
+      enabled: false
+      envoy_health_chk_port: 15020
+    customResourceNames:
+      resourceNameLimit: 63
+      curatorCronJobPod:
+        curatorContainerName: ""
+      deleteJob:
+        name: ""
+        deleteJobContainerName: ""
+    nameOverride:
+    fullnameOverride:
+    curator:
+      image:
+        repo: elk_c_cos7
+        tag: 5.8.1-20.09.0
+      serviceAccountName: ""
+      securityContext:
+        fsGroup: 1000
+      configMaps:
+        preCreatedConfigmap: ""
+
+calm:
+  global:
+    podNamePrefix:
+    containerNamePrefix:
+  image:
+    imageRepo: calm/alma
+    imageTag: 9c82d092
+  rbac:
+    enabled: true
+  restServiceType: NodePort
+  snmpServiceType: NodePort
+  logLevel: INFO
+  persistence:
+    backupSize: 3Gi
+    pvc_auto_delete: false
+  mariadbClientKey:
+  mariadbClientCert:
+  mariadbServerCert:
+  endPoint:
+  alarmAdapterClasses: com.nokia.csf.calm.adapter.QueueBasedAlarmAdapter;com.nokia.csf.calm.adapter.SnmpNorthboundAdapter
+  maxActiveAlarmCount: 1024
+  maxNumberOfEvents: 10240
+  transactionRetryCount: 10
+  maxThreads: 20
+  maxSnmp4jThreads: 3
+  ha: false
+  tokenValidationViaKeycloak: false
+  snmpv3UserConfiguration:
+  viewConfiguration:
+  cveaAgentVersion: v7
+  cveaAgentHosts:
+  unifiedLogging:
+    MocName: ""
+  cnot:
+    base64Truststore:
+  istio:
+    enabled: false
+    inject: true
+    permissive: false
+    cni_enabled: false
+    ingress:
+      enabled: true
+      host: "*"
+      port: 80
+      selector: { istio: ingressgateway }
+      uriRoot: calm
+      gatewayName:
+      tls:
+        enabled: true
+        port: 443
+        tlsOptions:
+          mode: SIMPLE
+          credentialName: calm-credential
+  fixAlarmCreateTimeIsUTC: true
+  kubectl:
+    image:
+      repo: tools/kubectl
+      tag: v1.17.5-nano
+    jobResources:
+      requests:
+        cpu: 200m
+        memory: 500Mi
+      limits:
+        cpu: 1
+        memory: 1Gi
+  helmDeleteHooks: "before-hook-creation,hook-succeeded"
+
+cnot:
+  global:
+    istioVersion: 1.4
+  ingress:
+    annotations:
+      kubernetes.io/ingress.class: "netguard"
+  fullnameOverride: cnot
+  istio:
+    enabled: false
+    gateway: true
+    legacyCapabilities: true
+    destinationRule: true
+    permissive: false
+  rbac:
+    enabled: true
+  serviceAccountName:
+  configmapReload:
+    image:
+      imageRepo: cnot/configmap-reload
+      imageTag: 1.2.2-151
+  cnot:
+    image:
+      imageRepo: cnot/server/cnot
+      imageTag: 1.5.4-1821
+
+cpro:
+  global:
+    annotations: {}
+    labels: {}
+    serviceAccountName:
+    istioVersion: 1.4
+    podNamePrefix: ""
+    containerNamePrefix: ""
+  customResourceNames:
+    resourceNameLimit: 63
+    alertManagerPod:
+      alertManagerContainer: ""
+      configMapReloadContainer: ""
+    restServerPod:
+      restServerContainer: ""
+      configMapReloadContainer: ""
+    restServerHelmTestPod:
+      name: ""
+      testContainer: ""
+    serverPod:
+      inCntInitChownData: ""
+      configMapReloadContainer: ""
+      serverContainer: ""
+    pushGatewayPod:
+      pushGatewayContainer: ""
+    kubeStateMetricsPod:
+      kubeStateMetricsContainer: ""
+    hooks:
+      postDeleteJobName: ""
+      postDeleteContainer: ""
+    webhook4fluentd:
+      webhookContainer: ""
+    nodeExporter:
+      nodeExporterContainer: ""
+    zombieExporter:
+      zombieExporterContainer: ""
+    migrate:
+      preUpgradePodName: ""
+      preUpgradeContainer: ""
+      postUpgradePodName: ""
+      postUpgradeContainer: ""
+    serverHelmTestPod:
+      name: ""
+      testContainer: ""
+  custom:
+    psp:
+      annotations:
+        seccomp.security.alpha.kubernetes.io/allowedProfileNames: runtime/default
+        seccomp.security.alpha.kubernetes.io/defaultProfileName: runtime/default
+      apparmorAnnotations:
+        apparmor.security.beta.kubernetes.io/allowedProfileNames: runtime/default
+        apparmor.security.beta.kubernetes.io/defaultProfileName: runtime/default
+      labels: {}
+    pod:
+      annotations:
+        seccomp.security.alpha.kubernetes.io/allowedProfileNames: runtime/default
+        seccomp.security.alpha.kubernetes.io/defaultProfileName: runtime/default
+      apparmorAnnotations:
+        apparmor.security.beta.kubernetes.io/allowedProfileNames: runtime/default
+        apparmor.security.beta.kubernetes.io/defaultProfileName: runtime/default
+      labels: {}
+  rbac:
+    enabled: true
+    pspUseAppArmor: false
+  certManager:
+    used: false
+    duration: "8760h" # 365d
+    renewBefore: "360h" # 15d
+    keySize: "2048"
+    api: "cert-manager.io/v1alpha2"
+    dnsNames:
+      - localhost
+    domain:
+    issuerRef:
+      name: ncms-ca-issuer
+      kind: ClusterIssuer
+  restrictedToNamespace: false
+
+  seLinuxOptions:
+    enabled: false
+    level: ""
+    role: ""
+    type: ""
+    user: ""
+  serviceAccountName:
+  exportersServiceAccountName:
+  helmDeleteImage:
+    imageRepo: tools/kubectl
+    imageTag: v1.17.8-nano
+  istio:
+    enable: false
+    mtls_enable: true
+    cni_enable: true
+    test_timeout: 60
+  alertmanager:
+    image:
+      imageRepo: cpro/registry4/alertmanager
+      imageTag: v0.21.0-2
+    istioIngress:
+      enabled: true
+      Contextroot: alertmanager
+      selector: {istio: ingressgateway}
+      host: "*"
+      httpPort: 80
+      gatewayName: "istio-system/single-gateway-in-istio-system"
+      tls:
+        enabled: true
+        httpsPort: 443
+        mode: SIMPLE
+        credentialName: "am-gateway"
+    service:
+      annotationsForAlertmanagerCluster: {}
+      annotationsForScrape:
+        prometheus.io/scrape: "true"
+        prometheus.io/scheme: http
+      annotations: {}
+  configmapReload:
+    image:
+      imageRepo: cpro/registry4/configmap-reload
+      imageTag: v0.2.1-4.0.0
+  tools:
+    image:
+      imageRepo: cpro/registry4/tools-image
+      imageTag: 1.6.0
+  helmtest:
+    deletepolicy: hook-succeeded,before-hook-creation
+    resources:
+      limits:
+        cpu: 10m
+        memory: 32Mi
+      requests:
+        cpu: 10m
+        memory: 32Mi
+  initChownData:
+    enabled: false
+    image:
+      imageRepo: os_base/centos-nano
+      imageTag: 7.8-20200702
+  kubeStateMetrics:
+    image:
+      imageRepo: cpro/registry4/kube-state-metrics
+      imageTag: v1.5.0-5.0.0
+    service:
+      annotations: {}
+      annotationsForScrape:
+        prometheus.io/scrape: "true"
+        prometheus.io/scheme: http
+  nodeExporter:
+    image:
+      imageRepo: cpro/registry4/node_exporter
+      imageTag: v1.0.1-2
+    extraArgs:
+      web.listen-address: ":9100"
+    service:
+      servicePort: 9101
+  zombieExporter:
+    image:
+      imageRepo: cpro/registry4/zombie-process-exporter
+      imageTag: 1.5.0
+    service:
+      annotations:
+        prometheus.io/scheme: http
+      servicePort: 8003
+  server:
+    # Start of upgrade fix
+    # This section fixes multiple BTEL upgrade issues: CSFS-29698, CSFS-30591, CSFS-29461
+    strategy:
+      type: Recreate
+      rollingUpdate: null
+    extraKeys: [storage.tsdb.no-lockfile]
+    # End of upgrade fix
+    etcdCertMountPath: /etc/etcd/ssl
+    image:
+      imageRepo: cpro/registry4/prometheus
+      imageTag: v2.20.1-3
+    migrate:
+      resources:
+        requests:
+          cpu: 100m
+          memory: 64Mi
+        limits:
+          cpu: 200m
+          memory: 128Mi
+    cbur:
+      image:
+        imageRepo: cbur/cbura
+        imageTag: 1.0.3-1665
+      autoEnableCron: false
+      autoUpdateCron: false
+    istioIngress:
+      enabled: true
+      Contextroot: prometheus
+      selector: {istio: ingressgateway}
+      host: "*"
+      httpPort: 80
+      gatewayName: "istio-system/single-gateway-in-istio-system"
+      tls:
+        enabled: true
+        httpsPort: 443
+        mode: SIMPLE
+        credentialName: "am-gateway"
+    service:
+      annotations: {}
+      annotationsForScrape:
+  pushgateway:
+    image:
+      imageRepo: cpro/registry4/pushgateway
+      imageTag: v1.2.0-3.1.0
+    extraArgs:
+       push.disable-consistency-check: ""
+    baseURL: ""
+    prefixURL: ""
+    istioIngress:
+      enabled: true
+      selector: {istio: ingressgateway}
+      Contextroot: pushgateway
+      host: "*"
+      httpPort: 80
+      gatewayName: "istio-system/single-gateway-in-istio-system"
+      tls:
+        enabled: false
+        httpsPort: 443
+        mode: SIMPLE
+        credentialName: "pushgateway-secret"
+  webhook4fluentd:
+    image:
+      imageRepo: cpro/registry4/webhook4fluentd
+      imageTag: 3.1.0
+    service:
+      annotations: {}
+      annotationsForScrape:
+        prometheus.io/scrape: "true"
+        prometheus.io/scheme: http
+    prometheus.yml:
+      global:
+        ## How frequently to scrape targets by default
+        ##
+        scrape_interval: 1m
+        ## How long until a scrape request times out
+        ##
+        scrape_timeout: 10s
+        ## How frequently to evaluate rules
+        ##
+        evaluation_interval: 1m
+
+      rule_files:
+        - /etc/config/rules
+        - /etc/config/alerts
+
+      scrape_configs:
+        - job_name: prometheus
+          static_configs:
+            - targets:
+              - localhost:9090
+          honor_labels: true
+
+          kubernetes_sd_configs:
+            - role: endpoints
+
+          relabel_configs:
+            - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_probe]
+              action: keep
+              regex: prometheus
+            - source_labels: [__meta_kubernetes_pod_container_name]
+              action: drop
+              regex: istio-proxy
+            - source_labels: [__meta_kubernetes_namespace]
+              action: replace
+              target_label: namespace
+            - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_path]
+              action: replace
+              target_label: __metrics_path__
+        - job_name: 'kubernetes-apiservers'
+
+          kubernetes_sd_configs:
+            - role: endpoints
+
+          # Default to scraping over https. If required, just disable this or change to
+          # `http`.
+          scheme: https
+
+          # This TLS & bearer token file config is used to connect to the actual scrape
+          # endpoints for cluster components. This is separate to discovery auth
+          # configuration because discovery & scraping are two separate concerns in
+          # Prometheus. The discovery auth config is automatic if Prometheus runs inside
+          # the cluster. Otherwise, more config options have to be provided within the
+          # <kubernetes_sd_config>.
+          tls_config:
+            ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+            # If your node certificates are self-signed or use a different CA to the
+            # master CA, then disable certificate verification below. Note that
+            # certificate verification is an integral part of a secure infrastructure
+            # so this should only be disabled in a controlled environment. You can
+            # disable certificate verification by uncommenting the line below.
+            #
+            insecure_skip_verify: true
+          bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+
+          # Keep only the default/kubernetes service endpoints for the https port. This
+          # will add targets for each API server which Kubernetes adds an endpoint to
+          # the default/kubernetes service.
+          relabel_configs:
+            - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+              action: keep
+              regex: default;kubernetes;https
+            - source_labels: [__meta_kubernetes_namespace]
+              action: replace
+              target_label: namespace
+
+        - job_name: 'kubernetes-nodes'
+
+          # Default to scraping over https. If required, just disable this or change to
+          # `http`.
+          scheme: https
+
+          # This TLS & bearer token file config is used to connect to the actual scrape
+          # endpoints for cluster components. This is separate to discovery auth
+          # configuration because discovery & scraping are two separate concerns in
+          # Prometheus. The discovery auth config is automatic if Prometheus runs inside
+          # the cluster. Otherwise, more config options have to be provided within the
+          # <kubernetes_sd_config>.
+          tls_config:
+            ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+            # If your node certificates are self-signed or use a different CA to the
+            # master CA, then disable certificate verification below. Note that
+            # certificate verification is an integral part of a secure infrastructure
+            # so this should only be disabled in a controlled environment. You can
+            # disable certificate verification by uncommenting the line below.
+            #
+            insecure_skip_verify: true
+          bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+
+          kubernetes_sd_configs:
+            - role: node
+
+          relabel_configs:
+            - action: labelmap
+              regex: __meta_kubernetes_node_label_(.+)
+            - target_label: __address__
+              replacement: kubernetes.default.svc:443
+            - source_labels: [__meta_kubernetes_node_name]
+              regex: (.+)
+              target_label: __metrics_path__
+              replacement: /api/v1/nodes/${1}/proxy/metrics
+            - source_labels: [__meta_kubernetes_namespace]
+              action: replace
+              target_label: namespace
+
+
+        - job_name: 'kubernetes-nodes-cadvisor'
+
+          # Default to scraping over https. If required, just disable this or change to
+          # `http`.
+          scheme: https
+
+          # This TLS & bearer token file config is used to connect to the actual scrape
+          # endpoints for cluster components. This is separate to discovery auth
+          # configuration because discovery & scraping are two separate concerns in
+          # Prometheus. The discovery auth config is automatic if Prometheus runs inside
+          # the cluster. Otherwise, more config options have to be provided within the
+          # <kubernetes_sd_config>.
+          tls_config:
+            ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+            # If your node certificates are self-signed or use a different CA to the
+            # master CA, then disable certificate verification below. Note that
+            # certificate verification is an integral part of a secure infrastructure
+            # so this should only be disabled in a controlled environment. You can
+            # disable certificate verification by uncommenting the line below.
+            #
+            insecure_skip_verify: true
+          bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+
+          kubernetes_sd_configs:
+            - role: node
+
+          # This configuration will work only on kubelet 1.7.3+
+          # As the scrape endpoints for cAdvisor have changed
+          # if you are using older version you need to change the replacement to
+          # replacement: /api/v1/nodes/${1}:4194/proxy/metrics
+          # more info here https://github.com/coreos/prometheus-operator/issues/633
+          relabel_configs:
+            - action: labelmap
+              regex: __meta_kubernetes_node_label_(.+)
+            - target_label: __address__
+              replacement: kubernetes.default.svc:443
+            - source_labels: [__meta_kubernetes_node_name]
+              regex: (.+)
+              target_label: __metrics_path__
+              replacement: /api/v1/nodes/${1}/proxy/metrics/cadvisor
+            - source_labels: [__meta_kubernetes_namespace]
+              action: replace
+              target_label: namespace
+
+        # Scrape config for service endpoints.
+        #
+        # The relabeling allows the actual service scrape endpoint to be configured
+        # via the following annotations:
+        #
+        # * `prometheus.io/scrape`: Only scrape services that have a value of `true`
+        # * `prometheus.io/scheme`: If the metrics endpoint is secured then you will need
+        # to set this to `https` & most likely set the `tls_config` of the scrape config.
+        # * `prometheus.io/path`: If the metrics path is not `/metrics` override this.
+        # * `prometheus.io/port`: If the metrics are exposed on a different port to the
+        # service then set this appropriately.
+        - job_name: 'kubernetes-service-endpoints-insecure'
+
+          kubernetes_sd_configs:
+            - role: endpoints
+
+          relabel_configs:
+            - source_labels: [__meta_kubernetes_pod_container_name]
+              action: drop
+              regex: istio-proxy
+            - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_scrape]
+              action: keep
+              regex: true
+            - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_scheme]
+              action: keep
+              target_label: __scheme__
+              regex: http
+            - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_path]
+              action: replace
+              target_label: __metrics_path__
+              regex: (.+)
+            - source_labels: [__address__, __meta_kubernetes_service_annotation_prometheus_io_port]
+              action: replace
+              target_label: __address__
+              regex: ([^:]+)(?::\d+)?;(\d+)
+              replacement: $1:$2
+            - action: labelmap
+              regex: __meta_kubernetes_service_label_(.+)
+            - source_labels: [__meta_kubernetes_namespace]
+              action: replace
+              target_label: namespace
+            - source_labels: [__meta_kubernetes_service_name]
+              action: replace
+              target_label: kubernetes_name
+            - source_labels: [__meta_kubernetes_pod_node_name]
+              target_label: kubernetes_io_hostname
+              action: replace
+          # Start of custom modification of original chart for CSFS-27019 NOTE: marked resolved, won't fix
+          tls_config:
+            insecure_skip_verify: true
+          # End of custom modification of original chart for CSFS-27019
+
+        - job_name: 'prometheus-pushgateway'
+          honor_labels: true
+          scheme: http
+          kubernetes_sd_configs:
+            - role: service
+
+          relabel_configs:
+            - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_probe]
+              action: keep
+              regex: pushgateway
+            - source_labels: [__meta_kubernetes_namespace]
+              action: replace
+              target_label: namespace
+            - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_path]
+              action: replace
+              target_label: __metrics_path__
+
+        - job_name: 'kubernetes-pods-insecure'
+          kubernetes_sd_configs:
+            - role: pod
+          relabel_configs:  # If first two labels are present, pod should be scraped  by the istio-secure job.
+            - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+              action: keep
+              regex: true
+            - source_labels: [__meta_kubernetes_pod_annotation_sidecar_istio_io_status, __meta_kubernetes_pod_annotation_istio_mtls]
+              action: drop
+              regex: (([^;]+);([^;]*))|(([^;]*);(true))
+            - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scheme]
+              action: drop
+              regex: https
+            - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+              action: replace
+              target_label: __metrics_path__
+              regex: (.+)
+            - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+              action: replace
+              regex: ([^:]+)(?::\d+)?;(\d+)
+              replacement: $1:$2
+              target_label: __address__
+            - action: labelmap
+              regex: __meta_kubernetes_pod_label_(.+)
+            - source_labels: [__meta_kubernetes_namespace]
+              action: replace
+              target_label: namespace
+            - source_labels: [__meta_kubernetes_pod_name]
+              action: replace
+              target_label: kubernetes_pod_name
+            - source_labels: [__meta_kubernetes_pod_node_name]
+              action: replace
+              target_label: instance
+
+        # Example scrape config for probing services via the Blackbox Exporter.
+        #
+        # The relabeling allows the actual service scrape endpoint to be configured
+        # via the following annotations:
+        #
+        # * `prometheus.io/probe`: Only probe services that have a value of `true`
+        #
+        #
+        - job_name: 'prometheus-nodeexporter'
+          honor_labels: true
+
+          kubernetes_sd_configs:
+            - role: endpoints
+
+          relabel_configs:
+            - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_probe]
+              action: keep
+              regex: node-exporter
+            - source_labels: [__meta_kubernetes_namespace]
+              action: replace
+              target_label: namespace
+            - source_labels: [__meta_kubernetes_pod_node_name]
+              target_label: kubernetes_io_hostname
+              action: replace
+
+        - job_name: 'kubernetes-services'
+
+          metrics_path: /probe
+          params:
+            module: [http_2xx]
+
+          kubernetes_sd_configs:
+            - role: service
+
+          relabel_configs:
+            - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_probe]
+              action: keep
+              regex: true
+            - source_labels: [__address__]
+              target_label: __param_target
+            - target_label: __address__
+              replacement: blackbox
+            - source_labels: [__param_target]
+              target_label: instance
+            - action: labelmap
+              regex: __meta_kubernetes_service_label_(.+)
+            - source_labels: [__meta_kubernetes_namespace]
+              target_label: namespace
+            - source_labels: [__meta_kubernetes_service_name]
+              target_label: kubernetes_name
+
+        # Example scrape config for pods
+        #
+        # The relabeling allows the actual pod scrape endpoint to be configured via the
+        # following annotations:
+        #
+        # * `prometheus.io/scrape`: Only scrape pods that have a value of `true`
+        # * `prometheus.io/path`: If the metrics path is not `/metrics` override this.
+        # * `prometheus.io/port`: Scrape the pod on the indicated port instead of the default of `9102`.
+        # Mixer scrapping. Defaults to Prometheus and mixer on same namespace.
+        - job_name: 'istio-mesh'
+          kubernetes_sd_configs:
+          - role: endpoints
+            namespaces:
+              names:
+              - istio-system
+          relabel_configs:
+          - source_labels: [__meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: istio-telemetry;prometheus
+
+        # Scrape config for envoy stats
+        - job_name: 'envoy-stats'
+          metrics_path: /stats/prometheus
+          kubernetes_sd_configs:
+          - role: pod
+
+          relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_container_port_name]
+            action: keep
+            regex: '.*-envoy-prom'
+          - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+            action: replace
+            regex: ([^:]+)(?::\d+)?;(\d+)
+            replacement: $1:15090
+            target_label: __address__
+          - action: labeldrop
+            regex: __meta_kubernetes_pod_label_(.+)
+          - source_labels: [__meta_kubernetes_namespace]
+            action: replace
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            action: replace
+            target_label: pod_name
+
+        - job_name: 'istio-policy'
+          kubernetes_sd_configs:
+          - role: endpoints
+            namespaces:
+              names:
+              - istio-system
+
+
+          relabel_configs:
+          - source_labels: [__meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: istio-policy;http-policy-monitoring
+
+        - job_name: 'istio-telemetry'
+          kubernetes_sd_configs:
+          - role: endpoints
+            namespaces:
+              names:
+              - istio-system
+
+          relabel_configs:
+          - source_labels: [__meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: istio-telemetry;http-monitoring
+
+        - job_name: 'pilot'
+          kubernetes_sd_configs:
+          - role: endpoints
+            namespaces:
+              names:
+              - istio-system
+
+          relabel_configs:
+          - source_labels: [__meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: istiod;http-monitoring
+          - source_labels: [__meta_kubernetes_service_label_app]
+            target_label: app
+
+        - job_name: 'galley'
+          kubernetes_sd_configs:
+          - role: endpoints
+            namespaces:
+              names:
+              - istio-system
+
+          relabel_configs:
+          - source_labels: [__meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: istio-galley;http-monitoring
+
+        - job_name: 'citadel'
+          kubernetes_sd_configs:
+          - role: endpoints
+            namespaces:
+              names:
+              - istio-system
+
+          relabel_configs:
+          - source_labels: [__meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: istio-citadel;http-monitoring
+
+        - job_name: 'sidecar-injector'
+
+          kubernetes_sd_configs:
+          - role: endpoints
+            namespaces:
+              names:
+              - istio-system
+
+          relabel_configs:
+          - source_labels: [__meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: istio-sidecar-injector;http-monitoring
+
+  customScrapeJobs:
+    - job_name: es-prometheus
+      tls_config:
+        insecure_skip_verify: true
+        ca_file: /etc/tls/ca.crt
+        cert_file: /etc/tls/tls.crt
+        key_file: /etc/tls/tls.key
+      kubernetes_sd_configs:
+        - role: pod
+      relabel_configs:
+        - action: keep
+          regex: elasticsearch
+          source_labels:
+            - __meta_kubernetes_pod_label_component
+        - action: keep
+          regex: true
+          source_labels:
+            - __meta_kubernetes_pod_annotation_prometheus_io_scrape_es
+        - action: replace
+          regex: (https?)
+          source_labels:
+            - __meta_kubernetes_pod_annotation_prometheus_io_scheme
+          target_label: __scheme__
+        - action: replace
+          regex: (.+)
+          source_labels:
+            - __meta_kubernetes_pod_annotation_prometheus_io_path
+          target_label: __metrics_path__
+        - action: replace
+          regex: ([^:]+)(?::\d+)?;(\d+)
+          replacement: $1:$2
+          source_labels:
+            - __address__
+            - __meta_kubernetes_pod_annotation_prometheus_io_port
+          target_label: __address__
+        - action: labelmap
+          regex: __meta_kubernetes_pod_label_(.+)
+        - action: replace
+          source_labels:
+            - __meta_kubernetes_namespace
+          target_label: kubernetes_namespace
+        - action: replace
+          source_labels:
+            - __meta_kubernetes_pod_name
+          target_label: kubernetes_name
+        - action: replace
+          source_labels:
+            - __meta_kubernetes_pod_node_name
+          target_label: kubernetes_io_hostname
+    - job_name: es-prometheus-svc
+      tls_config:
+        insecure_skip_verify: true
+        ca_file: /etc/tls/ca.crt
+        cert_file: /etc/tls/tls.crt
+        key_file: /etc/tls/tls.key
+      kubernetes_sd_configs:
+        - role: endpoints
+      relabel_configs:
+        - action: keep
+          regex: elasticsearch
+          source_labels:
+          - __meta_kubernetes_pod_label_component
+        - action: keep
+          regex: true
+          source_labels:
+          - __meta_kubernetes_service_annotation_prometheus_io_scrape_es
+        - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_scheme]
+          action: replace
+          target_label: __scheme__
+          regex: (https?)
+        - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_path]
+          action: replace
+          target_label: __metrics_path__
+          regex: (.+)
+        - source_labels: [__address__, __meta_kubernetes_service_annotation_prometheus_io_port]
+          action: replace
+          target_label: __address__
+          regex: ([^:]+)(?::\d+)?;(\d+)
+          replacement: $1:$2
+        - action: labelmap
+          regex: __meta_kubernetes_pod_label_(.+)
+        - source_labels: [__meta_kubernetes_namespace]
+          action: replace
+          target_label: namespace
+        - source_labels: [__meta_kubernetes_service_name]
+          action: replace
+          target_label: kubernetes_service_name
+        - source_labels: [__meta_kubernetes_pod_node_name]
+          target_label: kubernetes_io_hostname
+          action: replace
+        - action: replace
+          source_labels:
+          - __meta_kubernetes_pod_name
+          target_label: kubernetes_name
+
+  restserver:
+    podAnnotations: {}
+    image:
+      imageRepo: cpro/registry4/prometheus-restapi
+      imageTag: 3.3.3
+    istioIngress:
+      enabled: true
+      selector: {istio: ingressgateway}
+      Contextroot: restserver
+      host: "*"
+      httpPort: 80
+      gatewayName: "istio-system/single-gateway-in-istio-system"
+      tls:
+        enabled: false
+        httpsPort: 443
+        mode: SIMPLE
+        credentialName: "restserver-gateway"
+
+
+grafana:
+  rbac:
+    enabled: true
+  serviceAccountName:
+  global:
+    annotations: {}
+    labels: {}
+    serviceAccountName:
+    istioVersion: 1.4
+    podNamePrefix: ""
+    containerNamePrefix: ""
+  custom:
+    psp:
+      annotations:
+        seccomp.security.alpha.kubernetes.io/allowedProfileNames: runtime/default
+        seccomp.security.alpha.kubernetes.io/defaultProfileName: runtime/default
+      apparmorAnnotations:
+        apparmor.security.beta.kubernetes.io/allowedProfileNames: runtime/default
+        apparmor.security.beta.kubernetes.io/defaultProfileName: runtime/default
+      labels: {}
+
+    pod:
+      annotations:
+        seccomp.security.alpha.kubernetes.io/allowedProfileNames: runtime/default
+        seccomp.security.alpha.kubernetes.io/defaultProfileName: runtime/default
+      apparmorAnnotations:
+        apparmor.security.beta.kubernetes.io/allowedProfileNames: runtime/default
+        apparmor.security.beta.kubernetes.io/defaultProfileName: runtime/default
+      labels: {}
+  istio:
+    enable: false
+    mtls_enable: true
+    cni_enable: true
+    createKeycloakServiceEntry:
+      enabled: false
+      extCkeyHostname: ""     # Ex. extCkeyHostname: "ckey.io"
+      extCkeyPort: ""         # Ex. extCkeyPort: 31390
+      extCkeyProtocol: ""     # accepted values: HTTP, HTTPS
+      ckeyK8sSvcName: ""     # Ex. keycloak-ckey.default.svc.cluster.local
+      ckeyK8sSvcPort: ""    # Ex. ckeyK8sSvcPort: 8443
+      hostAlias: ""       # If the host name of ckey is not resolvable then edge node ip has to be given here
+      location: "MESH_INTERNAL"       # Location specifies whether the service is part of Istio mesh or outside the mesh Ex. MESH_EXTERNAL/MESH_INTERNAL
+  image:
+    imageRepo: cpro/grafana-registry1/grafana-tenant
+    imageTag: 7.1.3-1.0.3
+  runAsUser: 65534
+  fsGroup: 65534
+  supplementalGroups: [65534]
+  seLinuxOptions:
+    enabled: false
+    level: ""
+    role: ""
+    type: ""
+    user: ""
+  helmDeleteImage:
+    imageTag: v1.17.8-nano
+  hookImage:
+    imageTag: "1.8.0"
+  mdbToolImage:
+    imageTag: "3.9.0"
+  pluginsSideCar:
+    imageTag: "2.0.1"
+  sane:
+    imageTag: "0.0.11"
+  cbur:
+    image:
+      imageTag: 1.0.3-1665
+    autoEnableCron: false
+    autoUpdateCron: false
+  customResourceNames:
+    resourceNameLimit: 63
+    grafanaPod:
+      inCntChangeDbSchema: ""
+      inCntChangeMariadbSchema: ""
+      inCntWaitforMariadb: ""
+      inCntDownloadDashboard: ""
+      pluginSidecarContainer: ""
+      grafanaSidecarDashboard: ""
+      grafanaSaneAuthproxy: ""
+      grafanaMdbtool: ""
+      grafanaDatasource: ""
+      grafanaContainer: ""
+    deleteDatasourceJobPod:
+      name: ""
+      deleteDatasourceContainer: ""
+    setDatasourceJobPod:
+      name: ""
+      setDatasourceContainer: ""
+    postUpgradeJobPod:
+      name: ""
+      postUpgradeJobContainer: ""
+    postDeleteJobPod:
+      name: ""
+      deletedbContainer: ""
+      deletesecretsContainer: ""
+    importDashboardJobPod:
+      name: ""
+      importDashboardJobContainer: ""
+  downloadDashboardsImage:
+    enabled: false
+    imageRepo: appropriate/curl
+  podAnnotations: {}
+  service:
+    annotationsForScrape:
+      prometheus.io/scrape: "true"
+      prometheus.io/scheme: http
+  istioIngress:
+    enabled: true
+    Contextroot: grafana
+    selector: {istio: ingressgateway}
+    host: "*"
+    httpPort: 80
+    gatewayName: "istio-system/single-gateway-in-istio-system"
+    tls:
+      enabled: true
+      httpsPort: 443
+      mode: SIMPLE
+      credentialName: "am-gateway"
+  SetDatasource:
+    imageTag: "1.16.0"
+  SetDashboard:
+    tinytools:
+      imageTag: "1.8.0"
+  keycloak:
+    url: "10.76.84.192:32443"
+    protocol: https
+    realm: cpro
+  grafana_ini:
+    server:
+      protocol: https
+      root_url: "%(protocol)s://%(domain)s:%(http_port)s/grafana/"
+      cert_file: /etc/grafana/ssl/server.crt
+      cert_key: /etc/grafana/ssl/server.key
+    auth:
+      disable_login_form: true
+      disable_signout_menu: true
+      ;signout_redirect_url: ""
+    auth.proxy:
+      enabled: true
+      header_name: netguard-proxy-user
+      auto_sign_up: true
+      sync_ttl: 60
+      headers: "Groups:netguard-proxy-roles"
+    auth.generic_oauth:
+        name: ""
+        auth_url: ""
+        token_url: ""
+        api_url: ""
+        introspect_url: ""
+    database:
+      type: mysql
+      name: grafana
+      user: grafana
+      ssl_mode: true
+      ca_cert_path: /etc/grafana/cmdbtls/ca.crt
+      client_key_path: /etc/grafana/cmdbtls/tls.key
+      client_cert_path: /etc/grafana/cmdbtls/tls.crt
+    users:
+      allow_org_create: true
+      allow_sign_up: true
+      auto_assign_org: true
+      auto_assign_org_role: Admin
+
+gen3gppxml:
+  image:
+    imageRepo: "cpro-gen3gppxml"
+    imageTag: 3.0.0-2.1.0
+    pullPolicy: IfNotPresent
+  sftp:
+    image:
+      repository: cpro-gen3gppxml-proftpd
+      tag: 3.0.0-2.1.0
+      pullPolicy: IfNotPresent
+    logLevel: 3
+  global:
+    annotations: {}
+    labels: {}
+    serviceAccountName:
+    istioVersion: 1.4
+    podNamePrefix: ""
+    containerNamePrefix: ""
+  persistence:
+    pvc_auto_delete: true
+
+  custom:
+    psp:
+      annotations:
+        seccomp.security.alpha.kubernetes.io/allowedProfileNames: runtime/default
+        seccomp.security.alpha.kubernetes.io/defaultProfileName: runtime/default
+      apparmorAnnotations:
+        apparmor.security.beta.kubernetes.io/allowedProfileNames: runtime/default
+        apparmor.security.beta.kubernetes.io/defaultProfileName: runtime/default
+      labels:
+
+    pod:
+      annotations:
+        seccomp.security.alpha.kubernetes.io/allowedProfileNames: runtime/default
+        seccomp.security.alpha.kubernetes.io/defaultProfileName: runtime/default
+      apparmorAnnotations:
+        apparmor.security.beta.kubernetes.io/allowedProfileNames: runtime/default
+        apparmor.security.beta.kubernetes.io/defaultProfileName: runtime/default
+      labels:
+
+  customResourceNames:
+    resourceNameLimit: 63
+    gen3gppxmlPod:
+      gen3gppxmlContainer: ""
+      sftpContainer: ""
+      configMapReloadContainer: ""
+    postDeleteJobPod:
+      name: ""
+      postDeletePvcContainer: ""
+  rbac:
+    enabled: true
+    pspUseAppArmor: false
+  serviceAccountName:
+  seLinuxOptions:
+    enabled: false
+    level: ""
+    role: ""
+    type: ""
+    user: ""
+  service:
+    serviceType: ClusterIP
+    sftpPort: 2309
+  kubectl:
+    image:
+      repo: tools/kubectl
+      tag: v1.17.8-nano
+    jobResources:
+      requests:
+       cpu: 200m
+       memory: 500Mi
+      limits:
+       cpu: 1
+       memory: 1Gi
+  cbur:
+    image:
+      repository: cbur/cbura
+      tag: 1.0.3-1665
+    autoEnableCron: false
+    autoUpdateCron: false
+  istio:
+    enable: false
+    mtls_enable: true
+    cni_enable: true
+  istioIngress:
+    enabled: true
+    selector: {istio: ingressgateway}
+    Contextroot: gen3gppxml
+    host: "*"
+    httpPort: 80
+    gatewayName: "istio-system/single-gateway-in-istio-system"
+    tls:
+      enabled: false
+      httpsPort: 443
+      mode: PASSTHROUGH
+      credentialName: "am-gateway"
+    tcpGatewayName: ""
+    sftpPort: 31400
+    tcpHost: "*"
+  configmapReload:
+    image:
+      repository: cpro/registry4/configmap-reload
+      tag: v0.2.1-4.0.0

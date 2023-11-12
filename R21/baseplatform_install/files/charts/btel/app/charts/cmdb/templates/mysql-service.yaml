@@ -1,0 +1,96 @@
+{{ $service_name := .Values.services.mysql.name | default (printf "%s-mysql" (include "cmdb.fullname" .)) }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $service_name }}
+  labels:
+  # Service provided by MaxScale acting as a proxy or
+  # by MariaDB itself if MaxScale not in use
+  {{- if gt (int .Values.maxscale.count) 0 }}
+    {{- include "cmdb-maxscale.labels" . | indent 4 }}
+  {{- else }}
+    {{- include "cmdb-mariadb.labels" . | indent 4 }}
+  {{- end }}
+  {{- if .Values.istio.enabled }}
+    mtls-strict: "true"
+  {{- end }}
+spec:
+  type: {{ .Values.services.mysql.type }}
+  ports:
+# Include configured listener ports, if maxscale is used
+{{- if and (gt (int .Values.maxscale.count) 0) .Values.maxscale.listeners }}
+  - name: tcp-mysql
+    port: {{ default 3306 .Values.maxscale.listeners.rwSplit }}
+    targetPort: tcp-mysql
+    {{- if and (eq .Values.services.mysql.type "NodePort") (.Values.services.mysql.nodePort) }}
+    nodePort: {{ .Values.services.mysql.nodePort }}
+    {{- end }}
+  {{- if gt (default 0 (int .Values.maxscale.listeners.readOnly)) 0 }}
+  - name: tcp-mysql-ro
+    port: {{ .Values.maxscale.listeners.readOnly }}
+    targetPort: mysql-ro
+    {{- if and (eq .Values.services.mysql.type "NodePort") (.Values.services.mysql.nodePort_readonly) }}
+    nodePort: {{ .Values.services.mysql.nodePort_readonly }}
+    {{- end }}
+  {{- end }}
+  {{- if gt (default 0 (int .Values.maxscale.listeners.masterOnly)) 0 }}
+  - name: tcp-mysql-mstr
+    port: {{ .Values.maxscale.listeners.masterOnly }}
+    targetPort: tcp-mysql-mstr
+    {{- if and (eq .Values.services.mysql.type "NodePort") (.Values.services.mysql.nodePort_mstronly) }}
+    nodePort: {{ .Values.services.mysql.nodePort_mstronly }}
+    {{- end }}
+  {{- end }}
+{{- else }}
+  - name: tcp-mysql
+    port: 3306
+    targetPort: tcp-mysql
+    {{- if and (eq .Values.services.mysql.type "NodePort") (.Values.services.mysql.nodePort) }}
+    nodePort: {{ .Values.services.mysql.nodePort }}
+    {{- end }}
+{{- end }}
+  selector:
+  # Point the mysql service at maxscale, if used
+  {{- if gt (int .Values.maxscale.count) 0 }}
+    {{- include "cmdb-maxscale.labels" . | indent 4 }}
+    type: maxscale
+  {{- else }}
+    {{- include "cmdb-mariadb.labels" . | indent 4 }}
+    type: mariadb
+  {{- end }}
+{{- if .Values.services.mysql.sessionAffinity.enabled }}
+  sessionAffinity: ClientIP
+  {{- if .Values.services.mysql.sessionAffinity.timeout }}
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: {{ .Values.services.mysql.sessionAffinity.timeout }}
+  {{- end }}
+{{- end }}
+
+{{- if .Values.istio.enabled }}
+{{- if semverCompare "<1.5" (toString .Values.global.istioVersion) }}
+---
+apiVersion: "authentication.istio.io/v1alpha1"
+kind: "Policy"
+metadata:
+  name: {{ $service_name }}-mlts-authn
+spec:
+  targets:
+  - name: {{ $service_name }}
+  peers:
+  - mtls:
+      mode: STRICT
+{{- end }}
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: {{ $service_name }}-mlts-dr
+spec:
+  host: {{ $service_name }}
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+{{- end }}
+

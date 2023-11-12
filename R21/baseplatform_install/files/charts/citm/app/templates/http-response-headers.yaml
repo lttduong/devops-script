@@ -1,0 +1,10 @@
+## Start of custom chart file
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: http-response-headers
+data:
+  X-Frame-Options: "SAMEORIGIN"
+  X-Content-Type-Options: "nosniff"
+  X-XSS-Protection: "1; mode=block"
+## End of custom chart file

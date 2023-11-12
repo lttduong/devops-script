@@ -1,0 +1,82 @@
+{{- if .Values.rbac }}
+{{- if .Values.rbac.enabled }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ template "ncm-app.fullname" . }}-account
+{{- if .Values.rbac.imagePullSecrets }}
+imagePullSecrets:
+{{- range .Values.rbac.imagePullSecrets }}
+- name: {{ .name }}
+{{- end }}
+{{- end }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ template "ncm-app.fullname" . }}-role-binding
+  labels:
+    component: "{{ .Values.service.name }}"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+  - kind: ServiceAccount
+    name: {{ template "ncm-app.fullname" . }}-account
+    namespace: {{ .Release.Namespace }}
+
+{{- if .Values.rbac.plugins }}
+{{- if .Values.rbac.plugins.enabled }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ template "ncm-app.fullname" . }}-convert-plugin
+rules:
+  - apiGroups: [""]
+    resources: ["secrets","configmaps"]
+    verbs: ["list","delete"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ template "ncm-app.fullname" . }}-convert-plugin
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ template "ncm-app.fullname" . }}-convert-plugin
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: Group
+    name: convert-additional-privileges-group
+---    
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ template "ncm-app.fullname" . }}-backup-plugin
+rules:
+  - apiGroups: [""]
+    resources: ["secrets","services"]
+    verbs: ["list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ template "ncm-app.fullname" . }}-backup-plugin
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ template "ncm-app.fullname" . }}-backup-plugin
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: Group
+    name: backup-additional-privileges-group
+{{- end }}
+{{- end }}
+
+{{- end }}
+{{- end }}

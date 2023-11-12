@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: {{ template "name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    component: "{{ .Values.httpServer.name }}"
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+  name: {{ .Release.Name }}-{{ .Values.httpServer.name }}
+spec:
+  ports:
+  {{- if .Values.httpServer.server }}
+  {{- range $i, $ser := .Values.httpServer.servers }}
+    - name: "tcp-{{ $ser.server }}-citm-server"
+      port: {{ $ser.port }}
+      protocol: TCP
+      targetPort: {{ $ser.port }}
+  {{- end }}
+  {{- end }}
+  {{- range $i, $expo := .Values.httpServer.expose }}
+    - name: "tcp-http-{{ $expo.port }}-citm-server"
+      port: {{ $expo.port }}
+      protocol: TCP
+      targetPort: {{ $expo.port }}
+  {{- end }}
+  selector:
+    app: {{ template "name" . }}
+    component: "{{ .Values.httpServer.name }}"
+    release: {{ .Release.Name }}
+  type: "{{ .Values.httpServer.serviceType }}"

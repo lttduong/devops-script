@@ -1,0 +1,45 @@
+## Start of custom chart file for CSFID-2092
+{{- if .Values.global.certManager.used }}
+apiVersion: {{ .Values.global.certManager.api }}
+kind: Certificate
+metadata:
+  name: {{ template "fullname" . }}-certificate
+  namespace: {{ .Release.Namespace }}
+spec:
+  secretName: {{ template "fullname" . }}-tls
+  issuerRef:
+    name: {{ .Values.global.certManager.issuerRef.name }}
+    kind: {{ .Values.global.certManager.issuerRef.kind }}
+  duration: {{ .Values.global.certManager.duration }}
+  renewBefore: {{ .Values.global.certManager.renewBefore }}
+  keySize: {{ .Values.global.certManager.keySize }}
+  commonName: {{ .Values.global.config.btel.elasticsearchServiceName }}
+  dnsNames:
+    - {{ .Values.global.config.btel.elasticsearchServiceName }}.{{ .Release.Namespace }}.{{ .Values.dns.domain }}
+  usages:
+    - server auth
+    - client auth
+#  organization:
+#    - Nokia
+---
+apiVersion: {{ .Values.global.certManager.api }}
+kind: Certificate
+metadata:
+  name: {{ template "fullname" . }}-certificate-client
+  namespace: {{ .Release.Namespace }}
+spec:
+  secretName: {{ template "fullname" . }}-tls-client
+  issuerRef:
+    name: {{ .Values.global.certManager.issuerRef.name }}
+    kind: {{ .Values.global.certManager.issuerRef.kind }}
+  duration: {{ .Values.global.certManager.duration }}
+  renewBefore: {{ .Values.global.certManager.renewBefore }}
+  commonName: admin
+  dnsNames:
+    - admin
+  usages:
+    - client auth
+#  organization:
+#    - Nokia
+{{- end }}
+## End of custom chart file

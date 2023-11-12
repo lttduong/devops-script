@@ -1,0 +1,36 @@
+---
+- name: "Upgrade CRMQ"
+  shell: >
+    {{ helm }}  upgrade {{ crmqHelmName }} {{ chartsPath }}/crmq/app
+    --namespace {{ BP_NAMESPACE }}
+    --reuse-values
+    --values {{ chartsPath }}/values/upgrade-global-values.yaml
+    --values {{ chartsPath }}/crmq/app/upgrade-override.yaml
+    --set dns.domain={{ svcDnsDomain }}
+    --set rabbitmq.management.certmanager.domain={{ svcDnsDomain }}
+    --set rabbitmq.tls.certmanager.domain={{ svcDnsDomain }}
+    --set rabbitmq.clustering.k8s_domain={{ DNS_DOMAIN }}
+    --set rabbitmq.nodePort={{ (BP_INITIAL_NODE_PORT + crmqAmqpNodePortOffset) | int }}
+    --set rabbitmq.tls.nodePort={{ RABBITMQ_TLS_NODE_PORT | default (((BP_INITIAL_NODE_PORT + crmqTlsNodePortOffset) | int), true) }}
+    --set rabbitmq.management.nodePort={{ RABBITMQ_MANAGEMENT_NODE_PORT | default (((BP_INITIAL_NODE_PORT + crmqManagementNodePortOffset) | int), true) }}
+    --set rabbitmq.prometheus.nodePort={{ RABBITMQ_PROMETHEUS_NODE_PORT | default (((BP_INITIAL_NODE_PORT + crmqPrometheusNodePortOffset) | int), true) }}
+    --set rabbitmq.mqtt.tcpNodePort={{ (BP_INITIAL_NODE_PORT + crmqMqttTcpNodePortOffset) | int }}
+    --set rabbitmq.mqtt.sslNodePort={{ (BP_INITIAL_NODE_PORT + crmqMqttSslNodePortOffset) | int }}
+    --wait
+    --timeout 1000s
+  no_log: "{{ no_log }}"
+
+# Temporary workaround for wait which not wait (https://github.com/helm/helm/issues/4280)
+- name: "Read CRMQ chart values"
+  include_vars:
+    file: "{{ files_path }}/charts/crmq/app/values.yaml"
+    name: crmq_values
+
+- name: "Waiting for CRMQ to be ready"
+  shell: >
+    . {{ temporaryAppFilesDirectory }}/functions.sh {{ BP_NAMESPACE }}
+    && waitForReady crmq {{ crmq_values.image.tag }}
+  args:
+    executable: /bin/bash
+  async: 700
+  poll: 5

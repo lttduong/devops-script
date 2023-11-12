@@ -1,0 +1,13 @@
+---
+- name: "Check SSH private key {{ sshPrivateKeyFile }} exists"
+  stat:
+    path: "{{ sshPrivateKeyFile }}"
+  register: ssh_file_stat
+
+- fail: "SSH private key file not found: {{ sshPrivateKeyFile }}"
+  when:  ssh_file_stat.stat.exists == False
+
+- name: "Copy SSH private key {{ sshPrivateKeyFile }} to {{ appThisVersionConfigDirectory }}/charts/ssh-config/files/id_rsa"
+  copy:
+    src: "{{ sshPrivateKeyFile }}"
+    dest: "{{ appThisVersionConfigDirectory }}/charts/ssh-config/files/id_rsa"

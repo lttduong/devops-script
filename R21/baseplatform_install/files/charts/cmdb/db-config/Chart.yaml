@@ -1,0 +1,4 @@
+apiVersion: v1
+description: MariaDB password validator configurator
+name: cmdb-db-config
+version: 1.0.0

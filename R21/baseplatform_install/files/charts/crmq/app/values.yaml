@@ -1,0 +1,464 @@
+## Bitnami RabbitMQ image version
+## ref: https://hub.docker.com/r/bitnami/rabbitmq/tags/
+##
+global:
+  ## This registry is the registry what references the rabbitmq and rsyslog images.
+  registry: csf-docker-delivered.repo.lab.pl.alcatel-lucent.com
+  ## This registry1 is the registry which contains kubectl tools & cbur images.
+  registry1: csf-docker-delivered.repo.lab.pl.alcatel-lucent.com
+  ## This registry2 is the registry what references the crmq-test image.
+  registry2: csf-docker-delivered.repo.lab.pl.alcatel-lucent.com
+
+  podNamePrefix: 
+
+  containerNamePrefix: 
+
+postDeleteJobName: 
+postDeleteContainerName: 
+postInstallJobName: 
+postInstallContainerName: 
+postUpgradeJobName: 
+postUpgradeContainerName: 
+postScaleinJobName: 
+postScaleinContainerName: 
+
+image:
+  repository: crmq/centos/rabbitmq_3.8.8-1.el8_erlang_23.0.3-1.el8
+  tag: 9175
+  ## Specify a imagePullPolicy
+  ## Defaults to 'Always' if image tag is 'latest', else set to 'IfNotPresent'
+  ## ref: http://kubernetes.io/docs/user-guide/images/#pre-pulling-images
+  ##
+  pullPolicy: IfNotPresent
+
+  ## set to true if you would like to see extra information on logs
+  ## it turns BASH and NAMI debugging in minideb
+  ## ref:  https://github.com/bitnami/minideb-extras/#turn-on-bash-debugging
+  ## debug: false
+
+  ## Optionally specify an array of imagePullSecrets.
+  ## Secrets must be manually created in the namespace.
+  ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
+  ##
+  # pullSecrets:
+  #   - myRegistrKeySecretName
+
+## does your cluster have rbac enabled? assume yes by default
+
+rbac:
+  enabled: true
+  serviceAccountName:
+  serviceAccountNamePostDel :
+  serviceAccountNameScale :
+  serviceAccountNameAdminForgetnode :
+  test:
+    enabled: true
+    serviceAccountNameHelmTest:
+    helmTestSecret:
+
+
+postDeleteForceClean:
+  enabled: false
+
+## does your cluster in pure ipv6 environment?
+ipv6Enabled: false
+
+
+istio:
+  enabled: false
+  version: 1.5
+  # Whether istio cni is enabled in the environment.
+  cni:
+    enabled: false
+    # MTLS section of configuration.
+  mtls:
+    #Is strict MTLS enabled in the environment.
+    enabled: true
+  # Should allow mutual TLS as well as clear text for your deployment.
+  permissive: true
+
+## Whether use istio ingress gateway(Envoy)
+istioIngress:
+  enabled: false
+  # the host used to access the management GUI from istio ingress gateway
+  host: "*"
+  port: 80
+  selector: {istio: ingressgateway}
+
+tmpForceRecreateResources: false
+
+## section of specific values for rabbitmq
+rabbitmq:
+  dynamicConfig:
+    enabled: false
+    maxCommandRetries: 10
+    timeout: 300
+    # {} cannot be quoted by '
+    parameters: |-
+      set_policy ha-all "^ha\." '{"ha-mode":"all"}'
+    ##set_vm_memory_high_watermark 0.7
+    ##add_user "foo" "bar"
+    ##add_vhost "/fool"
+    ##set_permissions -p '/fool' 'foo' '.' '.' '.*'
+
+  ## RabbitMQ application username
+  ## ref: https://github.com/bitnami/bitnami-docker-rabbitmq/blob/master/README.md#creating-a-database-user-on-first-run
+  ##
+  username: user
+
+  ## RabbitMQ application password
+  ## ref: https://github.com/bitnami/bitnami-docker-rabbitmq/blob/master/README.md#creating-a-database-user-on-first-run
+  ##
+  # password: 
+
+  ## Erlang cookie to determine whether different nodes are allowed to communicate with each other
+  ## ref: https://github.com/bitnami/bitnami-docker-rabbitmq#environment-variables
+  ##
+  # erlangCookie:
+
+  ## Node port
+  ## ref: https://github.com/bitnami/bitnami-docker-rabbitmq#environment-variables
+  ##
+  amqpPort: 5672
+  ## nodePort: 30010
+  ## To expose the amqpPort
+  amqpSvc: true
+
+  ## RabbitMQ MQTT configuration
+  mqtt:
+    enabled: false
+    vhost: /
+    exchange: amq.topic
+    DefaultTcpPort: 1883
+    ## tcpNodePort:
+    enabledSsl: false
+    DefaultSslPort: 8883
+    ## sslNodePort:
+    DefaultRetainedSave: rabbit_mqtt_retained_msg_store_dets
+ 
+  ## The node name type in cluster.
+  ## When address_type is default, the env RABBITMQ_NODENAME is rabbit@$(POD_NAME).
+  ## When address_type is hostname, the env RABBITMQ_NODENAME is rabbit@$(POD_NAME).$(K8S_SERVICE_NAME).$(POD_NAMESPACE).svc.$(k8s_domain).
+  ##
+  clustering:
+    ## The address_type can only be set to default or hostname.
+    ## If set to hostname, must set RABBITMQ_USE_LONGNAME="true" in rabbitmq.environment field.
+    address_type: default
+    k8s_domain: cluster.local   
+  ## Node name to cluster with. e.g.: `clusternode@hostname`
+  ## ref: https://github.com/bitnami/bitnami-docker-rabbitmq#environment-variables
+  ## If rabbitmqClusterNodeName is configured, RABBITMQ_NODENAME is the configured value.
+  ##
+  # rabbitmqClusterNodeName:
+
+  ## RabbitMQ Disk free limit
+  ## ref: https://github.com/bitnami/bitnami-docker-rabbitmq#environment-variables
+  ## ref: https://www.rabbitmq.com/disk-alarms.html
+  ##
+  ## diskFreeLimit: "6GiB"
+
+  ## Plugins to enable
+  ## You can enable other plugins like:
+  ## [rabbitmq_management,rabbitmq_peer_discovery_k8s,rabbitmq_mqtt,rabbitmq_prometheus,...].
+  plugins: |-
+      [rabbitmq_management,rabbitmq_peer_discovery_k8s,rabbitmq_prometheus].
+
+  ## Configution file content
+  configuration: |-
+      ## Clustering
+      cluster_formation.peer_discovery_backend  = rabbit_peer_discovery_k8s
+      cluster_formation.k8s.host = kubernetes.default.svc.cluster.local
+      cluster_formation.k8s.address_type = hostname
+      cluster_partition_handling = autoheal
+      ## queue master locator
+      queue_master_locator=min-masters
+      ## enable guest user
+      loopback_users.guest = false
+      ## prometheus plugin (default values when rabbitmq_prometheus plugin is enabled in RabbitMQ 3.8)
+      #prometheus.path = /metrics
+      #prometheus.tcp.port = 15692
+
+  ## To add some contents in /etc/rabbitmq/advanced.config file
+  ## Note: prometheus plugin is no more defined in advancedConfig (since RabbitMQ 3.8)
+  advancedConfig: |-
+           %%{foo,
+           %%  [{bar, [ {path, "/rabbitmq"},
+           %%                         {connections_total_enabled, true} ]} ]},
+  ## environment file content
+  environment: |-
+      RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS="+A 128"
+      PLUGINS_DIR="/var/lib/rabbitmq/plugins:/usr/lib/rabbitmq/plugins:$RABBITMQ_HOME/plugins"
+  environmentIpv6: |-
+      RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS="+A 128  -kernel inetrc '/etc/rabbitmq/erl_inetrc'  -proto_dist inet6_tcp"
+      RABBITMQ_CTL_ERL_ARGS="-proto_dist inet6_tcp"
+      PLUGINS_DIR="/var/lib/rabbitmq/plugins:/usr/lib/rabbitmq/plugins:$RABBITMQ_HOME/plugins"
+  ## This is configuration for RabbitMQ server to support TLS. The configuration to support mqtt tls is also configured here.
+  ## Note that here must config the whole content of file, not file path.
+  ## The file cacert.pem, cert.pem and key.pem will be mounted to path /etc/rabbitmq.tls.conf/server
+  ## If certmanager.use=true then don't fill cacert, cert & key
+  tls:
+    cacert: ""
+    cert: ""
+    key: ""
+    verify_option: "verify_peer"
+    fail_if_no_peer_cert: false
+    test: ""
+    ssl_port: 5671
+    ## nodePort:
+    #use_cert_manager replaced by certmanager.used
+    certmanager:
+      # Require at least BCMT19.12
+      used: false
+      # 365 days
+      duration: "8760h" 
+      # 15 days
+      renewBefore: "360h"
+      keySize: 3072
+      issuerName: "ncms-ca-issuer"
+      issuerType: "ClusterIssuer"
+      # if no commonName provided, the following section is added in secrets.yaml
+      ## commonName: {{ printf "%s-server" (include "rabbitmq.fullname" .) | quote }}
+      commonName:
+      ## rabbitmq.tls.certmanager.ipAddresses can be set either using "helm --set" or by editing the values.yaml
+      ## --set "rabbitmq.tls.certmanager.ipAddresses[0]"="127.0.0.1","rabbitmq.tls.certmanager.ipAddresses[1]"="135.1.12.3"
+      ##ipAddresses:
+      ##  - "127.0.0.1"
+      ##  - "135.1.12.3"
+      ipAddresses:
+      # For "domain" usage, see dnsNames examples hereafter
+      domain: svc.cluster.local
+      # if no dnsNames provided in values.yaml, then the following section is added in secrets.yaml
+      ##dnsNames:
+      ##  - "rabbitmq.fullname"
+      ##  - "rabbitmq.fullname".{{Release.Namespace}}
+      ##  - "rabbitmq.fullname".{{Release.Namespace}}.{{rabbitmq.tls.certmanager.domain}}
+      ## rabbitmq.tls.certmanager.dnsNames can be set by following this example (if not set, see above)
+      ## --set "rabbitmq.tls.certmanager.dnsNames[0]"="*.mylab.dev","rabbitmq.tls.certmanager.dnsNames[1]"="*.yourlab.dev"
+      ## or by following this example:
+      ##dnsNames:
+      ##  - "*.mylab.dev"
+      ##  - "*.yourlab.dev"
+  ## This is configuration for management plugin to support TLS.
+  ## Note that here must config the whole content of file, not file path.
+  ## The file cacert.pem, cert.pem and key.pem will be mounted to path /etc/rabbitmq.tls.conf/management
+  ## If certmanager.use=true then don't fill cacert, cert & key
+  management:
+    enabled: true
+    port: 15672
+    ## nodePort: 30110
+    cacert: ""
+    cert: ""
+    key: ""
+    #use_cert_manager replaced by certmanager.used
+    certmanager:
+      # Require at least BCMT19.12
+      used: false
+      # 365 days
+      duration: "8760h"
+      # 15 days
+      renewBefore: "360h"
+      keySize: 3072
+      issuerName: "ncms-ca-issuer"
+      issuerType: "ClusterIssuer"
+      # if no commonName provided, the following section is added in secrets.yaml
+      ## commonName: {{ printf "%s-management" (include "rabbitmq.fullname" .) | quote }}
+      commonName:
+      ##ipAddresses:
+      ##  - "127.0.0.1"
+      ##  - "135.1.12.3"
+      ipAddresses:
+      # For "domain" usage, see dnsNames examples hereafter
+      domain: svc.cluster.local
+      # if no dnsNames provided in values.yaml, then the following section is added in secrets.yaml
+      ## dnsNames:
+      ##   - "rabbitmq.management.service"
+      ##   - "rabbitmq.management.service".{{Release.Namespace}}
+      ##   - "rabbitmq.management.service".{{Release.Namespace}}.{{rabbitmq.management.certmanager.domain}}
+      ## rabbitmq.management.certmanager.dnsNames can be set by following this example (if not set, see above)
+      ##dnsNames:
+      ##  - ""
+      ##  - "*"
+  prometheus:
+    enabled: false
+    port: 15692
+    ## nodePort: 30111
+  uaa:
+    enabled: false
+    clientId: "rabbit_client"
+    serverLocation: "http://localhost:8080/uaa"
+  rabbitmqAuthBackendOauth2:
+    enabled: false
+    ressourceServerId: "rabbitmq"
+    keyId: "key-1"
+    keyType: "RSA"
+    algo: "RS256"
+    signing_key: ""
+  backuprestore:
+    enabled: false
+    resources:
+      requests:
+        memory: 20Mi
+        cpu: 100m
+      limits:
+        memory: 50Mi
+        cpu: 1
+    ## Refer to: https://confluence.app.alcatel-lucent.com/display/plateng/CBUR+-+Containerized+Backup+and+Recovery+Guide#CBUR-ContainerizedBackupandRecoveryGuide-crd_brpolicyBrPolicy
+    backendMode: "local"
+    cronJob: "*/10 * * * *"
+    brOption: 0
+    maxCopy: 5
+    agent:
+      name: cbura-sidecar
+      imageRepo: cbur/cbura
+      imageTag: 1.0.3-983
+      imagePullPolicy: IfNotPresent
+  # rsyslog: deprecated, use clog instead
+  rsyslog:
+    enabled: false
+    repository: crmq/rsyslog/rsyslog_8.37.0-13.el8
+    tag: 20200519124430257-646
+    imagePullPolicy: IfNotPresent
+    level: debug 
+    transport: udp
+  clog:
+    bcmt:
+      enabled: false
+    syslog:
+      port: 2514
+      format: "rfc5424"
+      level: debug
+      transport: udp
+  console:
+    enabled: true
+    level: info
+  
+  ## This is the installtion for 3rd party plugins, plugin should be enabled in upper rabbitmq.plugins field.
+  ## Note: prometheus is built-in in RabbitMQ 3.8 (so, no more in thirdPartyPlugin)
+  ## Configure sample as follow
+  ## thirdPartyPlugin:
+  ##   - name: <plugin-name>
+  ##     path: https://repo.lab.pl.alcatel-lucent.com/csf-generic-delivered/CRMQ/CommunityPlugins
+  thirdPartyPlugin:
+
+## This is configuration for client used tls files, such as federation, shovel...
+## Note that here must config the whole content of file, not file path.
+## Configure sample as follow, the file cacert.pem, cert.pem and key.pem will be mounted to path /etc/rabbitmq.tls.conf/federation.
+## tlsClient:
+##   - name: "federation"
+##     cacert: "..."
+##     cert: "..."
+##     key: "..."
+tlsClient:
+
+## Kubernetes service type
+serviceType: ClusterIP
+## serviceType: NodePort
+
+persistence:
+  ## reserve persistent storage after pod deleted
+  reservePvc: false
+  reservePvcForScalein: false
+  data:
+    ## this enables PVC templates that will create one per pod
+    enabled: true
+
+    ## rabbitmq data Persistent Volume Storage Class
+    ## If defined, storageClassName: <storageClass>
+    ## If set to "-", storageClassName: "", which disables dynamic provisioning
+    ## If undefined (the default) or set to null, no storageClassName spec is
+    ##   set, choosing the default provisioner.  (gp2 on AWS, standard on
+    ##   GKE, AWS & OpenStack)
+    ##
+    # storageClass: "-"
+    accessMode: ReadWriteOnce
+    # If you change this value, you might have to adjust `rabbitmq.diskFreeLimit` as well.
+    size: 8Gi
+  log:
+    ## this enables PVC templates that will create one per pod
+    enabled: false
+
+    ## rabbitmq data Persistent Volume Storage Class
+    ## If defined, storageClassName: <storageClass>
+    ## If set to "-", storageClassName: "", which disables dynamic provisioning
+    ## If undefined (the default) or set to null, no storageClassName spec is
+    ##   set, choosing the default provisioner.  (gp2 on AWS, standard on
+    ##   GKE, AWS & OpenStack)
+    ##
+    # storageClass: "-"
+    accessMode: ReadWriteOnce
+    # If you change this value, you might have to adjust `rabbitmq.diskFreeLimit` as well.
+    size: 8Gi
+
+kubectlImage:
+  repository: tools/kubectl
+  tag: v1.17.5-nano
+
+helmTestImage:
+  repository: crmq-test/rabbitmq-test
+  tag: 20200423073313149-178
+
+## Configure resource requests and limits
+## ref: http://kubernetes.io/docs/user-guide/compute-resources/
+##
+resources:
+  requests:
+    memory: 256Mi
+    cpu: 350m
+  limits:
+    memory: 512Mi
+    cpu: 1
+
+## Replica count, set to 3 to provide a default available cluster
+replicas: 3
+
+## Node labels and tolerations for pod assignment
+## ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#nodeselector
+## ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#taints-and-tolerations-beta-feature
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+## annotations for rabbitmq pods
+podAnnotations: {node.alpha.kubernetes.io/max-pids: "512"}
+
+## annotations for rabbitmq service metadata (else prometheus)
+svcAnnotations: {}
+## if prometheus plugin is enabled, "prometheus.io/path" must be equal to "rabbitmq.configuration.prometheus.path"
+svcPrometheusAnnotations: {prometheus.io/scrape: "true", prometheus.io/path: "/metrics"}
+
+## svcName:
+
+## The following settings are to configure the frequency of the lifeness and readiness probes
+livenessProbe:
+  enabled: true
+  initialDelaySeconds: 120
+  timeoutSeconds: 5
+  failureThreshold: 6
+
+readinessProbe:
+  enabled: true
+  initialDelaySeconds: 10
+  timeoutSeconds: 3
+  periodSeconds: 5
+
+lcm:
+   scale_hooks: noupgradehooks
+   scale_timeout: 120
+
+ingress:
+  enabled: false
+  hostName: crmq-gui.paas2.compaas.vlab.pl.alcatel-lucent.com  
+  tlsSecret: "cm-generated-secret"
+  certmanager:
+    used: false
+    # 365 days
+    duration: "8760h"
+    # 15 days
+    renewBefore: "360h"
+    keySize: 3072
+    issuerName: "ncms-ca-issuer"
+    issuerType: "ClusterIssuer"
+##  ingress.certmanager.dnsNames can be set by following this example
+##    dnsNames: |
+##      - ""
+##      - "*"

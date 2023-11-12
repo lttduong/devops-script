@@ -1,0 +1,39 @@
+{{- if .Values.importConfig.enabled -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "name" . }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": "before-hook-creation"
+spec:
+  template:
+    metadata:
+      labels:
+        name: {{ template "name" . }}
+    spec:
+      securityContext:
+        runAsUser: 101
+        fsGroup: 101
+      restartPolicy: {{ .Values.restartPolicy | quote }}
+      containers:
+      - name: {{ template "name" . }}
+        image: "{{ .Values.image.nameAndTag }}"
+        command: ["keycloak_loader",
+                  "--config={{ .Values.configDir }}",
+                  "--realm={{ .Values.realm }}",
+                  "--data={{ .Values.dataDir }}"]
+        volumeMounts:
+        - name: {{ template "name" . }}-config-file
+          mountPath: {{ .Values.configDir }}
+        - name: {{ template "name" . }}-partial
+          mountPath: {{ .Values.dataDir }}/partial
+      volumes:
+        - name: {{ template "name" . }}-config-file
+          secret:
+            secretName: {{ .Values.secretName }}
+        - name: {{ template "name" . }}-partial
+          configMap:
+            name: {{ template "name" . }}-partial
+{{- end -}}

@@ -1,0 +1,37 @@
+{{- if .Values.egress.ipv4.enabled }}
+---
+apiVersion: ncm.nokia.com/v1alpha1
+kind: NextHopGroup
+metadata:
+  name: nexthopgroup-ipv4
+  labels:
+{{ toYaml .Values.egress.labels | indent 4 }}
+spec:
+  nextHopTemplate:
+    addressFamily: IPv4
+    bidirectionalForwardingDetectionInterface: {{ .Values.egress.ipv4.edge.bfdPeerInterface }}
+    sourceNetworkAddressTranslation: true
+    sourceNetworkAddressTranslationInterfaces:
+{{ toYaml .Values.egress.ipv4.edge.snatInterfaces | indent 4 }}
+  nodeSelector:
+    is_edge: "true"
+{{- end }}
+
+{{- if .Values.egress.ipv6.enabled }}
+---
+apiVersion: ncm.nokia.com/v1alpha1
+kind: NextHopGroup
+metadata:
+  name: nexthopgroup-ipv6
+  labels:
+{{ toYaml .Values.egress.labels | indent 4 }}
+spec:
+  nextHopTemplate:
+    addressFamily: IPv6
+    bidirectionalForwardingDetectionInterface: {{ .Values.egress.ipv6.edge.bfdPeerInterface }}
+    sourceNetworkAddressTranslation: true
+    sourceNetworkAddressTranslationInterfaces:
+{{ toYaml .Values.egress.ipv6.edge.snatInterfaces | indent 4 }}
+  nodeSelector:
+    is_edge: "true"
+{{- end }}

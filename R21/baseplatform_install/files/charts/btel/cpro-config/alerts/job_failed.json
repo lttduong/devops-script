@@ -1,0 +1,12 @@
+{
+  "alert": "JobFailed",
+  "expr": "kube_job_status  > 1",
+  "for": "0s",
+  "labels": {
+    "severity": "WARNING"
+  },
+  "annotations": {
+    "description": "Job {{$labels.namespace}}/{{$labels.k8s_job_name}} failed to complete",
+    "summary": "Job failed"
+  }
+}

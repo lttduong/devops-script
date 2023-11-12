@@ -1,0 +1,17 @@
+global:
+  registry: bcmt-registry:5000
+
+httpServer:
+  imageRepo: bp/start-page
+  imageTag: 21.0.0
+  configurationConfigMap: custom-nginx-configmap
+  expose:
+    - port: 8443
+      ingressPath: "server1"
+
+  livenessProbePath: /health
+  readinessProbePath: /health
+  livenessScheme: "HTTPS"
+  readinessScheme: "HTTPS"
+
+ipv6Enabled: false

@@ -1,0 +1,348 @@
+belk:
+  belk-fluentd:
+    fluentd:
+      configFile: |
+        <source>
+        @type tail
+        path /var/log/containers/*.log,/var/log/messages,/var/log/bcmt/apiserver/audit.log
+        pos_file /var/log/td-agent/containers.json.access.pos
+        tag kubernetes.*
+        read_from_head true
+        <parse>
+            @type regexp
+            expression /(^(?<header>[^\{]+)?(?<message>\{.+\})$)|(^(?<log>[^\{].+))/
+        </parse>
+        </source>
+
+        <filter kubernetes.var.log.containers.**.log>
+          @type parser
+          key_name message
+          format json
+          time_parse false
+        </filter>
+
+        #this filter is used for C API which remove "[stdout]" from log
+        #if CLOG Unified Logging C API won't be used, this filter can be removed
+        <filter kubernetes.var.log.containers.**.log>
+        @type parser
+        format /^(\[stdout\])*(?<log>.+)$/
+        key_name log
+        suppress_parse_error_log true
+        </filter>
+
+        <filter kubernetes.var.log.containers.**.log>
+         @type record_modifier
+         <record>
+              message ${record["log"]}
+         </record>
+        </filter>
+
+        <filter kubernetes.var.log.containers.**.log>
+         @type record_modifier
+         remove_keys log
+        </filter>
+
+        <filter kubernetes.var.log.containers.**.log>
+        @type kubernetes_metadata
+        kubernetes_url https://kubernetes.default.svc:443
+        de_dot false
+        </filter>
+
+        <match kubernetes.var.log.containers.**.log>
+        @type rewrite_tag_filter
+        <rule>
+          key message
+          pattern ^\s*\{(.+,)?\s*"type":.+\}\s*$
+          tag nokia.logging.json
+        </rule>
+        <rule>
+          key message
+          pattern .+
+          tag nokia.logging.legacy
+        </rule>
+        </match>
+
+        <filter nokia.logging.json>
+          @type parser
+          key_name message
+          reserve_data true
+          format json
+          time_parse false
+        </filter>
+
+        <filter kubernetes.var.log.**>
+        @type record_modifier
+        remove_keys _dummy1_,_dummy2_,_dummy3_,_dummy4_
+        <record>
+          _dummy1_ ${if !record.has_key?("host"); record["host"] = ENV.fetch('HOST', 'UNAVAILABLE'); end;}
+          _dummy2_ ${if !record.has_key?("system"); record["system"] = ENV.fetch('SYSTEM', 'UNAVAILABLE'); end;}
+          _dummy3_ ${if !record.has_key?("systemid"); record["systemid"] = ENV.fetch('SYSTEMID', 'UNAVAILABLE'); end;}
+          _dummy4_ ${if record.has_key?("message"); record["log"] = record["message"]; end;}
+          log ${{"message":record["log"]}}
+          type log
+        </record>
+        </filter>
+
+        <filter kubernetes.var.log.**>
+        @type record_transformer
+        enable_ruby true
+        <record>
+          time ${time.strftime('%Y-%m-%dT%H:%M:%S.%LZ')}
+        </record>
+        </filter>
+
+        <filter nokia.logging.*>
+        @type record_modifier
+        remove_keys _dummy1_
+        <record>
+          _dummy1_ ${record.has_key?("kubernetes") ? record["namespace"]=record["kubernetes"]["namespace_name"]:record["namespace"] = 'UNAVAILABLE'}
+          tenant_msgtype ${record["namespace"]}.${record["type"]}
+        </record>
+        </filter>
+
+        <match kubernetes.var.log.**>
+        @type rewrite_tag_filter
+        <rule>
+          key log
+          pattern .+
+          tag nokia.logging.default.legacy
+        </rule>
+        </match>
+
+        <filter nokia.logging.legacy>
+        @type record_modifier
+        <record>
+          log ${{"message":record["message"]}}
+          type log
+        </record>
+        </filter>
+
+        <match nokia.logging.json>
+        @type rewrite_tag_filter
+        <rule>
+          key "type"
+          pattern ^(.+)$
+          tag "nokia.logging.$1"
+        </rule>
+        </match>
+
+        ##Here is a sample for fluent-plugin-brevity-control
+        ##this plugin can be used to remove reduplicative records
+        ##for more details, please refer to CLOG User Guide
+        #<filter nokia.logging.log>
+        #  @type brevity_control
+        #  interval 10
+        #  num 2
+        #  attr_keys log.message, level
+        #  max_slot_num 100000
+        #  stats_msg_fields kubernetes
+        #</filter>
+
+        <filter nokia.logging.**>
+        @type clog
+        </filter>
+
+        <match nokia.logging.*>
+          @type rewrite_tag_filter
+          <rule>
+              key tenant_msgtype
+              pattern ^(.+)\.log$
+              tag nokia.logging.$1.tmp
+          </rule>
+          <rule>
+              key tenant_msgtype
+              pattern ^(.+\..+)$
+              tag nokia.logging.$1
+          </rule>
+          <rule>
+              key tenant_msgtype
+              pattern ^(.+)\.$
+              tag nokia.logging.$1.legacy
+          </rule>
+        </match>
+
+        <match nokia.logging.*.tmp>
+          @type rewrite_tag_filter
+          <rule>
+            key facility
+            pattern 24
+            tag nokia.logging.${tag_parts[2]}.authlog
+          </rule>
+          <rule>
+            key message
+            pattern ^\s*\{(.+)?\s*"event-type":.+\}\s*$
+            tag nokia.logging.${tag_parts[2]}.auditlog
+          </rule>
+          <rule>
+              key message
+              pattern ^\s*\{(.+)?\s*"message":.+\}\s*$
+              tag nokia.logging.${tag_parts[2]}.log
+          </rule>
+          <rule>
+              key message
+              pattern .+
+              tag nokia.logging.${tag_parts[2]}.log2
+          </rule>
+        </match>
+
+        <filter nokia.logging.*.*>
+          @type record_modifier
+          remove_keys priority, _uid, _gid, _systemd_slice, _machine_id, _transport, _cap_effective, _comm, _exe, _cmdline, _hostname, _systemd_cgroup, _systemd_unit, _selinux_context, _boot_id, _pid, message, container_id_full, container_name, container_tag, _source_realtime_timestamp, docker, kubernetes, tenant_msgtype
+        </filter>
+
+        #############################
+        ## prometheus config start ##
+        #############################
+        <source>
+        @type prometheus
+        #uncomment the parameter for ipv6
+        bind ::        #BTEL_ipv6
+        </source>
+
+        <filter nokia.logging.*.counter>
+        @type record_modifier
+        <record>
+            counter_value ${record["counter"]["value"]}
+            counter_mid ${record["counter"]["mid"]}
+            counter_object ${record["counter"]["object"]}
+            counter_id ${record["counter"]["id"]}
+        </record>
+        </filter>
+
+        #
+        # WARNING: Don't use the match directive here. Otherwise, the messages of counter
+        # cannot be processed further by other parts behind this block.
+        #
+        <filter nokia.logging.*.counter>
+        @type prometheus
+        <metric>
+            name meas_gauge
+            type gauge
+            desc "measurement exported via fluent-plugin-prometheus"
+            key counter_value
+            <labels>
+                mid ${counter_mid}
+                object ${counter_object}
+                id ${counter_id}
+                host ${host}
+                namespace ${namespace}
+            </labels>
+        </metric>
+        </filter>
+
+        #############################
+        ## prometheus config end   ##
+        #############################
+
+        <match nokia.logging.*.*>
+          @type relabel
+          @label @NOKIA-LOGGING-ROUTING
+        </match>
+
+        <label @NOKIA-LOGGING-ROUTING>
+          <filter nokia.logging.*.alarm>
+              @type record_transformer
+              <record>
+                  @class com.nsn.cam.alma.own.api.event.UnifiedLoggingAlarmEvent
+              </record>
+          </filter>
+
+        #
+        # tag: nokia.logging.${namespace}.${type}
+        #
+          <match nokia.logging.*.alarm>
+            @type copy
+          #######################
+          ## amqp config start ##
+          #######################
+             <store>
+                @type amqp
+                host crmq-crmq.<BP_NAMESPACE_PLACEHOLDER>.<DNS_DOMAIN_PLACEHOLDER>:5671
+                vhost /
+                tls true
+                tls_key "/etc/td-agent/certsamqp/tls.key"
+                tls_cert "/etc/td-agent/certsamqp/tls.crt"
+                tls_ca_certificates "/etc/td-agent/certsamqp/ca.crt"
+                tls_verify_peer true
+                auth_mechanism EXTERNAL
+                key event
+                exchange cfw
+                exchange_type direct
+                content_type application/json
+                durable true
+                <buffer>
+                    @type file
+                    path /var/log/td-agent/rabbitmq-buffer/nokia.logging.all.alarm
+                    flush_mode immediate
+                </buffer>
+             </store>
+          #####################
+          ## amqp config end ##
+          #####################
+
+            <store>
+                @type rewrite_tag_filter
+                <rule>
+                  key type
+                  pattern .+
+                  tag ${tag}.es
+                </rule>
+            </store>
+          </match>
+
+          <match nokia.logging.**>
+            @type copy
+            <store>
+                @type elasticsearch_dynamic
+                host elasticsearch.<BP_NAMESPACE_PLACEHOLDER>.<DNS_DOMAIN_PLACEHOLDER>
+                port 9200
+                resurrect_after 5s
+                request_timeout 15s
+                reconnect_on_error true
+                reload_on_failure true
+                reload_connections false
+                type_name fluentd
+                time_key time
+                utc_index true
+                time_key_exclude_timestamp true
+                logstash_format true
+                logstash_prefix fluentd-${tag_parts[2]}-${tag_parts[3]}
+
+                ca_file /etc/td-agent/certs/ca.crt
+                client_cert /etc/td-agent/certs/tls.crt
+                client_key /etc/td-agent/certs/tls.key
+                scheme https
+                ssl_verify true
+                ssl_version TLSv1_2
+
+                <buffer tag, time, namespace, type>
+                    @type file
+                    path /var/log/td-agent/elasticsearch-buffer/nokia.logging.all.all
+                    flush_mode interval
+                    flush_interval 30s
+                    timekey 3600
+                    retry_forever true
+                    retry_max_interval 5s
+                    overflow_action block
+                    chunk_limit_size 8MB
+                    total_limit_size 512m
+                </buffer>
+            </store>
+          </match>
+
+        </label>
+
+  belk-elasticsearch:
+    network_host: "_global:ipv6_"        #BTEL_ipv6
+    #network_host: "_site_"        #BTEL_ipv4
+    elasticsearch_master:
+      es_java_opts: "-Xms1g -Xmx1g"
+    elasticsearch_client:
+      es_java_opts: "-Xms1g -Xmx1g"
+    esdata:
+      es_java_opts: "-Xms1g -Xmx1g"
+
+cnot:
+  wildfly:
+    ipv6Enabled: true        #BTEL_ipv6
+    #ipv6Enabled: false       #BTEL_ipv4

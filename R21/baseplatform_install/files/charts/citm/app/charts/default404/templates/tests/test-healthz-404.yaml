@@ -1,0 +1,34 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ .Release.Name }}-test-healthz-404-{{randAlphaNum 6 | lower}}"
+  annotations:
+    "helm.sh/hook": test-success
+spec:
+  restartPolicy: Never
+  containers:
+  - name: default404-test-healthz-404
+    image: "{{ .Values.global.registry }}/{{ .Values.test.image }}:{{ .Values.test.tag }}"
+    imagePullPolicy: "{{ .Values.imagePullPolicy }}"
+    env:
+      - name: DF404_HOST
+        value: {{ template "fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local
+      - name: DF404_PORT
+        value: "{{ .Values.service.servicePort }}"
+    command:
+      - bash
+      - "-c"
+      - |
+        RC=0
+        for URL in /healthz:200 /:404 /kiki34:404
+        do
+          P=$(echo $URL | cut -d ':' -f1)
+          C=$(echo $URL | cut -d ':' -f2)          
+          echo "Checking http://$DF404_HOST:$DF404_PORT$P. Should return $C"
+          curl --connect-timeout 60 -w "DF_HTTP_CODE=%{http_code}" http://$DF404_HOST:$DF404_PORT$P | grep "DF_HTTP_CODE=$C"
+          RRC=$?
+          RC=$((RC + $RRC))
+        done
+        exit $RC
+    resources:
+{{ toYaml .Values.resources | indent 6 }}

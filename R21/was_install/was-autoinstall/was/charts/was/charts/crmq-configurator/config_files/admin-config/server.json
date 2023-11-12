@@ -1,0 +1,40 @@
+# This file is not used anymore but is kept as an example for now.
+# See ../admin-commands/server-commands.txt for the rabbitmqadmin commands that replace this config file.
+{
+  "users": [
+    {
+      "name": "{{ tpl .Values.users.serverUser.username $ }}",
+      "password": "{{ .Values.users.serverUser.password }}",
+      "tags": ""
+    }
+  ],
+  "permissions": [
+    {
+      "user": "{{ tpl .Values.users.serverUser.username $ }}",
+      "vhost": "{{ .Values.virtualHostName }}",
+      "configure": "^bpas\..*",
+      "write": "^bpas\..*",
+      "read": ""
+    }
+  ],
+  "exchanges": [
+    {
+      "name": "bpas.execution.topic",
+      "vhost": "{{ .Values.virtualHostName }}",
+      "type": "topic",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    },
+    {
+      "name": "bpas.task.topic",
+      "vhost": "{{ .Values.virtualHostName }}",
+      "type": "topic",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    }
+  ]
+}

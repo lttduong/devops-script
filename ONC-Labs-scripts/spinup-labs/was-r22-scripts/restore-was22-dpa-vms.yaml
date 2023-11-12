@@ -1,0 +1,7 @@
+---
+- import_playbook: was-r22-script/re-install-dpa-was/restore-backupvm-master.yml
+- import_playbook: was-r22-script/re-install-dpa-was/restore-backupvm-worker.yml
+- import_playbook: was-r22-script/re-install-dpa-was/restore-backupvm-dpa.yml
+- import_playbook: was-r22-script/re-install-dpa-was/reinstall-was.yml
+- import_playbook: was-r22-script/re-install-dpa-was/reinstall-for-new-dpa.yml
+- import_playbook: was-r22-script/re-install-dpa-was/getinfo-was.yml

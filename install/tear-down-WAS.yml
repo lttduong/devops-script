@@ -1,0 +1,2 @@
+---
+ - import_playbook: kube-cluster-rhel-7.9/cleanup_vm-node.yml

@@ -1,0 +1,2 @@
+---
+- import_playbook: was-install/playbook/workbench_setup.yml

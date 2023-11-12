@@ -1,0 +1,43 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "cmdb.fullname" . }}-mariadb-config
+  labels:
+    {{- include "cmdb-mariadb.labels" . | indent 4 }}
+data:
+  mysqld.site: |-
+{{- if .Values.mariadb.mysqld_site_conf }}
+{{ .Values.mariadb.mysqld_site_conf | indent 4 }}
+{{- end }}
+{{- if .Values.mariadb.audit_logging }}
+    [mysqld]
+    plugin-load-add = server_audit=server_audit.so
+    server_audit_logging = {{ if .Values.mariadb.audit_logging.enabled -}}on{{- else -}}off{{- end }}
+    server_audit_events = {{ .Values.mariadb.audit_logging.events | default "CONNECT,QUERY_DCL,QUERY_DDL" }}
+{{- end }}
+{{- if .Values.mariadb.use_tls }}
+    [mysqld]
+    ssl_cipher = TLSv1.2
+{{- if ne (default "none" .Values.mariadb.certificates.secret) "none" }}
+    [mysqld]
+    ssl
+    ssl-ca=/etc/my.cnf.d/ssl/{{ .Values.mariadb.certificates.server_ca_cert }}
+    ssl-cert=/etc/my.cnf.d/ssl/{{ .Values.mariadb.certificates.server_cert }}
+    ssl-key=/etc/my.cnf.d/ssl/{{ .Values.mariadb.certificates.server_key }}
+{{- end }}
+{{- end }}
+{{- if .Values.mariadb.encryption.enabled }}
+    [mariadb]
+    plugin_load_add = file_key_management
+    file_key_management_encryption_algorithm = AES_CTR
+    file_key_management_filename = /etc/my.cnf.d/encryption/{{ .Values.mariadb.encryption.keyFile }}
+{{- if .Values.mariadb.encryption.keyFileKey }}
+    file_key_management_filekey = FILE:/etc/my.cnf.d/encryption/{{ .Values.mariadb.encryption.keyFileKey }}
+{{- end }}
+    innodb_default_encryption_key_id = {{ default 1 (int .Values.mariadb.encryption.keyFileId) }}
+    innodb_encryption_threads = 4
+    innodb_encrypt_tables = ON
+    innodb_encrypt_log = ON
+    encrypt_binlog = ON
+{{- end }}

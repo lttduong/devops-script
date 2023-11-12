@@ -1,0 +1,4 @@
+apiVersion: v1
+description: NetGuard Application Properties Overrides
+name: application-properties
+version: 1.0.0

@@ -1,0 +1,17 @@
+- name: "Installing geo redundancy BTEL"
+  shell:
+    "{{ helm }} install {{ chartsPath }}/geo-redundancy-btel
+    --name-template {{ geoRedundancyBtelHelmName }}
+    --namespace {{ BP_NAMESPACE }}
+    --values {{ chartsPath }}/values/global-values.yaml
+    {{ geoRedundancyBtelConfigurationOverride }}
+    {{ geoRedundancyBtelResourcesOverride }}
+    {{ geoRedundancyBtelStorageOverride }}
+    --set image.tag={{ bp_version }}
+    --set image.registry={{ bcmtRegistry }}
+    --set cbur.enabled={{ CBUR.BTEL.ENABLED }}
+    --set nfsServer.address={{ CBUR.NFS_SERVER.ADDRESS }}
+    --set nfsServer.backupsPath=\"{{ CBUR.NFS_SERVER.BACKUPS_PATH }}/{{ CBUR.BTEL.ELASTIC.BACKUPS_SUBPATH }}\"
+    --set geo_redundancy.enabled=\"{{ GEO_REDUNDANCY.ENABLED }}\"
+    --set geo_redundancy.btel.restore_schedule=\"{{ GEO_REDUNDANCY.BTEL.RESTORE_SCHEDULE }}\"
+    {{ btelRestoreCronjobGeoSettings | default('') }}"

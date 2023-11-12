@@ -1,0 +1,158 @@
+---
+- name: Recovery DPA VM
+  hosts: localhost
+  connection: local
+  collections:
+    - azure.azcollection
+
+  vars:
+    resourceGroup: open-wavehub-dev
+    vaultName: OriginalWavesuiteBackupVaultWE
+    newRG: "{{ lookup('env', 'rg') }}"
+    dpaVaultName: "{{ lookup('env', 'dpaVaultName') }}"
+    dpaContainerName: "{{ lookup('env', 'dpaContainerName') }}"
+    dpaStorageName: "{{ lookup('env', 'dpaStorageName') }}"
+    dpaRecoveryPoint: "{{ lookup('env', 'dpaRecoveryPoint') }}"
+    dpaName: "{{ lookup('env', 'dpaName') }}"
+    location: "{{ lookup('env', 'region') }}"
+    ssh_key: "{{ lookup('env', 'ssh_key') }}"
+    dpaPolicyVault: "{{ lookup('env', 'dpaPolicyVault') }}"
+    rootProfile: "{{ lookup('env', 'rootProfile') }}"
+    vpnProfile: "{{ lookup('env', 'vpnProfile') }}"
+  
+  tasks:
+    - name: Restore the disk from your recovery point 
+      shell: sudo az backup restore restore-disks --resource-group "{{ resourceGroup }}" --vault-name "{{ vaultName }}" --container-name "{{ dpaContainerName }}" --item-name "{{ dpaContainerName }}" --storage-account "{{ dpaStorageName }}" --rp-name "{{ dpaRecoveryPoint }}" --target-resource-group "{{ newRG }}" --query name
+      register: backupjob
+
+    - name: Pause for 3 minutes for restore disk
+      pause:
+        minutes: 3   
+
+    - name: Mornitoring the restore job 
+      shell: sudo az backup job list --resource-group "{{ resourceGroup }}" --vault-name "{{ vaultName }}" --output table
+      register: restorejob
+    
+    - name: Job name of Backup
+      debug: 
+        msg: "{{ restorejob.stdout }}"
+    
+    - name: Fetch the job details
+      shell: sudo az backup job show -v "{{ vaultName }}" -g "{{ resourceGroup }}" -n {{ backupjob.stdout }} --query 'properties.extendedInfo.propertyBag'| grep Template | awk -F '["]' '{print $4}'
+      register: link
+
+    - name: Get link
+      debug:
+        msg: "{{ link.stdout }}"
+    
+    - name: Take template name
+      shell: echo "{{ link.stdout }}" | awk -F '[/]' '{print $4; exit}'
+      register: template
+
+    - name: Get link
+      debug:
+        msg: "{{ template.stdout }}"
+
+    - name: Take container name
+      shell: echo "{{ link.stdout }}" | awk -F '[/]' '{print $5; exit}'
+      register: cname
+    
+    - name: Get link
+      debug:
+        msg: "{{ cname.stdout }}"
+
+    - name: Create Expiretime var
+      shell: date -u -d '30 minutes' +%Y-%m-%dT%H:%MZ
+      register: expiretime
+
+    - name: Get expiretime
+      debug:
+        msg: "{{ expiretime.stdout }}"
+
+    - name: Create Connection var
+      command: sudo az storage account show-connection-string --resource-group "{{ resourceGroup }}" --name "{{ dpaStorageName }}" --query connectionString
+      register: connection
+    
+    - name: Get connection
+      debug:
+        msg: "{{ connection.stdout }}"
+    
+    - name: Create token for deploy vm 
+      shell: sudo az storage blob generate-sas --container-name {{ template.stdout }} --name {{ cname.stdout }} --expiry {{ expiretime.stdout}} --permissions r --output tsv --connection-string {{ connection.stdout }}
+      register: token
+    
+    - name: Get token
+      debug:
+        msg: "{{ token.stdout }}"
+
+    - name: Create Url var for deploy VM
+      shell: sudo az storage blob url --container-name {{ template.stdout }} --name {{ cname.stdout }} --output tsv --connection-string {{ connection.stdout }}
+      register: url
+    
+    - name: Get url
+      debug:
+        msg: "{{ url.stdout }}"
+
+    - name: Deploy the template to create the DPA VM
+      shell: sudo az deployment group create --resource-group "{{ newRG }}" --template-uri "{{ url.stdout }}?{{ token.stdout }}" --parameters VirtualMachineName="{{ dpaName }}"
+
+    - name: Enable backup item for dpa VM
+      shell: sudo az backup protection enable-for-vm --resource-group "{{ resourceGroup }}" --vault-name "{{ dpaVaultName }}" --vm $(az vm show -g "{{ newRG }}" -n "{{ dpaName }}" --query id | tr -d '"') --policy-name "{{ dpaPolicyVault }}"
+      ignore_errors: yes
+    
+    - name: Get NIC name
+      shell: sudo az vm nic list --vm-name "{{ dpaName }}" -g "{{ newRG }}" --query [0].id | awk -F '[/]' '{print $9}' | sed 's/"//'
+      register: nic
+
+    - name: Get publicip name
+      shell: sudo az vm list-ip-addresses -g "{{ newRG }}" -n "{{ dpaName }}" --query [0].virtualMachine.network.publicIpAddresses[0].name | sed 's/"//g'
+      register: dpaOldIp
+
+    - name: Show public ip name
+      set_fact:
+        dpa_old_ip: "{{ dpaOldIp.stdout }}"
+
+    - name: Creating new public ip
+      shell: az network public-ip create --resource-group "{{ newRG }}" --name "{{ dpaName }}" --version IPv4 -l "{{ location }}"
+
+    - name: Get name ip configuration of NIC
+      shell: sudo az network nic ip-config list -g "{{ newRG }}" --nic-name "{{ nic.stdout }}" --query [0].name
+      register: ipconf
+
+    - name: Updating public IP for VM
+      shell: sudo az network nic ip-config update --name "{{ ipconf.stdout }}" --nic-name {{ nic.stdout }} --public-ip-address "{{ dpaName }}" --resource-group "{{ newRG }}"
+
+    - name: Get public IP new restore vm
+      shell: sudo az vm show -g "{{ newRG }}" -n "{{ dpaName }}"  --query publicIps -d --out tsv
+      register: publicip
+
+    - name: Get private IP new store vm
+      shell: sudo az vm show -g "{{ newRG }}" -n "{{ dpaName }}"  --query privateIps -d --out tsv
+      register: privateip
+
+    - name: Replace public ip of dpa hosts
+      shell: sudo sed -i "s/172.17.0.8/"{{ publicip.stdout }}"/g" ../../hosts
+
+    - name: Set SSH for new VM
+      shell: |
+        sudo az vm extension set --name VMAccessForLinux --publisher Microsoft.OSTCExtensions --version 1.4 --vm-name "{{ dpaName }}" --resource-group "{{ newRG }}" --protected-settings '{"username":"DPA_Admin", "ssh_key":"{{ ssh_key }}", "reset_ssh": true}'
+
+    - name: Refresh inventory to ensure new instances exist in inventory
+      meta: refresh_inventory
+
+    - name: Remove the old Public IP
+      shell: az network public-ip delete -g "{{ newRG }}" -n "{{ dpa_old_ip }}"
+
+    - name: Get the ovpn path where store the ovpn files of component
+      shell: echo {{vpnProfile}} | rev |cut -c6- | rev
+      register: ovpnPath
+
+    - name: Set fact the ovpnPath
+      set_fact: 
+        ovpnPath : "{{ ovpnPath.stdout }}" 
+
+    - name: Create a directory if it does not exist
+      file:
+        path: "{{rootProfile}}{{ovpnPath}}/credentials"
+        state: directory
+        mode: '0755'

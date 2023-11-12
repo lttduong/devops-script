@@ -1,0 +1,58 @@
+---
+- name: "Installing CRMQ configurator config"
+  shell: >
+    {{ helm }} install {{ chartsPath }}/crmq/configurator-config
+    --name-template {{ crmqConfiguratorConfigHelmName }}
+    --namespace {{ BP_CONFIG_NAMESPACE }}
+    --values {{ chartsPath }}/values/global-values.yaml
+    --set dns.domain={{ svcDnsDomain }}
+    --set basePlatformNamespace={{ BP_NAMESPACE }}
+    --set rabbitmq.admin.password="{{ crmqAdminPassword }}"
+    --set rabbitmq.admin.username={{ crmqAdminUsername }}
+    --set rabbitmq.erlangCookie="{{ crmqErlangCookie }}"
+  no_log: "{{ no_log }}"
+
+- name: "Installing CRMQ"
+  shell: >
+    {{ helm }} install {{ chartsPath }}/crmq/app
+    --name-template {{ crmqHelmName }}
+    --namespace {{ BP_NAMESPACE }}
+    --values {{ chartsPath }}/values/global-values.yaml
+    --values {{ chartsPath }}/crmq/app/override.yaml
+    {{ crmqConfigurationOverride }}
+    {{ crmqResourcesOverride }}
+    {{ crmqStorageOverride }}
+    --set global.registry={{ bcmtRegistry }}
+    --set global.registry1={{ bcmtRegistry }}
+    --set global.registry2={{ bcmtRegistry }}
+    --set dns.domain={{ svcDnsDomain }}
+    --set rabbitmq.management.certmanager.domain={{ svcDnsDomain }}
+    --set rabbitmq.tls.certmanager.domain={{ svcDnsDomain }}
+    --set rabbitmq.password="{{ crmqAdminPassword }}"
+    --set rabbitmq.username={{ crmqAdminUsername }}
+    --set rabbitmq.erlangCookie="{{ crmqErlangCookie }}"
+    --set rabbitmq.clustering.k8s_domain={{ DNS_DOMAIN }}
+    --set ipv6Enabled={{ ipv6Only }}
+    --set rabbitmq.nodePort={{ (BP_INITIAL_NODE_PORT + crmqAmqpNodePortOffset) | int }}
+    --set rabbitmq.tls.nodePort={{ RABBITMQ_TLS_NODE_PORT | default (((BP_INITIAL_NODE_PORT + crmqTlsNodePortOffset) | int), true) }}
+    --set rabbitmq.management.nodePort={{ RABBITMQ_MANAGEMENT_NODE_PORT | default (((BP_INITIAL_NODE_PORT + crmqManagementNodePortOffset) | int), true) }}
+    --set rabbitmq.prometheus.nodePort={{ RABBITMQ_PROMETHEUS_NODE_PORT | default (((BP_INITIAL_NODE_PORT + crmqPrometheusNodePortOffset) | int), true) }}
+    --set rabbitmq.mqtt.tcpNodePort={{ (BP_INITIAL_NODE_PORT + crmqMqttTcpNodePortOffset) | int }}
+    --set rabbitmq.mqtt.sslNodePort={{ (BP_INITIAL_NODE_PORT + crmqMqttSslNodePortOffset) | int }}
+    --wait
+    --timeout 700s
+  no_log: "{{ no_log }}"
+
+- name: "Read CRMQ chart values"
+  include_vars:
+    file: "{{ files_path }}/charts/crmq/app/values.yaml"
+    name: crmq_values
+
+- name: "Waiting for CRMQ to be ready"
+  shell: >
+    . {{ temporaryAppFilesDirectory }}/functions.sh {{ BP_NAMESPACE }}
+    && waitForReady crmq {{ crmq_values.image.tag }}
+  args:
+    executable: /bin/bash
+  async: 700
+  poll: 5

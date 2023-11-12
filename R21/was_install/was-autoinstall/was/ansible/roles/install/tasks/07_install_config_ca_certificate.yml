@@ -1,0 +1,16 @@
+---
+- name: "Retrieving CA certificate"
+  shell: >
+    kubectl get secret -n {{ certManagerNamespace }} {{ caCertificateSecret }} -o jsonpath='{.data.tls\.crt}'
+  register: cert
+
+- name: "Installing CA certificate namespace"
+  shell: >
+    {{ helmPath }} install {{ chartsPath }}/ca-cert/app
+    --name-template {{ caCertHelmName }}-{{ item }}
+    --namespace {{ item }}
+    --values {{ chartsPath }}/values/global-values.yaml
+    --set caCertEncoded="{{ cert.stdout }}"
+  with_items:
+    - "{{ NAMESPACE }}"
+

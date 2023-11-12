@@ -1,0 +1,11 @@
+---
+- name: "Clean copied files on installation node"
+  file:
+    state: absent
+    path: "{{ appThisVersionConfigDirectory }}"
+
+- name: "Display upgrade summary"
+  debug:
+    msg:
+      - "Product upgrade successful!"
+

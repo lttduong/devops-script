@@ -1,0 +1,23 @@
+---
+egress:
+  labels: {}
+  ipv4:
+    enabled: false
+    edge:
+      snatInterfaces:
+      - eth0 
+      bfdPeerInterface: eth1
+    control:
+      bfdPeerInterface: eth1
+    worker:
+      bfdPeerInterface: eth1
+  ipv6:
+    enabled: false
+    edge:
+      snatInterfaces:
+      - eth0 
+      bfdPeerInterface: eth1
+    control:
+      bfdPeerInterface: eth1
+    worker:
+      bfdPeerInterface: eth1

@@ -1,0 +1,41 @@
+---
+- hosts: restore_dpa_vm
+  become: yes
+  
+  var_files: 
+    - env_variables  
+  tasks: 
+   - name: copy wasip.txt file to dpa
+     copy:
+      src: ./wasip.txt
+      dest: /tmp/was/  
+   
+   - name: Set Public Ip Master node
+     shell: awk '{if(NR==1) print $1}' /tmp/was/wasip.txt
+     register: publicIp
+
+   - name: Set fact Public Ip Master node
+     set_fact:
+      publicIpMaster: "{{publicIp.stdout}}"
+
+   - name: Show out NETGUARD_ADMIN_PASSWORD
+     shell: awk '{if(NR==2) print $1}' ./wasip.txt
+     register: Password
+
+   - name: Set fact wasPassword
+     set_fact:
+      wasPassword: "{{Password.stdout}}"      
+
+   - name: Changing WAS configure in the credentials.cfg
+     shell: | 
+      sed -i "9 s/ip=.*/ip={{publicIpMaster}}/g" /opt/nokia/dpa/digimops/config/credentials.cfg
+      sed -i "11 s/username=.*/username={{wasUsername}}/g" /opt/nokia/dpa/digimops/config/credentials.cfg
+      sed -i "12 s/password=.*/password={{wasPassword}}/g" /opt/nokia/dpa/digimops/config/credentials.cfg
+
+   - name: Changing NFMT configure in the credentials.cfg
+     shell: | 
+      sed -i "23 s/ip=.*/ip={{nfmtIp}}/g" /opt/nokia/dpa/digimops/config/credentials.cfg
+      sed -i "25 s/username=.*/username={{nfmtUsername}}/g" /opt/nokia/dpa/digimops/config/credentials.cfg
+      sed -i "26 s/password=.*/password={{nfmtPassword}}/g" /opt/nokia/dpa/digimops/config/credentials.cfg
+
+

@@ -1,0 +1,15 @@
+config:
+  ckey:
+    configurator:
+      image:
+        name: ckey-config
+        tag: 19.0.35
+      masterSecretName: ckey-configurator-config-master
+global:
+  config:
+    ckey:
+      configurator:
+        image:
+          name: ckey-config
+          tag: 19.0.35
+        masterSecretName: ckey-configurator-config-master

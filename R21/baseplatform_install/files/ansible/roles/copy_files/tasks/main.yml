@@ -1,0 +1,5 @@
+- name: "Create application directories"
+  include: create-directories.yml
+
+- name: "Copy files to nodes"
+  include: copy-files.yml

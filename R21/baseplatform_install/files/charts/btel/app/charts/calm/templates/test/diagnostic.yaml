@@ -1,0 +1,44 @@
+{{- if or .Values.serviceAccountName .Values.rbac.enabled }}
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ template "alarm.fullname" . }}-diagnostic"
+  annotations:
+    "helm.sh/hook": test-success
+    {{- if .Values.istio.enabled }}
+    sidecar.istio.io/inject: "{{ .Values.istio.inject }}"
+    {{- end }}
+    "helm.sh/hook-delete-policy": "{{ .Values.helmDeleteHooks }}"
+spec:
+  containers:
+    - name: {{ template "alarm.container.fullname" . }}-diagnostic
+      image: {{ .Values.global.registry }}/{{ .Values.image.imageRepo }}:{{ .Values.image.imageTag }}
+      resources:
+        limits:
+          cpu: "0.5"
+          memory: 256Mi
+        requests:
+          cpu: "0.25"
+          memory: 128Mi
+      command:
+         - bash
+         - -ec
+         - |
+{{- if and .Values.istio.enabled .Values.istio.inject }}
+            until $(curl --output /dev/null --silent --head --fail http://localhost:15020/healthz/ready); do echo . ; sleep 5; done;
+{{- end }}
+            cmd="curl -Ss --retry 10 --retry-delay 15 http://{{ template "alarm.fullname" . }}.{{ .Release.Namespace }}:{{ .Values.restPort }}/api/alma/selfcheck/diagnostic"
+            echo "Running : $cmd"
+            result=$($cmd)
+            echo "Result : $result"
+            echo $result | jq .pass | grep true
+{{- if and .Values.istio.enabled .Values.istio.inject }}
+            curl -X POST http://localhost:15020/quitquitquit
+{{- end }}
+  restartPolicy: Never
+  {{- if .Values.rbac.enabled }}
+  serviceAccountName: {{ template "alarm.fullname" . }}
+  {{- else if .Values.serviceAccountName }}
+  serviceAccountName: {{ .Values.serviceAccountName }}
+  {{- end }}
+{{- end }}

@@ -1,0 +1,48 @@
+---
+{{- if .Values.mariadb.metrics.enabled }}
+#
+# Verify that the metrics (exporter) sidecar is functioning and connected
+# to the database
+#
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ template "cmdb.fullname" . }}-verify-mysql-metrics
+  labels:
+    {{- include "cmdb-test.labels" . | indent 4 }}
+  annotations:
+    "helm.sh/hook": test-success
+    "helm.sh/hook-weight": "1"
+    {{- if .Values.istio.enabled }}
+    sidecar.istio.io/inject: "true"
+    {{- end }}
+spec:
+  restartPolicy: Never
+  {{- include "cmdb.sa" . | nindent 2 }}
+  containers:
+  - name: test
+    {{- include "cmdb-admin.image" . | indent 4 }}
+    resources:
+      requests:
+        memory: 64Mi
+        cpu: 100m
+      limits:
+        memory: 64Mi
+        cpu: 100m
+    command:
+    - bash
+    - "-c"
+    - |
+      . /usr/lib/admin/functions
+      wait_istio_proxy
+      for pod in $(kubectl get pod -n ${K8S_NAMESPACE} -l${K8S_LABELS},type=mariadb -o jsonpath={.items[*].metadata.name}); do
+          kubectl exec -n ${K8S_NAMESPACE} ${pod} -c metrics -- wget -q -O - localhost:9104/metrics | grep "^mysql_up 1" || {
+              kill_istio_proxy
+              exit 1
+      }
+      done
+      kill_istio_proxy
+      exit 0
+    env:
+    {{- include "cmdb-k8s.env" . | nindent 4 }}
+{{- end }}

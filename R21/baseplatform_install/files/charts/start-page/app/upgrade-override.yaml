@@ -1,0 +1,8 @@
+kubectlImage: "tools/kubectl"
+kubectlTag: "v1.17.8-nano"
+
+httpServer:
+  replicaCount: 1
+
+rbac:
+  enabled: true

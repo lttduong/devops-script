@@ -1,0 +1,412 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+{{ if empty .Values.global.podNamePrefix }}
+  name: {{ template "rabbitmq.fullname" . }}
+{{ else }}
+  name: {{ .Values.global.podNamePrefix }}{{ template "rabbitmq.fullname" . }}
+{{ end }}
+  labels:
+    app: {{ template "rabbitmq.name" . }}
+    chart: {{ template "rabbitmq.chart" .  }}
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+spec:
+  serviceName: {{ template "rabbitmq.fullname" . }}
+  replicas: {{ .Values.replicas }}
+  updateStrategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app: {{ template "rabbitmq.name" . }}
+      release: "{{ .Release.Name }}"
+  template:
+    metadata:
+      labels:
+        app: {{ template "rabbitmq.name" . }}
+        release: "{{ .Release.Name }}"
+        chart: {{ template "rabbitmq.chart" .  }}
+      annotations:
+        sidecar.istio.io/inject: "{{ .Values.istio.enabled }}"
+{{- if .Values.rabbitmq.clog.bcmt.enabled }}
+        injector.tumblr.com/request: sidecar-rsyslog
+{{- end }}
+      {{- if .Values.podAnnotations }}
+{{ toYaml .Values.podAnnotations | indent 8 }}
+      {{- end }}
+    spec:
+      subdomain: {{ template "rabbitmq.name" . }}
+      {{- if .Values.image.pullSecrets }}
+      imagePullSecrets:
+      {{- range .Values.image.pullSecrets }}
+        - name: {{ . }}
+      {{- end}}
+      {{- end }}
+      securityContext:
+        runAsUser: 10000
+        fsGroup: 10000    
+      serviceAccountName: {{ if .Values.rbac.enabled }}{{ template "rabbitmq.fullname" . }}{{ else }}"{{ .Values.rbac.serviceAccountName }}"{{ end }}
+      {{- if .Values.affinity }}
+      affinity:
+{{ toYaml .Values.affinity | indent 8 }}
+      {{- end }}
+      {{- if .Values.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.nodeSelector | indent 8 }}
+      {{- end }}
+      {{- if .Values.tolerations }}
+      tolerations:
+{{ toYaml .Values.tolerations | indent 8 }}
+      {{- end }}
+      terminationGracePeriodSeconds: 10
+      containers:
+      - name: {{ default "" .Values.global.containerNamePrefix }}{{ template "rabbitmq.fullname" . }}
+        image: "{{ .Values.global.registry }}/{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ default "IfNotPresent" .Values.image.pullPolicy | quote }}
+        securityContext:
+          runAsUser: 10000
+          allowPrivilegeEscalation: false
+        command:
+         - bash
+         - -ec
+         - |
+            touch /var/lib/rabbitmq/.start
+            cat > /var/lib/rabbitmq/pod_health_check <<EOF
+            #!/usr/bin/sh
+            rabbitmq-diagnostics -q status
+            RESULT=\$?
+            FILE=/var/lib/rabbitmq/.start
+            if [ \$RESULT -ne 0 ]; then
+                if [ -f \$FILE ]; then
+                    echo "The node not health when start, run rabbitmqctl status to check."
+                    rabbitmqctl status
+                    exit $?
+                else
+                    echo "The node not health when running, exit with error."
+                    exit \$RESULT
+                fi
+            fi
+            if [ -f \$FILE ]; then
+                rm -f \$FILE
+            fi
+            exit \$RESULT
+            EOF
+            chmod 755 /var/lib/rabbitmq/pod_health_check
+
+            ls -al /var/lib/rabbitmq/
+            #persist the erlang cookie in both places for server and cli tools
+            if [ ! -f /var/lib/rabbitmq/.erlang.cookie ]; then
+              echo $RABBITMQ_ERL_COOKIE > /var/lib/rabbitmq/.erlang.cookie
+            fi
+
+            #change permision so only the user has access to the cookie file
+            chmod 400 /var/lib/rabbitmq/.erlang.cookie
+
+            # copy configuration files from /etc/rabbitmq-config-tmp to /etc/rabbitmq/
+            cp /etc/rabbitmq-config-tmp/* /etc/rabbitmq/
+
+            #replace the default password that is generated
+            sed -i "s/CHANGEME/$RABBITMQ_PASSWORD/g" /etc/rabbitmq/rabbitmq.conf
+            cat /etc/rabbitmq/rabbitmq-env.conf
+            unset RABBITMQ_PASSWORD
+
+            {{- range $item := .Values.rabbitmq.thirdPartyPlugin }}
+            mkdir -p /var/lib/rabbitmq/plugins
+            cd /var/lib/rabbitmq/plugins
+            version=$(curl -s {{ $item.path }}/{{ $item.name }}/ | grep -oE "[vV][1-9]+[0-9]*(\.[1-9]+[0-9]*)+|([1-9]+\.){2}x"|uniq|sort -V|tail -n1)
+            pkg_list=$(curl {{ $item.path }}/{{ $item.name }}/$version/ |grep -oE "[a-z_\.0-9-]*\.ez" |uniq)
+            for pkg in $pkg_list; do
+              curl -C - -O {{ $item.path }}/{{ $item.name }}/$version/$pkg
+            done
+            cd -
+            {{- end }}
+
+            exec /usr/sbin/rabbitmq-server start
+        {{- if .Values.resources }}
+        resources:
+{{ toYaml .Values.resources | indent 10 }}
+        {{- end }}
+        volumeMounts:
+          - name: config-volume
+            mountPath: /etc/rabbitmq/
+          - name: config-volume-tmp
+            mountPath: /etc/rabbitmq-config-tmp/
+          - name: data
+            mountPath: /var/lib/rabbitmq/
+          - name: log
+            mountPath: /var/log/rabbitmq/
+          - name: ssl-file
+            mountPath: /etc/rabbitmq.tls.conf
+          {{- if .Values.rabbitmq.tls.certmanager.used  }}
+          - name: cm-server-file
+            mountPath: /etc/rabbitmq.tls.conf/certManagerKeys/server
+            readOnly: true
+          {{- end }}
+          {{- if .Values.rabbitmq.management.certmanager.used }}
+          - name: cm-management-file
+            mountPath: /etc/rabbitmq.tls.conf/certManagerKeys/management
+            readOnly: true
+          {{- end }}
+        ports:
+        - name: tcp-epmd
+          containerPort: 4369
+        - name: tcp-amqp
+          containerPort: {{ .Values.rabbitmq.amqpPort }}
+        - name: tcp-dist
+          containerPort: 25672
+        - name: tcp-erlang
+          containerPort: 35672
+        {{- if .Values.rabbitmq.management.enabled }}
+        - name: tcp-stats
+          containerPort: {{ .Values.rabbitmq.management.port }}
+        {{- end }}
+        {{- if .Values.rabbitmq.prometheus.enabled }}
+        - name: tcp-prometheus
+          containerPort: {{ .Values.rabbitmq.prometheus.port }}
+        {{- end }}
+        ## Start of custom modification of original chart
+        {{- if .Values.rabbitmq.management.httpEnabled }}
+        - name: tcp-stats-http
+          containerPort: {{ .Values.rabbitmq.management.httpPort }}
+        {{- end }}
+        ## End of custom modification of original chart
+        {{- if .Values.rabbitmq.mqtt.enabled }}
+        - name: tcp-mqtttcp
+          containerPort: {{ .Values.rabbitmq.mqtt.DefaultTcpPort }}
+        {{- if .Values.rabbitmq.mqtt.enabledSsl }}
+        - name: tcp-mqttssl
+          containerPort: {{ .Values.rabbitmq.mqtt.DefaultSslPort }}
+        {{- end }}
+        {{- end }}
+        {{- if or .Values.rabbitmq.tls.certmanager.used (and .Values.rabbitmq.tls.cacert .Values.rabbitmq.tls.cert .Values.rabbitmq.tls.key) }}
+        - name: tcp-server-ssl
+          containerPort: {{ .Values.rabbitmq.tls.ssl_port }}
+        {{- end }}
+        {{- if .Values.livenessProbe.enabled }}
+        livenessProbe:
+          exec:
+            command:
+            - rabbitmq-diagnostics
+            - status
+          initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+          timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
+          failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
+        {{- end }}
+        {{- if .Values.readinessProbe.enabled }}
+        readinessProbe:
+          exec:
+            command:
+            - sh
+            - -c
+            - sh /var/lib/rabbitmq/pod_health_check
+          initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+          timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
+          periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+        {{- end }}
+        env:
+        {{- if .Values.image.debug}}
+          - name: BASH_DEBUG
+            value: 1
+          - name: NAMI_DEBUG
+            value: 1
+        {{- end }}
+          - name: LC_ALL
+            value: en_US.UTF-8
+          - name: LANG
+            value: en_US.UTF-8
+          - name: K8S_SERVICE_NAME
+            value: "{{ template "rabbitmq.fullname" . }}"
+          - name: RABBITMQ_ERL_COOKIE
+            valueFrom:
+              secretKeyRef:
+                name: {{ template "rabbitmq.fullname" . }}-const
+                key: rabbitmq-erlang-cookie
+          - name: RABBITMQ_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: {{ template "rabbitmq.fullname" . }}
+                key: rabbitmq-password
+          - name: MY_POD_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+          - name: MY_POD_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+          {{- if (eq "hostname" .Values.rabbitmq.clustering.address_type) }}
+          - name: RABBITMQ_NODENAME
+            value: "rabbit@$(MY_POD_NAME).$(K8S_SERVICE_NAME).$(MY_POD_NAMESPACE).svc.{{ .Values.rabbitmq.clustering.k8s_domain }}"
+          - name: K8S_HOSTNAME_SUFFIX
+            value: ".$(K8S_SERVICE_NAME).$(MY_POD_NAMESPACE).svc.{{ .Values.rabbitmq.clustering.k8s_domain }}"
+          {{- else }}
+          - name: RABBITMQ_NODENAME
+            {{- if .Values.rabbitmq.rabbitmqClusterNodeName }}
+            value: {{ .Values.rabbitmq.rabbitmqClusterNodeName | quote }}
+            {{- else }}
+            value: "rabbit@$(MY_POD_NAME)"
+            {{- end }}
+          {{- end }}
+      {{- if .Values.rabbitmq.backuprestore.enabled }}
+      - name: {{ .Values.rabbitmq.backuprestore.agent.name }}
+        securityContext:
+          runAsUser: 1000
+        image: "{{ .Values.global.registry1 }}/{{ .Values.rabbitmq.backuprestore.agent.imageRepo }}:{{ .Values.rabbitmq.backuprestore.agent.imageTag }}"
+        imagePullPolicy: {{ default "IfNotPresent" .Values.rabbitmq.backuprestore.agent.imagePullPolicy | quote }}
+        volumeMounts:
+          - mountPath: /config-volume
+            name: config-volume
+        {{- if .Values.resources }}
+        resources:
+{{ toYaml .Values.rabbitmq.backuprestore.resources | indent 10 }}
+        {{- end }}
+      {{- end }}
+      {{- if .Values.rabbitmq.rsyslog.enabled }}
+      - name: rsyslog
+        image: "{{ .Values.global.registry }}/{{ .Values.rabbitmq.rsyslog.repository }}:{{ .Values.rabbitmq.rsyslog.tag }}"
+        imagePullPolicy: {{ default "IfNotPresent" .Values.rabbitmq.rsyslog.imagePullPolicy | quote }}
+        ports:
+          - name: tcp-2514
+            containerPort: 2514
+      {{- end }}
+      dnsConfig:
+        searches:
+          # Start of custom modification of original chart for CSFS-31476
+          - {{ template "rabbitmq.fullname" . }}.{{ .Release.Namespace }}.{{ .Values.dns.domain }}
+          - {{ .Release.Namespace }}.{{ .Values.dns.domain }}
+          - {{ .Values.dns.domain }}
+          # End of custom modification of original chart for CSFS-31476
+          - cluster.local 
+          - bcmt.cluster.local
+      volumes:
+        - name: config-volume
+          emptyDir: {}
+        - name: config-volume-tmp
+          configMap:
+            name: {{ template "rabbitmq.fullname" . }}-config
+            items:
+            - key: rabbitmq.conf
+              path: rabbitmq.conf
+            - key: rabbitmq-env.conf
+              path: rabbitmq-env.conf
+            - key: enabled_plugins
+              path: enabled_plugins
+            - key: advanced.config
+              path: advanced.config
+        {{- if .Values.ipv6Enabled }}
+            - key: erl_inetrc
+              path: erl_inetrc
+        {{- end }}
+        {{- if .Values.rabbitmq.tls.certmanager.used }}        
+        - name: cm-server-file
+          secret:
+            secretName: {{ template "rabbitmq.fullname" . }}-crmq-server-cert-secret
+            items:
+            - key: ca.crt
+              path: ca.crt
+            - key: tls.crt
+              path: tls.crt
+            - key: tls.key
+              path: tls.key  
+        {{- end }}        
+        {{- if .Values.rabbitmq.management.certmanager.used }}   
+        - name: cm-management-file
+          secret:
+            secretName: {{ template "rabbitmq.fullname" . }}-crmq-management-cert-secret
+            items:
+            - key: ca.crt
+              path: ca.crt
+            - key: tls.crt
+              path: tls.crt
+            - key: tls.key
+              path: tls.key   
+        {{- end }}
+ 
+        - name: ssl-file
+          secret:
+            secretName: {{ template "rabbitmq.fullname" . }}-const
+            items:
+            {{- if and .Values.rabbitmq.tls.cacert .Values.rabbitmq.tls.cert .Values.rabbitmq.tls.key }}
+            - key: server.cacert.pem
+              path: server/cacert.pem
+            - key: server.cert.pem
+              path: server/cert.pem
+            - key: server.key.pem
+              path: server/key.pem
+            {{- end }}
+            {{- if and .Values.rabbitmq.management.enabled .Values.rabbitmq.management.cacert .Values.rabbitmq.management.cert .Values.rabbitmq.management.key }}
+            - key: management.cacert.pem
+              path: management/cacert.pem
+            - key: management.cert.pem
+              path: management/cert.pem
+            - key: management.key.pem
+              path: management/key.pem
+            {{- end }}
+            {{- range $item := .Values.tlsClient }}
+            - key: {{ $item.name }}.cacert.pem
+              path: {{ $item.name }}/cacert.pem
+            - key: {{ $item.name }}.cert.pem
+              path: {{ $item.name }}/cert.pem
+            - key: {{ $item.name }}.key.pem
+              path: {{ $item.name }}/key.pem
+            {{- end }}
+      {{- if not .Values.persistence.data.enabled }}
+        - name: data
+          emptyDir: {}
+      {{- end }}
+      {{- if not .Values.persistence.log.enabled }}
+        - name: log
+          emptyDir: {}
+      {{- end }}
+  {{- if or .Values.persistence.data.enabled .Values.persistence.log.enabled }}
+  volumeClaimTemplates:
+    {{- if .Values.persistence.data.enabled }}
+    - metadata:
+        name: data
+        labels:
+          app: {{ template "rabbitmq.name" . }}
+          release: "{{ .Release.Name }}"
+          heritage: "{{ .Release.Service }}"
+      spec:
+        accessModes:
+          - {{ .Values.persistence.data.accessMode | quote }}
+        resources:
+            requests:
+              storage: {{ .Values.persistence.data.size | quote }}
+      {{- if .Values.persistence.data.storageClass }}
+      {{- if (eq "-" .Values.persistence.data.storageClass) }}
+        storageClassName: ""
+      {{- else }}
+        storageClassName: "{{ .Values.persistence.data.storageClass }}"
+      {{- end }}
+      {{- end }}
+    {{- end }}
+    {{- if .Values.persistence.log.enabled }}
+    - metadata:
+        name: log
+        labels:
+          app: {{ template "rabbitmq.name" . }}
+          release: "{{ .Release.Name }}"
+          heritage: "{{ .Release.Service }}"
+      spec:
+        accessModes:
+          - {{ .Values.persistence.log.accessMode | quote }}
+        resources:
+            requests:
+              storage: {{ .Values.persistence.log.size | quote }}
+        ## Start of custom modification of original chart
+        {{- if $.Values.persistence.crmq.localPv }}
+        selector:
+          matchLabels:
+          {{ $.Values.persistence.crmq.labels | indent 12 }}
+        {{- end }}
+        ## End of custom modification of original chart
+      {{- if .Values.persistence.log.storageClass }}
+      {{- if (eq "-" .Values.persistence.log.storageClass) }}
+        storageClassName: ""
+      {{- else }}
+        storageClassName: "{{ .Values.persistence.log.storageClass }}"
+      {{- end }}
+      {{- end }}
+    {{- end }}
+  {{- end }}

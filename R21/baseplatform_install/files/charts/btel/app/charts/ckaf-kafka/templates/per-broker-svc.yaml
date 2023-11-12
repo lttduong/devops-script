@@ -1,0 +1,25 @@
+{{- if eq .Values.ingress.enableExternalAccess true }}
+{{- $replicas := .Values.Replicas | int }}
+{{- $servicePort := .Values.ingress.startPortRangeOnEdgeNode |int }}
+{{- $hostName := include "kafka.name" . }}
+{{- $root := . }}
+{{- range $replica := until $replicas }}
+  {{- $externalListenerPort := add $servicePort $replica }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $hostName }}-{{ $replica }}-broker-external
+  labels:
+    app: {{ $hostName }}
+    release: {{ $root.Release.Name | quote }}
+    heritage: {{ $root.Release.Service | quote }}
+spec:
+  ports:
+  - name: tcp-kafka
+    port: 9092
+    targetPort: {{ $externalListenerPort }}
+  selector:
+    statefulset.kubernetes.io/pod-name: {{ $hostName }}-{{ $replica }}
+{{- end }}
+{{- end }}

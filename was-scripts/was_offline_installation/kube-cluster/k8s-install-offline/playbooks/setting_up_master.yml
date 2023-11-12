@@ -1,0 +1,121 @@
+---
+- hosts: kubernetes_master_nodes
+  become: yes
+  vars_files:
+    - env_variables
+  
+  tasks:
+ 
+  # - name: create package directory
+  #   file:
+  #     path: "{{ dir_master[0] }}"
+  #     state: directory
+  #     mode: 0755
+
+  - name: create dockerdata directory
+    file:
+      path: "{{ dir_master[1] }}"
+      state: directory
+      mode: 0755 
+
+  - name: create netguard-data directory
+    file:
+      path: "{{ dir_master[2] }}"
+      state: directory
+      mode: 0755  
+
+  - name: unzip the cert manager package
+    shell: tar -xzvf yum-packages.tar.gz
+    args:
+     chdir: "{{ dir_master[0] }}"
+  
+  - name: Installing Docker
+    shell: |
+      yum install -y --cacheonly --disablerepo=* ./yum-packages/docker/yum/*.rpm
+      yum install -y --cacheonly --disablerepo=* ./yum-packages/docker/dm/*.rpm  
+      yum install -y --cacheonly --disablerepo=* ./yum-packages/docker/se/*.rpm
+      yum install -y --cacheonly --disablerepo=* ./yum-packages/docker/lvm2/*.rpm
+      yum install -y --cacheonly --disablerepo=* ./yum-packages/docker/docker-ce/*.rpm
+    args:
+        chdir: "{{ dir_master[0] }}"
+    ignore_errors: yes      
+
+  - name: Installing K8S
+    shell: |
+     sudo yum install -y --cacheonly --disablerepo=* ./yum-packages/k8s/*.rpm
+    args:
+      chdir: "{{ dir_master[0] }}"
+    ignore_errors: yes
+
+  # - name: Installing required packages
+  #   yum:
+  #    name: "{{ packages }}"
+  #    state: present
+
+  - name: update environment for kubelet
+    shell: Environment="KUBELET_SYSTEM_PODS_ARGS=--pod-manifest-path=/etc/kubernetes/manifests --allow-privileged=true --fail-swap-on=false" && systemctl daemon-reload
+
+  - name: Starting and Enabling the required services
+    service:
+     name: "{{ item }}"
+     state: started
+     enabled: yes
+    with_items: "{{ services }}"
+
+  - name: Clear lib default Docker
+    shell: docker system prune -af
+ 
+  - name: change config daemon.json Docker
+    copy:
+     src: master/daemon.json
+     dest: /etc/docker/daemon.json    
+ 
+  - name: Restart service docker 
+    shell: systemctl restart docker
+
+  - name: Pulling images 
+    shell: |
+     docker load < ./yum-packages/k8s/mirrored-flannelcni-flannel-cni-plugin:v1.0.0_v1.tar
+     docker load < ./yum-packages/k8s/mirrored-flannelcni-flannel:v0.16.1_v1.tar
+     docker load < ./yum-packages/k8s/nginx-ingress-controller:latest.tar
+     docker load < ./yum-packages/k8s/nginx-ingress-controller:nginx-1.1.0-rancher1.tar
+     docker load < ./yum-packages/k8s/kube-apiserver:v1.19.16.tar
+     docker load < ./yum-packages/k8s/kube-controller-manager:v1.19.16.tar
+     docker load < ./yum-packages/k8s/kube-proxy:v1.19.16.tar
+     docker load < ./yum-packages/k8s/kube-scheduler:v1.19.16.tar
+     docker load < ./yum-packages/k8s/etcd:3.4.13-0.tar
+     docker load < ./yum-packages/k8s/coredns:1.7.0.tar
+     docker load < ./yum-packages/k8s/pause:3.2.tar
+    args:
+      chdir: "{{ dir_master[0] }}"
+    ignore_errors: yes
+
+  - name: Allow Network Ports in Firewalld
+    firewalld:
+      port: "{{ item }}"
+      state: enabled
+      permanent: yes
+      immediate: yes
+    with_items: "{{ master_ports if ('kubernetes_master_nodes' in group_names) else worker_ports }}"
+
+  - name: Allow masquerading in Firewalld
+    firewalld:
+      masquerade: "yes"
+      state: enabled
+      permanent: yes
+      immediate: yes
+
+  - name: Enabling Bridge Firewall Rule
+    shell: "echo '1' > /proc/sys/net/bridge/bridge-nf-call-iptables"
+
+  - name: ensure net.bridge.bridge-nf-call-ip6tables is set to 1
+    sysctl:
+      name: net.bridge.bridge-nf-call-ip6tables
+      value: 1
+      state: present
+
+  - name: ensure net.bridge.bridge-nf-call-iptables is set to 1
+    sysctl:
+      name: net.bridge.bridge-nf-call-iptables
+      value: 1
+      state: present

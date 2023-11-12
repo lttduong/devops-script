@@ -1,0 +1,4 @@
+apiVersion: v1
+description: NetGuard Extended Properties
+name: extended-properties
+version: 1.0.0

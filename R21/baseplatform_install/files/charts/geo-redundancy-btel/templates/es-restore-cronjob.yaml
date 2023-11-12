@@ -1,0 +1,102 @@
+{{- if and (.Values.cbur.enabled) (.Values.geo_redundancy.enabled) }}
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: {{ .Chart.Name }}-passive-restore
+  labels:
+    app: {{ .Chart.Name }}-passive-restore
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+  annotations:
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: {{ .Values.global.seccompAllowedProfileNames }}
+    seccomp.security.alpha.kubernetes.io/defaultProfileName: {{ .Values.global.seccompDefaultProfileName }}
+spec:
+  schedule: "{{ .Values.geo_redundancy.btel.restore_schedule }}"
+  suspend: {{ .Values.cronjob.suspended }}
+  successfulJobsHistoryLimit: {{ .Values.cronjob.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.cronjob.failedJobsHistoryLimit }}
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: {{ .Values.cronjob.startingDeadlineSeconds }}
+  jobTemplate:
+   metadata:
+     labels:
+       release: {{ .Release.Name }}
+   spec:
+    template:
+     spec:
+      securityContext:
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+      - name: {{ .Chart.Name }}-passive-restore
+        image: {{ .Values.image.registry }}/{{ .Values.geoRedundancyBtel.image.name }}:{{ .Values.image.tag }}
+        imagePullPolicy: {{ .Values.global.image.pullPolicy }}
+        command: ["execute_job",
+                  "--cron-string", "{{ .Values.geo_redundancy.btel.restore_schedule }}",
+                  "--k8s-job-name", "{{ .Chart.Name }}",
+                  "--command", "{{ .Values.geo_redundancy.config.scriptsPath }}/{{ .Values.cronjob.restoreScriptName }}"]
+        securityContext:
+          allowPrivilegeEscalation: false
+          privileged: false
+          capabilities:
+             drop:
+               - all
+        resources:
+{{ toYaml .Values.resources | indent 10 }}
+        env:
+          - name: "CLIENT_PORT"
+            value: "{{.Values.global.config.btel.elasticsearchClientPort}}"
+          - name: "ELASTICSEARCH_SERVICE"
+            value: "{{.Values.global.config.btel.elasticsearchServiceName}}"
+          - name: BACKUPS_PATH
+            value: /elasticsearch-backup
+          - name: RESTORE_METADATA_PATH
+            value: {{ .Values.cronjob.restoreMetadataPath }}
+          - name: RESTORE_SCRIPT_PATH
+            value: "{{ .Values.geo_redundancy.config.scriptsPath }}/{{ .Values.cronjob.niamScriptName }}"
+        volumeMounts:
+        {{- if .Values.searchguard.enable }}
+        - name: {{ .Chart.Name }}-tls
+          mountPath: "/etc/elasticsearch/certs/"
+          readOnly: true
+        {{- end }}
+        {{- if .Values.cbur.enabled }}
+        - name: elasticsearch-backup
+          mountPath: /elasticsearch-backup
+          readOnly: true
+        - name: job-metadata
+          mountPath: {{ .Values.cronjob.restoreMetadataPath }}
+        - name: es-passive-restore
+          mountPath: "{{ .Values.geo_redundancy.config.scriptsPath }}"
+        {{- end }}
+      volumes:
+      {{- if .Values.searchguard.enable }}
+      - name: {{ .Chart.Name }}-tls
+        secret:
+          secretName: {{ .Chart.Name }}-tls-client
+          items:
+            - key: tls.crt
+              path: admin.crt.pem
+            - key: tls.key
+              path: admin.key.pem
+      {{- end }}
+      {{- if .Values.cbur.enabled }}
+      - name: elasticsearch-backup
+        persistentVolumeClaim:
+          claimName: {{ .Chart.Name }}-nfs-pvc-ro
+      - name: job-metadata
+        persistentVolumeClaim:
+          claimName: {{ .Chart.Name }}-job-metadata-pvc
+       {{- end }}
+      - name: es-passive-restore
+        configMap:
+          name: {{ .Chart.Name }}-passive-restore-scripts
+          defaultMode: 0750
+          items:
+            - key: {{ .Values.cronjob.niamScriptName }}
+              path: {{ .Values.cronjob.niamScriptName }}
+            - key: {{ .Values.cronjob.restoreScriptName }}
+              path: {{ .Values.cronjob.restoreScriptName }}
+      restartPolicy: Never
+{{- end }}

@@ -1,0 +1,24 @@
+config:
+ cmdb:
+    configurator:
+      image:
+        name: common/cmdb-config
+        tag: "{{ index .Values.global.imageTags \"common/cmdb-config\" }}"
+      secretName: cmdb-configurator-config
+
+generatePassword: "{{ printf \"%s%s\" (randAlpha 1) (randAlphaNum 20) }}"
+
+image:
+  pullPolicy: "IfNotPresent"
+
+createDB:
+  enabled: true
+
+jobs:
+# Jobs can be overridden by base charts.  E.g.,
+  nosdb:
+    enabled: "true"
+    username: "nosdb"
+    secretName: "nosdb-secret"
+    sqlFile: "config_files/nosdb.sql"
+    jobHookWeight: "{{ .Values.global.helmHooks.nosdbconfig.weight }}"

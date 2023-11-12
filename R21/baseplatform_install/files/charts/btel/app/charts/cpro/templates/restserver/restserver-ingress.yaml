@@ -1,0 +1,34 @@
+{{- if not .Values.deployOnComPaaS }}
+{{- if and .Values.restserver.enabled .Values.restserver.ingress.enabled -}}
+{{- $releaseName := .Release.Name -}}
+{{- $serviceName := include "prometheus.restserver.fullname" . }}
+{{- $servicePort := .Values.restserver.service.servicePort -}}
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: {{ template "prometheus.restserver.fullname" . }}
+{{- if or .Values.global.annotations .Values.restserver.ingress.annotations }}
+  annotations:
+{{- include "prometheus-annotations" (tuple .Values.global.annotations) | indent 4}}
+{{- with .Values.restserver.ingress.annotations }}
+{{ toYaml . | indent 4 }}
+{{- end }}
+{{- end }}
+  labels:
+    app: {{ template "prometheus.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    component: "{{ .Values.restserver.name }}"
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+{{- include "prometheus-labels" (tuple .Values.global.labels) | indent 4}}
+spec:
+{{- if .Values.restserver.ingress.tls }}
+  tls:
+{{ toYaml .Values.restserver.ingress.tls | indent 4 }}
+{{- end }}
+  backend:
+    serviceName: {{ $serviceName }}
+    servicePort: {{ $servicePort }}
+
+{{- end }}
+{{- end }}

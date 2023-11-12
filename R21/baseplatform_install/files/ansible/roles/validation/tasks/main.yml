@@ -1,0 +1,183 @@
+- name: "Validate network stack"
+  fail:
+    msg: "The value of parameter NETWORK_STACK has to be {{ ipV4only }}, {{ ipV4dualStack }}  or {{ ipV6only }}."
+  when: NETWORK_STACK is not regex('^({{ ipV4only  }}|{{ ipV4dualStack }}|{{ ipV6only }})$')
+
+- name: "Validate addresses"
+  block:
+    - name: "Merge addresses"
+      set_fact:
+        all_addresses: "{{ ACCESS_IPS + ACCESS_FQDNS }}"
+
+    - name: "Validate addresses size"
+      fail:
+        msg: "Neither IPs nor FQDNs addresses are set!"
+      when: all_addresses | length == 0
+
+    - name: "Set IPv4 regular expression"
+      set_fact:
+        IPV4_REGEX: "^((([0-9]|[0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5]))$"
+
+    - name: "Validate IPv4 addresses"
+      fail:
+        msg: "IPv4 address validation failed - used regular expression: {{ IPV4_REGEX }}"
+      when: (NETWORK_STACK != ipV6only) and (item is not regex(IPV4_REGEX))
+      with_items: "{{ ACCESS_IPS }}"
+
+    - name: "Set FQDN regular expression"
+      set_fact:
+        FQDN_REGEX: "^(((([a-zA-Z]{1,2}|[a-zA-Z][a-zA-Z0-9\\-]*[a-zA-Z0-9])\\.)*([a-zA-Z]{1,2}|[a-zA-Z][a-zA-Z0-9\\-]*[a-zA-Z0-9])))$"
+
+    - name: "Validate FQDN addresses"
+      fail:
+        msg: "FQDN address validation failed - used regular expression: {{ FQDN_REGEX }}"
+      when: item is not regex(FQDN_REGEX)
+      with_items: "{{ ACCESS_FQDNS }}"
+
+- name: "Validate value of CMDB storage if B&R is enabled"
+  fail:
+    msg: "The value of parameter CMDB_STORAGE_SIZE_GB has to be an integer in a range of [10 - 65536]."
+  when: cburCmdbEnabled and (CMDB_STORAGE_SIZE_GB < 10 or CMDB_STORAGE_SIZE_GB > 65536 or CMDB_STORAGE_SIZE_GB|int != CMDB_STORAGE_SIZE_GB)
+
+- name: "Validate value of CMDB storage if B&R is not enabled"
+  fail:
+    msg: "The value of parameter CMDB_STORAGE_SIZE_GB has to be an integer in a range of [1 - 65536]."
+  when: not cburCmdbEnabled and (CMDB_STORAGE_SIZE_GB < 1 or CMDB_STORAGE_SIZE_GB > 65536 or CMDB_STORAGE_SIZE_GB|int != CMDB_STORAGE_SIZE_GB)
+
+- name: "Validate GEO_REDUNDANCY parameters"
+  block:
+    - name: "Set regular expressions for geo redundancy related parameters"
+      set_fact:
+        GEO_REDUNDANCY_MODE_REGEX: "^({{ activeMode }}|{{ passiveMode }})$"
+        GEO_REDUNDANCY_SITE_INDEX_REGEX: "^(1|2)$"
+        BOOLEAN_REGEX: "^(y|Y|yes|Yes|YES|n|N|no|No|NO|true|True|TRUE|false|False|FALSE|on|On|ON|off|Off|OFF)$"
+        PASSWORD_REGEX: "(?=^.{% raw %}{{% endraw %}14,{% raw %}}{% endraw %}$)(?=.*[0-9])(?=.*[{{ passwordSigns }}]+)(?![.\n])(?=.*[A-Z])(?=.*[a-z]).*$"
+        UUID_REGEX: "^([0-9a-fA-F]{8}\\-[0-9a-fA-F]{4}\\-[0-9a-fA-F]{4}\\-[0-9a-fA-F]{4}\\-[0-9a-fA-F]{12})$"
+
+    - name: "Validate value of GEO_REDUNDANCY.ENABLED parameter"
+      fail:
+        msg: >-
+          Invalid value of GEO_REDUNDANCY.ENABLED parameter.
+          Allowed values: {{ BOOLEAN_REGEX | regex_replace('\^') | regex_replace('\$') }}.
+      when: GEO_REDUNDANCY.ENABLED is not regex(BOOLEAN_REGEX)
+
+    - name: "Validate value of GEO_REDUNDANCY.MODE parameter"
+      fail:
+        msg: >-
+          Invalid value of GEO_REDUNDANCY.MODE parameter.
+          Allowed values: {{ GEO_REDUNDANCY_MODE_REGEX | regex_replace('\^') | regex_replace('\$') }}.
+      when: >
+        GEO_REDUNDANCY.ENABLED and GEO_REDUNDANCY.MODE is not regex(GEO_REDUNDANCY_MODE_REGEX)
+
+    - name: "Validate value of GEO_REDUNDANCY.SITE_INDEX parameter if geo redundancy enabled"
+      fail:
+        msg: >-
+          Invalid value of GEO_REDUNDANCY.SITE_INDEX parameter.
+          Allowed values: {{ GEO_REDUNDANCY_SITE_INDEX_REGEX | regex_replace('\^') | regex_replace('\$') }}.
+      when: >
+        GEO_REDUNDANCY.ENABLED and GEO_REDUNDANCY.SITE_INDEX is not regex(GEO_REDUNDANCY_SITE_INDEX_REGEX)
+
+    - name: "Validate value of GEO_REDUNDANCY.CMDB.REMOTE_DC_ADDRESS parameter if geo redundancy enabled in passive mode"
+      fail:
+        msg: "Value of GEO_REDUNDANCY.CMDB.REMOTE_DC_ADDRESS parameter must be specified for geo redundancy in {{ passiveMode }} mode."
+      when: >
+        GEO_REDUNDANCY.ENABLED and
+        GEO_REDUNDANCY.MODE == passiveMode and
+        (GEO_REDUNDANCY.CMDB.REMOTE_DC_ADDRESS is undefined or GEO_REDUNDANCY.CMDB.REMOTE_DC_ADDRESS is none)
+
+    - name: "Set password parameters dictionary"
+      set_fact:
+        password_parameters:
+          KEYCLOAK_DB_PASSWORD: "{{ KEYCLOAK_DB_PASSWORD | default('') }}"
+          KEYCLOAK_ADMIN_PASSWORD: "{{ KEYCLOAK_ADMIN_PASSWORD | default('') }}"
+          MARIADB_USER_PASSWORD: "{{ MARIADB_USER_PASSWORD | default('') }}"
+          MAXSCALE_USER_PASSWORD: "{{ MAXSCALE_USER_PASSWORD | default('') }}"
+          REPL_USER_PASSWORD: "{{ REPL_USER_PASSWORD | default('') }}"
+          METRICS_USER_PASSWORD: "{{ METRICS_USER_PASSWORD | default('') }}"
+          GRAFANA_DB_PASSWORD: "{{ GRAFANA_DB_PASSWORD | default('') }}"
+          CALM_DB_PASSWORD: "{{ CALM_DB_PASSWORD | default('') }}"
+          CMDB_ROOT_PASSWORD: "{{ CMDB_ROOT_PASSWORD | default('') }}"
+      no_log: true
+
+    - name: "Validate passwords"
+      set_fact:
+        passwordsValidationErrors: "{{ passwordsValidationErrors | default('') }} Password validation for {{ item.key }} parameter failed."
+      no_log: true
+      when: >
+        item.value | length > 0 and
+        item.value is not regex(PASSWORD_REGEX)
+      with_dict: "{{ password_parameters }}"
+
+    - set_fact:
+        passwordRequirementsMsg: >-
+          Password requirements:
+          the password length must be greater than or equal to {{ passwordLength }},
+          the password must contain one or more uppercase characters,
+          the password must contain one or more lowercase characters,
+          the password must contain one or more numeric values,
+          the password must contain one or more of the following special characters: {{ passwordSigns }}
+
+    - name: "Check passwords validation errors"
+      fail:
+        msg: "{{ passwordsValidationErrors }} {{ passwordRequirementsMsg }}"
+      when: passwordsValidationErrors is defined and passwordsValidationErrors is not none
+
+    - name: "Validate BASE_PLATFORM_SSO_SECRET parameter"
+      fail:
+        msg: "Invalid value of BASE_PLATFORM_SSO_SECRET parameter. It should be valid universally unique identifier (UUID)."
+      when: >
+        BASE_PLATFORM_SSO_SECRET is defined and
+        BASE_PLATFORM_SSO_SECRET is not none and
+        BASE_PLATFORM_SSO_SECRET is not regex(UUID_REGEX)
+
+- name: "Validate CBUR parameters"
+  block:
+
+    - name: "Validate value of CBUR.NFS_SERVER.ADDRESS parameter"
+      fail:
+        msg: >-
+          Value of CBUR.NFS_SERVER.ADDRESS parameter cannot be empty.
+      when: CBUR.BTEL.ENABLED and (CBUR.NFS_SERVER.ADDRESS | length == 0)
+
+    - name: "Validate value of CBUR.NFS_SERVER.BACKUPS_PATH parameter"
+      fail:
+        msg: >-
+          Value of CBUR.NFS_SERVER.BACKUPS_PATH parameter cannot be empty.
+      when: CBUR.BTEL.ENABLED and (CBUR.NFS_SERVER.BACKUPS_PATH | length == 0)
+
+    - name: "Validate value of CBUR.BTEL.ELASTIC.BACKUPS_SUBPATH parameter"
+      fail:
+        msg: >-
+          Value of CBUR.BTEL.ELASTIC.BACKUPS_SUBPATH parameter cannot be empty.
+      when: CBUR.BTEL.ENABLED and (CBUR.BTEL.ELASTIC.BACKUPS_SUBPATH | length == 0)
+
+- name: "Validate value of INGRESS_CLASS parameter"
+  fail:
+    msg: "Value of INGRESS_CLASS parameter must be specified."
+  when: >
+    (INGRESS_CLASS is undefined or INGRESS_CLASS is none or (INGRESS_CLASS | length == 0 ))
+
+- name: "Validate VIRTUAL_IP parameters"
+  block:
+    - name: "Validate value of ADDRESS_IPV4 parameter for IPV4_ONLY or IPV4_DUALSTACK network stack"
+      fail:
+        msg: >-
+          Value of VIRTUAL_IP.ADDRESS_IPV4 parameter cannot be empty for IPV4_ONLY or IPV4_DUALSTACK network stack.
+      when: >
+        VIRTUAL_IP.ENABLED and
+        (NETWORK_STACK == ipV4only or NETWORK_STACK == ipV4dualStack) and
+        (VIRTUAL_IP.ADDRESS_IPV4 is undefined or VIRTUAL_IP.ADDRESS_IPV4 is none or (VIRTUAL_IP.ADDRESS_IPV4 | length == 0))
+
+    - name: "Validate value of ADDRESS_IPV6 parameter for IPV6_ONLY or IPV4_DUALSTACK network stack"
+      fail:
+        msg: >-
+          Value of VIRTUAL_IP.ADDRESS_IPV6 parameter cannot be empty for IPV6_ONLY or IPV4_DUALSTACK network stack.
+      when: >
+        VIRTUAL_IP.ENABLED and
+        (NETWORK_STACK == ipV6only or NETWORK_STACK == ipV4dualStack) and
+        (VIRTUAL_IP.ADDRESS_IPV6 is undefined or VIRTUAL_IP.ADDRESS_IPV6 is none or (VIRTUAL_IP.ADDRESS_IPV6 | length == 0))
+
+- name: "Validate value of BP_INITIAL_NODE_PORT parameter"
+  fail:
+    msg: "The value of parameter BP_INITIAL_NODE_PORT has to be a valid port number."
+  when: BP_INITIAL_NODE_PORT < 1 or BP_INITIAL_NODE_PORT > 65535

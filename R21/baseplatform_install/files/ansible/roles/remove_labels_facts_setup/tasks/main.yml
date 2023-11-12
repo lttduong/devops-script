@@ -1,0 +1,29 @@
+- name: "Set CMDB label"
+  set_fact:
+    cmdbLabel:
+      key: "bp-cmdb-database"
+      value: "true"
+
+- name: "Set CRMQ label"
+  set_fact:
+    crmqLabel:
+      key: "bp-crmq-message-queue"
+      value: "true"
+
+- name: "Read CMDB nodes"
+  shell: >
+    kubectl get nodes --show-labels --no-headers | grep "{{ cmdbLabel.key }}={{ cmdbLabel.value }}" | awk '{print $1}'
+  register: cmdbNodesOutput
+
+- name: "Set CMDB nodes"
+  set_fact:
+    cmdbNodes: "{{ cmdbNodesOutput.stdout.split('\n') }}"
+
+- name: "Read CRMQ nodes"
+  shell: >
+    kubectl get nodes --show-labels --no-headers | grep "{{ crmqLabel.key }}={{ crmqLabel.value }}" | awk '{print $1}'
+  register: crmqNodesOutput
+
+- name: "Set CRMQ nodes"
+  set_fact:
+    crmqNodes: "{{ crmqNodesOutput.stdout.split('\n') }}"

@@ -1,0 +1,11 @@
+---
+- name: "Upgrading {{ NAMESPACE }} namespace"
+  shell: >
+    {{ helmPath }} upgrade {{ namespaceHelmName }} {{ chartsPath }}/namespace
+    --reuse-values
+    --values {{ chartsPath }}/values/global-values.yaml
+    --values {{ chartsPath }}/namespace/values.yaml
+    --set namespace={{ NAMESPACE }}
+    --wait
+    --timeout 60s
+  when: namespaceInstall == true

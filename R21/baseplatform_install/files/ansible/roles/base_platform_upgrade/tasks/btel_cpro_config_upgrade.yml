@@ -1,0 +1,16 @@
+---
+- name: "Upgrade CPRO config"
+  shell: >
+    {{ helm }} upgrade {{ cproGrafanaConfiguratorHelmName }} {{ chartsPath }}/btel/cpro-config/
+    --namespace {{ BP_NAMESPACE }}
+    --reuse-values
+    --values {{ chartsPath }}/values/upgrade-global-values.yaml
+    {{ btelResourcesOverride }}
+    --set bpNamespace={{ BP_NAMESPACE }}
+    --set dns.domain={{ svcDnsDomain }}
+    --set image.registry={{ bcmtRegistry }}
+    --set image.tag={{ bp_version }}
+    --install
+    --wait
+    --timeout {{ wait_timeout }}s
+  no_log: "{{ no_log }}"

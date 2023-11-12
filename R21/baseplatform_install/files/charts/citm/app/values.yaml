@@ -1,0 +1,319 @@
+# nginx configuration
+# Ref: https://confluence.app.alcatel-lucent.com/display/plateng/CITM+-+NGINX+Guide#CITM-NGINXGuide-InstallviaImageoncontainer
+
+# Image Registry
+global:
+  registry: "csf-docker-delivered.repo.lab.pl.alcatel-lucent.com"
+
+controller:
+  name: controller
+  imageRepo: citm/citm-nginx-ingress
+  imageTag: 1.18.0-1.5
+  imagePullPolicy: IfNotPresent
+
+  config: {}
+
+  # Required for use with CNI based kubernetes installations (such as ones set up by kubeadm),
+  # since CNI and hostport don't mix yet. Can be deprecated once https://github.com/kubernetes/kubernetes/issues/23920
+  # is merged
+  hostNetwork: true
+
+  # Sets the addresses on which the server will accept requests instead of *. It should be noted that these addresses must exist in 
+  # the runtime environment or the controller will crash loop except if securityContextPrivileged set to true. 
+  bindAddress: ""
+
+  # enable "reuseport" option of the "listen" directive for nginx
+  reusePort: true
+
+  # disable Ipv4  for nginx
+  disableIvp4: false
+
+  # disable Ipv6  for nginx
+  disableIvp6: true
+  disableIvp6Dns: true
+  
+  # activate http2 on http plain text
+  enableHttp2OnHttp: false
+  
+  # Required to bind to an IP address that are nonlocal
+  # set securityContext to Privileged
+  securityContextPrivileged: false
+
+  # Required to start nginx worker process as root (default nginx)
+  workerProcessAsRoot: false
+
+  # set http-redirect-code (default 308)
+  httpRedirectCode: ""
+
+  # Required only if defaultBackend.enabled = false
+  # Must be <namespace>/<service_name>
+  defaultBackendService: "kube-system/default-http-backend"
+
+  # Optionally specify the secret name for default SSL certificate
+  # Must be <namespace>/<secret_name> (namespace have to be specified, even if same than pod)
+  # See also certManager
+  defaultSSLCertificate: ""
+
+  # If a ingress certificate is not found, use default certificate. Set this to false if you want to respond with HTTP 403 (access denied) instead of using default certificate
+  allowCertificateNotFound: true
+  
+  # set to true to have all config map starting with this name udp-services-configmap, whatever the namespace will be added
+  # default false
+  UdpServiceConfigMapNoNamespace: false
+
+  # set to true to have all config map starting with this name tcp-services-configmap, whatever the namespace will be added
+  # default false
+  TcpServiceConfigMapNoNamespace: false
+
+  # use-calico-cni-workload-endpoint
+  # Supported values for use-calico-cni-workload-endpoint are:
+  # not-used: this feature is not used by Ingress controller (default)
+  # v1: ingress controller will use calico V1 api
+  # v3: ingress controller will use calico V3 api
+  CalicoVersion: ""
+
+  # Override NGINX default template
+  # configMapName: configMap containing a custom nginx template
+  # configMapKey: configMap key containing the nginx template
+  customTemplate:
+    configMapName: ""
+    configMapKey: ""
+
+  # Defines if on UDP/TCP service, request are forwarded to k8s service instead of backends. Needed for Istio
+  serviceOnStream:
+    enable: false
+
+  # When using pattern config map for stream, set this to true to declare port to ingress controller service 
+  dynamicUpdateServiceStream: false
+  
+  # By default, create only one stream for all backends.
+  # In case of transparent proxy activated, this property is not taken into account (aka: we'll generate two different streams, one for v4 and one for v6)
+  splitIpv4Ipv6StreamBackend: false
+  
+  # port for healthz endpoint. Default is to use httpPort. Overwrite this if you want another port for checking
+  healthzPort:
+
+  # Indicates the port to use for HTTP traffic (default 80)
+  httpPort: 80
+
+  # Indicates the port to use for HTTPS traffic (default 443)
+  httpsPort: 443
+
+  # Indicates ssl protocols to be used. Default TLS 1.2 and 1.3
+  sslProtocols: TLSv1.3 TLSv1.2
+
+  # Indicates ssl cipher list to be activated.
+  sslCiphers: TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384
+    
+  # Default port to use internally for SSL when SSL Passthgough is enabled (default 442)
+  sslPasstroughProxyPort: 442
+
+  # When sslPasstrough is activated, split HTTPS port (TLS Termination) and PASSTHROUGH port. 
+  sslPasstroughSplitPortListening: false
+  
+  # Indicates the TCP port to use for exposing the nginx status page (default 18080) and healthz
+  statusPort: 18080
+
+  # force httpPort & httpsPort to default
+  forcePort: true
+
+  # Election ID to use for status update
+  electionID: "{{ .Release.Namespace }}-ingress-controller-leader"
+
+  # Name of the ingress class to route through this controller
+  ingressClass: nginx
+
+  # List of namespace where presence of lua code in Snippet need to be checked. Default is empty (no check)
+  snippetNamespaceAllowed: 
+
+  # Set of LUA methods to check. If found in lua snippet code, annotation is ignored
+  deniedInSnippetCode: "access_by_lua body_filter_by_lua content_by_lua header_filter_by_lua init_by_lua init_worker_by_lua log_by_lua rewrite_by_lua set_by_lua"
+
+  # labels to add to the pod container metadata
+  podLabels: {}
+  #  key: value
+
+  # Allows customization of the external service
+  # the ingress will be bound to via DNS
+  publishService:
+    enabled: false
+    # Allows overriding of the publish service to bind to
+    # Must be <namespace>/<service_name>
+    pathOverride: ""
+
+  # Limit the scope of the controller
+  scope:
+    enabled: false
+    namespace: ""   # defaults to .Release.Namespace
+
+  # Configure the location of your etcd cluster
+  etcd:
+    enabled: false
+    etcd_endpoints: ""
+    ETCD_CA_CERT: "/etc/etcd/ssl/ca.pem"
+    ETCD_CLIENT_CERT: "/etc/etcd/ssl/etcd-client.pem"
+    ETCD_CLIENT_KEY: "/etc/etcd/ssl/etcd-client-key.pem"
+
+  # A comma-separated list of IP addresses (or subnets), requests from which have to be blocked globally.
+  # References: http://nginx.org/en/docs/http/ngx_http_access_module.html#deny
+  blockCidrs:
+
+  # A comma-separated list of User-Agent, requests from which have to be blocked globally. It's possible to use here full strings and regular expressions. More details about valid patterns can be found at map Nginx directive documentation.
+  # References: http://nginx.org/en/docs/http/ngx_http_map_module.html#map
+  blockUserAgents:
+    
+  # A comma-separated list of Referers, requestst from which have to be blocked globally. It's possible to use here full strings and regular expressions. More details about valid patterns can be found at map Nginx directive documentation.
+  # References: http://nginx.org/en/docs/http/ngx_http_map_module.html#map
+  blockReferers:
+
+  # Harmonized logging
+  logToJsonFormat: true
+    
+  # DaemonSet or Deployment
+  kind: DaemonSet
+
+  # The update strategy to apply to the Deployment or DaemonSet
+  updateStrategy:
+    rollingUpdate:
+      maxUnavailable: 1
+    type: RollingUpdate
+
+  # Node tolerations for server scheduling to nodes with taints
+  # Ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/
+  tolerations:
+    - key: 'is_edge'
+      operator: 'Equal'
+      value: 'true'
+      effect: 'NoExecute'
+
+  # Node labels for controller pod assignment
+  # Ref: https://kubernetes.io/docs/user-guide/node-selection/
+  nodeSelector: {}
+
+  # Set this to false if you do not want to run only on edge nodes
+  runOnEdge: true
+  
+  # Annotations to be added to controller pods
+  podAnnotations: {}
+
+  replicaCount: 1
+
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 250m
+    limits:
+      memory: 1Gi
+      cpu: 500m
+
+  service:
+    enabled: true
+    annotations: {}
+    clusterIP: None
+
+    # List of IP addresses at which the controller services are available
+    # Ref: https://kubernetes.io/docs/user-guide/services/#external-ips
+    externalIPs: []
+
+    loadBalancerIP: ""
+    loadBalancerSourceRanges: []
+
+    # Set external traffic policy to: "Local" to preserve source IP on
+    # providers supporting it
+    # Ref: https://kubernetes.io/docs/tutorials/services/source-ip/#source-ip-for-services-with-typeloadbalancer
+    externalTrafficPolicy: ""
+
+    healthCheckNodePort: 0
+
+    targetPorts:
+      http: 80
+      https: 443
+      sslproxy: 442
+
+    type: ClusterIP
+
+    # type: NodePort
+    # nodePorts:
+    #   http: 32080
+    #   https: 32443
+    nodePorts:
+      http: ""
+      https: ""
+      sslproxy: ""
+
+  # Provide ConfigMap with lua modules
+  customLuaModules:
+    enabled: false
+  #  modules:
+  #  - moduleName: paas
+  #    sourcesConfigMapName: citm-paas-module
+
+  modsecurity:
+    # set this to true if you want to activate modsecurity globally
+    enabled: false
+    # set this to true if you want to activate owasp-crs rules. See https://modsecurity.org/crs/
+    enableOwaspCrs: false
+
+certManager:
+  used: false
+  duration: "8760h" # 365d
+  renewBefore: "360h" # 15d
+  keySize: "2048"
+  api: "cert-manager.io/v1alpha2"
+  issuerRef:
+    name: ncms-ca-issuer
+    # We can reference ClusterIssuers by changing the kind here.
+    # The default value is Issuer (i.e. a locally namespaced Issuer)
+    kind: ClusterIssuer
+  
+# Enable RBAC as per https://github.com/kubernetes/ingress/tree/master/examples/rbac/nginx and https://github.com/kubernetes/ingress/issues/266
+rbac:
+  create: true
+  serviceAccountName: default
+  podSecurityPolicy:
+    enabled: true
+
+# TCP service key:value pairs
+# Ref: https://github.com/kubernetes/contrib/tree/master/ingress/controllers/nginx/examples/tcp
+tcp: {}
+#  8080: "default/example-tcp-svc:9000"
+
+# UDP service key:value pairs
+# Ref: https://github.com/kubernetes/contrib/tree/master/ingress/controllers/nginx/examples/udp
+udp: {}
+#  53: "kube-system/kube-dns:53"
+
+# Default TLS certificate
+#defaultTlsCertificate: | 
+#  -----BEGIN CERTIFICATE-----
+#  xXrfhiapRTkwfmUMIkfYexUMJzOBtp4CQGJvWA==
+#  -----END CERTIFICATE-----
+
+# Default TLS key
+#defaultTlsKey: |
+#  -----BEGIN PRIVATE KEY-----
+#  kCa7znMW9a9XnjN3kpPu1PPW/HGrODC7FaFeL21sCQ2D9hBLPRptBREscqTU8Rg6
+#  nqXt94ryK+MdcbBx409lhj3r
+#  -----END PRIVATE KEY-----
+
+# do we force https on all ingress resources
+httpsForAllServers: false
+
+defaultBackend:
+  # If false, controller.defaultBackendService must be provided
+  enabled: true
+
+# The name of the secret that contains the grafana credentials
+grafanaSecret:
+
+# URL and port of the grafana server/service, without 'http://'
+# Example: 127.0.0.1:3000
+grafanaURL:
+
+# Set this to true if you want to have metrics. See https://confluence.app.alcatel-lucent.com/display/plateng/CITM+-+NGINX+Guide#CITM-NGINXGuide-Metrics
+metrics: false
+
+# For helm test and hook
+kubectl:
+  image: "tools/kubectl"
+  tag: "v1.17.6-nano"

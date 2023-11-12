@@ -1,0 +1,15 @@
+---
+- name: "Upgrade CITM"
+  shell: >
+    {{ helm }} upgrade {{ citmHelmName }} {{ chartsPath }}/citm/app
+    --reuse-values
+    --values {{ chartsPath }}/values/upgrade-global-values.yaml
+    --values {{ chartsPath }}/citm/app/upgrade-override.yaml
+    --namespace {{ BP_NAMESPACE }}
+    {{ citmResourcesOverride }}
+    --set controller.ingressClass={{ INGRESS_CLASS }}
+    --set serviceDomain={{ svcDnsDomain }}
+    --wait
+    --timeout 1000s
+    --disable-openapi-validation
+  no_log: "{{ no_log }}"

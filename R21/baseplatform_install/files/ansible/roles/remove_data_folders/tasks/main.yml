@@ -1,0 +1,12 @@
+---
+- name: "Remove data folders for CMDB"
+  file:
+    path: /var/mariadb
+    state: absent
+  when: ansible_hostname in cmdbNodes
+
+- name: "Remove data folders for CRMQ"
+  file:
+    path: /var/crmq
+    state: absent
+  when: ansible_hostname in crmqNodes

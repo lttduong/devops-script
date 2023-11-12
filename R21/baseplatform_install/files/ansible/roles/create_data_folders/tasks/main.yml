@@ -1,0 +1,64 @@
+---
+- name: "Create data folders for CMDB"
+  file:
+    path: /var/netguard_local_storage/mariadb/data
+    state: directory
+    owner: 1771
+    group: 1771
+    mode: '700'
+
+- name: "Create data folders for CMDB admin"
+  file:
+    path: /var/netguard_local_storage/mariadb/admin
+    state: directory
+    owner: 1773
+    group: 1773
+    mode: '700'
+
+- name: "Create data folders for CRMQ"
+  file:
+    path: /var/netguard_local_storage/crmq/data
+    state: directory
+    owner: 10000
+    group: 10000
+    mode: '700'
+
+- name: "Create data folders for BELK master"
+  file:
+    path: /var/netguard_local_storage/belk/es/master
+    state: directory
+    owner: 1000
+    group: 1000
+    mode: '700'
+
+- name: "Create data folders for BELK data"
+  file:
+    path: /var/netguard_local_storage/belk/es/data
+    state: directory
+    owner: 1000
+    group: 1000
+    mode: '700'
+
+- name: "Create data folders for CPRO"
+  file:
+    path: /var/netguard_local_storage/cpro
+    state: directory
+    owner: 0
+    group: 0
+    mode: '700'
+
+- name: "Create data folders for CPRO grafana"
+  file:
+    path: /var/netguard_local_storage/grafana
+    state: directory
+    owner: 472
+    group: 472
+    mode: '700'
+
+- name: "Create data folders for CALM"
+  file:
+    path: /var/netguard_local_storage/calm
+    state: directory
+    owner: 10000
+    group: 10000
+    mode: '700'

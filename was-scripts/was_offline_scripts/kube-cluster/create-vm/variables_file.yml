@@ -1,0 +1,26 @@
+---
+nmaster: "{{ lookup('env', 'mastername') }}"
+
+nworker: "{{ lookup('env', 'workername') }}"
+
+location: "{{ lookup('env', 'region') }}" 
+
+resource_group: "{{ lookup('env', 'rg') }}"
+
+net_security_group: "{{ lookup('env', 'nsg') }}" 
+
+vnet: "{{ lookup('env', 'vnet') }}"
+
+vnetCidr: "{{ lookup('env', 'vnetCidr') }}"
+
+subnet: "{{ lookup('env', 'subnet') }}" 
+
+subnetCidr: "{{ lookup('env', 'subnetCidr') }}"
+
+ssh_key: "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCi1gF+jh9FixksT8zRPgteMZh6cBs0oqsOE9q7Amqbci2ERV1I5fgnc4O2itJ3XaJg9Dk5KVmQxEyqAO2cEFcve9d9ep7yFNOyPL/0aQn47HNnU318zCr2g/pah+239v54uAwS2+9mYVDGxb1rMk16gGUvLnrrmRlOqBg9EkvYgflR35jxc9qXlsiOjEaF3TltM4rGYGf/Hg8wqixLeOVrAKJdxjF6UJ6qryjR3r0H/+lomSBwEmuBj3Vy28DWCYxjBf8y4lPMzrvqOr5wsSDx7VcdaO5zK2v9Urli2H/fIjo9nBqDnJgWwc4ze8U/zHoMsxCGk9VDoIU4JwnZRs7J root@LabControllerVM"
+
+resourceGroup: open-wavehub-dev   
+    
+vault_name: "{{ lookup('env', 'vaultname') }}"
+
+policy: "{{ lookup('env', 'policyvault') }}"

@@ -1,0 +1,30 @@
+bpNamespace: netguard-base
+
+centos:
+  image:
+    name: centos-micro
+
+cpro:
+  name: btel-cpro-restserver
+  port: 8888
+  configMap: cpro-server
+
+cpro_configurator:
+  resources:
+    requests:
+      cpu: "10m"
+      memory: "50Mi"
+    limits:
+      cpu: "200m"
+      memory: "300Mi"
+
+dns:
+  domain: svc.cluster.local
+  policy: ClusterFirst
+
+groupName: bp-alert-rules
+
+image:
+  registry: epsec-docker-releases.repo.lab.pl.alcatel-lucent.com/common
+  pullPolicy: IfNotPresent
+  tag: latest

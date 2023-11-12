@@ -1,0 +1,4 @@
+apiVersion: v1
+description: Netguard Egress Provisioning
+name: egress
+version: 1.0.0

@@ -1,0 +1,18 @@
+{
+  "users": [
+    {
+      "name": "{{ tpl .Values.users.ckeyListener.username $ }}",
+      "password": "{{ .Values.users.ckeyListener.password }}",
+      "tags": ""
+    }
+  ],
+  "permissions": [
+    {
+      "user": "{{ tpl .Values.users.ckeyListener.username $ }}",
+      "vhost": "{{ .Values.global.ckey.virtualHostName }}",
+      "configure": "^(ckey\.topic|amq\.gen-.*)$",
+      "write": "^amq\.gen-.*$",
+      "read": "^(ckey\.topic|amq\.gen-.*)$"
+    }
+  ]
+}

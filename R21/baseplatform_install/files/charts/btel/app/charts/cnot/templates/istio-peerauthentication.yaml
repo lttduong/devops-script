@@ -1,0 +1,22 @@
+{{- if and (.Values.istio.enabled) (gt .Values.global.istioVersion 1.4) }}
+apiVersion: "security.istio.io/v1beta1"
+kind: "PeerAuthentication"
+metadata:
+  labels:
+    app: {{ template "cnot.name" . }}
+    component: {{ .Values.cnot.name }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+  name: {{ template "cnot.fullname" . }}-mtls-authn
+  namespace: {{ .Release.Namespace }}
+spec:
+  targets:
+  - name: {{ template "cnot.fullname" . }}
+  peers:
+  - mtls:
+{{- if .Values.istio.permissive }}
+      mode: PERMISSIVE
+{{- else }}
+      mode: STRICT
+{{- end }}
+{{- end }}

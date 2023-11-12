@@ -1,0 +1,12 @@
+{
+  "clients": [
+    {
+      "clientId": "security-admin-console",
+      "name": {{ .Values.config.ckey.loginSecurityBanner | quote }}
+    },
+    {
+      "clientId": "account",
+      "name": ""
+    }
+  ]
+}

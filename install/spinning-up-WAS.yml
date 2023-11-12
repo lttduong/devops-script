@@ -1,0 +1,6 @@
+---
+- import_playbook: kube-cluster-rhel-7.9/create_vm-node.yml
+- import_playbook: kube-cluster-rhel-7.9/install-k8s-cluster.yml
+- import_playbook: kube-cluster-rhel-7.9/install-baseplatform.yml
+- import_playbook: kube-cluster-rhel-7.9/install-was.yml
+- import_playbook: kube-cluster-rhel-7.9/install-workbench.yml

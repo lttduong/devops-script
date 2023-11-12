@@ -1,0 +1,6 @@
+---
+ - import_playbook: kube-cluster-rhel-7.9/backup-vm/backup-masternode.yml
+ - import_playbook: kube-cluster-rhel-7.9/backup-vm/backup-workernode.yml
+ - import_playbook: kube-cluster-rhel-7.9/backup-vm/backup-dpa.yml
+ - import_playbook: kube-cluster-rhel-7.9/backup-vm/return-info-cluster.yml
+ 

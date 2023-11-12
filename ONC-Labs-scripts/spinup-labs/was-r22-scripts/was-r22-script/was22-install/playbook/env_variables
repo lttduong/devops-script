@@ -1,0 +1,4 @@
+edge_node: nodemaster-r22
+worker_node:
+  nodeworker-r22
+  nodemaster-r22

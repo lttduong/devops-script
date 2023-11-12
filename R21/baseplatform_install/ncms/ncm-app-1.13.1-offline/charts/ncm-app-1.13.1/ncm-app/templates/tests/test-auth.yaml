@@ -1,0 +1,33 @@
+{{- if eq .Values.secure true }}
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ .Release.Name }}-auth-test"
+  annotations:
+    "helm.sh/hook": test-success
+  labels:
+    component: "{{ .Values.service.name }}"
+spec:
+  containers:
+  - name: {{ .Release.Name }}-auth-test
+    image: {{ .Values.global.registry }}/{{ .Values.image.name }}:{{ .Values.image.tag }}
+    env:
+      - name: NCM_HOST
+        value: {{ template "ncmHost" . }}
+      - name: NCM_PORT
+        value: "{{ .Values.service.httpPort }}"
+    command:
+    - bash
+    - "-c"
+    - |
+      token=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+      result=$(curl -kv -s --head -H "Authorization: Bearer ${token}" -X GET https://$NCM_HOST:$NCM_PORT/ncm/applications |grep HTTP |awk '{print $2}')
+      echo $result
+      if [[ $result = "200" ]]
+      then
+        exit 0
+      else
+        exit 1
+      fi
+  restartPolicy: Never
+{{- end -}}

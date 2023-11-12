@@ -1,0 +1,109 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "config.crmq.name" . }}
+  annotations:
+    "helm.sh/hook": post-install
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": hook-succeeded
+spec:
+  template:
+    metadata:
+      labels:
+        name: {{ template "config.crmq.name" . }}
+    spec:
+      dnsPolicy: {{ .Values.dns.policy }}
+      restartPolicy: Never
+      securityContext:
+        runAsUser: 10000
+        fsGroup: 10000
+      {{- if .Values.rbacEnabled }}
+      serviceAccountName: {{ template "config.crmq.name" . }}
+      {{- end }}
+      containers:
+      - name: {{ template "config.crmq.name" . }}
+        image: {{ .Values.image.registry }}/{{ .Values.config.crmq.configurator.image.name }}:{{ .Values.config.crmq.configurator.image.tag }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        resources:
+{{ toYaml .Values.crmq_configurator.resources | indent 10 }}
+        command: ["/bin/sh", "-c"]
+        args: [ "crmq-config" ]
+        volumeMounts:
+          - name: admin-config
+            mountPath: /tmp/admin-config
+          - name: admin-commands
+            mountPath: /tmp/admin-commands
+          - name: control-commands
+            mountPath: /tmp/control-commands
+          - name: {{ .Values.global.caCertName }}
+            mountPath: {{ .Values.config.crmq.certificatesDir }}
+            readOnly: true
+        env:
+          {{- if .Values.ipv6Enabled }}
+          - name: RABBITMQ_CTL_ERL_ARGS
+            value: "-proto_dist inet6_tcp"
+          {{- end }}
+          - name: LC_ALL
+            value: en_US.UTF-8
+          - name: RABBITMQ_USE_LONGNAME
+            value: "true"
+          - name: RABBITMQ_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.config.crmq.configurator.secretName }}
+                key: rabbitmq-admin-password
+          - name: RABBITMQ_USER
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.config.crmq.configurator.secretName }}
+                key: rabbitmq-admin-user
+          - name: RABBITMQ_HOST
+            valueFrom:
+              configMapKeyRef:
+                name: {{ .Values.config.crmq.configurator.configMapName }}
+                key: rabbitmq-host
+          - name: RABBITMQ_PORT
+            valueFrom:
+              configMapKeyRef:
+                name: {{ .Values.config.crmq.configurator.configMapName }}
+                key: rabbitmq-port
+          - name: RABBITMQ_ERL_COOKIE
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.config.crmq.configurator.secretName }}
+                key: rabbitmq-erlang-cookie
+          - name: RABBITMQ_ERLANG_COOKIE
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.config.crmq.configurator.secretName }}
+                key: rabbitmq-erlang-cookie
+          - name: RABBITMQ_NODE
+            valueFrom:
+              configMapKeyRef:
+                name: {{ .Values.config.crmq.configurator.configMapName }}
+                key: rabbitmq-node
+          - name: SSL_CERT
+            value: {{ .Values.config.crmq.certificatesDir }}/{{ .Values.config.crmq.caCertFile }}
+      dnsConfig:
+        searches:
+          - {{ template "config.crmq.name" . }}.{{ .Release.Namespace }}.{{ .Values.dns.domain }}
+          - {{ .Release.Namespace }}.{{ .Values.dns.domain }}
+          - {{ .Values.dns.domain }}
+          - cluster.local
+          - bcmt.cluster.local
+      volumes:
+        - name: admin-config
+          secret:
+            secretName: {{ template "config.crmq.adminConfigFile" . }}
+        - name: admin-commands
+          secret:
+            secretName: {{ template "config.crmq.adminCommandsFile" . }}
+        - name: control-commands
+          secret:
+            secretName: {{ template "config.crmq.controlCommandsFile" . }}
+        - name: {{ .Values.global.caCertName }}
+          secret:
+            secretName: {{ .Values.global.caCertName }}
+            items:
+            - key: ca.crt
+              path: {{ .Values.config.crmq.caCertFile }}

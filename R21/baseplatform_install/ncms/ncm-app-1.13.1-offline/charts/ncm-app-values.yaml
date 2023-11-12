@@ -1,0 +1,10 @@
+global:
+ registry: wasr21containerregistry.azurecr.io
+ingress:
+ enabled: false
+certManager:
+ enabled: false
+nodeSelector: []
+tolerations: []
+env:
+ HELM_BIN: /usr/local/bin/helm

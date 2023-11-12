@@ -1,0 +1,115 @@
+{{- $umLiteFlag := .Values.installUmLite | default false -}}
+{{- if $umLiteFlag -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ template "umLite.fullname" . }}
+  labels:
+    app: {{ template "umLite.name" . }}
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  replicas: {{ .Values.umLiteImage.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ template "umLite.name" . }}
+      release: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ template "umLite.name" . }}
+        release: {{ .Release.Name }}
+    spec:
+      securityContext:
+          runAsUser: {{ .Values.securityContext.runAsUser | default 1000 }}
+          fsGroup: {{ .Values.securityContext.fsGroup | default 1000 }}
+          runAsNonRoot: {{ .Values.securityContext.runAsNonRoot | default true }}
+      initContainers:
+        - name: wait-for-ckey
+          image: "{{ .Values.global.registry1 }}/busybox"
+          imagePullPolicy: "{{ .Values.imagePullPolicy }}"
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z -v -w10 {{ template "keycloak.fullname" . }}.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }} {{ .Values.ingress.keycloakServicePort }}; do
+                  echo "Waiting for keycloak to be setup ..."
+                  sleep 2;
+              done;
+
+              echo 'CKEY is OK!'
+          resources:
+            requests:
+              memory: {{ .Values.initBusyBoxContainer.resources.requests.memory | default "256Mi" | quote }}
+              cpu: {{ .Values.initBusyBoxContainer.resources.requests.cpu | default "250m" | quote }}
+            limits:
+              memory: {{ .Values.initBusyBoxContainer.resources.limits.memory | default "256Mi" | quote }}
+              cpu: {{ .Values.initBusyBoxContainer.resources.limits.cpu | default "250m" | quote }}
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.global.registry3 }}/{{ template "umLite.name" . }}:{{ .Values.umLiteImage.tag }}"
+          imagePullPolicy: {{ .Values.umLiteImage.pullPolicy }}
+          env:
+            - name: HOST
+              value: "0.0.0.0"
+            - name: PORT
+              value: "{{ .Values.umLiteService.http.port }}"
+            - name: KEYCLOAK_URL
+              value: "{{ .Values.umLiteEnv.keycloakServiceUrl }}"
+            - name: KEYCLOAK_INTERNAL_URL
+              value: "{{ .Values.umLiteEnv.keycloakServiceUrl }}"
+              #value: "https://{{ template "keycloak.fullname" . }}.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}:{{ .Values.ingress.keycloakServicePort }}/auth"
+            - name: LOGGING_LEVEL
+              value: {{ .Values.umLiteEnv.loggingLevel }}
+            - name: USERS_QUERY_MAX
+              value: "{{ .Values.umLiteEnv.usersQueryMax }}"
+            - name: GROUPS_QUERY_MAX
+              value: "{{ .Values.umLiteEnv.groupsQueryMax }}"
+            - name: USER_TO_GROUPS_QUERY_MAX
+              value: "{{ .Values.umLiteEnv.usersToGroupQueryMax }}"
+            - name: IS_CONFIDENTIAL_CLIENT
+              value: "{{ .Values.umLiteEnv.isConfidentialClient }}"
+            - name: KEYCLOAK_CLIENT_ID
+              value: "{{ .Values.umLiteEnv.clientIdToUse }}"
+            {{ if .Values.umLiteEnv.isConfidentialClient }}
+            - name: KEYCLOAK_ADMIN_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  key: keycloak-admin-user
+                  name: "{{ .Values.umLiteEnv.ckeyAdminSecret }}"
+            - name: KEYCLOAK_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: keycloak-admin-password
+                  name: "{{ .Values.umLiteEnv.ckeyAdminSecret }}"
+            {{ end }}
+
+          ports:
+            - containerPort: {{ .Values.umLiteService.http.port }}
+              name: http-umlite
+            - containerPort: {{ .Values.umLiteService.https.port }}
+              name: https-umlite
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.umLiteIngress.path }}
+              port: {{ .Values.umLiteService.http.port }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.umLiteIngress.path }}
+              port: {{ .Values.umLiteService.http.port }}
+          resources:
+{{ toYaml .Values.umLiteResources.resources | indent 12 }}
+    {{- with .Values.nodeSelector }}
+      nodeSelector:
+{{ toYaml . | indent 8 }}
+    {{- end }}
+    {{- with .Values.affinity }}
+      affinity:
+{{ toYaml . | indent 8 }}
+    {{- end }}
+    {{- with .Values.tolerations }}
+      tolerations:
+{{ toYaml . | indent 8 }}
+    {{- end }}
+{{- end }}

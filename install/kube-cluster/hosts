@@ -1,0 +1,8 @@
+[masters]
+master ansible_host=40.88.1.193 ansible_user=nguyenminhtuan
+
+[workers]
+worker1 ansible_host=13.92.124.154 ansible_user=nguyenminhtuan
+
+[all:vars]
+ansible_python_interpreter=/usr/bin/python3

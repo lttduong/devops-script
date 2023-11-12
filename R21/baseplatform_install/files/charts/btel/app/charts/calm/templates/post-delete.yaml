@@ -1,0 +1,143 @@
+{{- if .Values.persistence.pvc_auto_delete }}
+{{- if and ( not .Values.serviceAccountName ) .Values.rbac.enabled }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ template "alarm.fullname" . }}-delete-service-account
+  namespace: "{{.Release.Namespace}}"
+  labels:
+    app: {{ template "alarm.name" . }}
+    chart: {{ .Chart.Name }}
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+    version: {{ .Chart.Version }}
+  annotations:
+    "helm.sh/hook": post-delete
+    "helm.sh/hook-weight": "-8"
+    "helm.sh/hook-delete-policy": "{{ .Values.helmDeleteHooks }}"
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: '*'
+
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ template "alarm.fullname" . }}-delete-rolebinding
+  namespace: "{{.Release.Namespace}}"
+  labels:
+    app: {{ template "alarm.name" . }}
+    chart: {{ .Chart.Name }}
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+    version: {{ .Chart.Version }}
+  annotations:
+    "helm.sh/hook": post-delete
+    "helm.sh/hook-weight": "-7"
+    "helm.sh/hook-delete-policy": "{{ .Values.helmDeleteHooks }}"
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: '*'
+subjects:
+- kind: ServiceAccount
+  name: {{ template "alarm.fullname" . }}-delete-service-account
+  namespace: "{{.Release.Namespace}}"
+  apiGroup: ""
+roleRef:
+  kind: Role
+  name: {{ template "alarm.fullname" . }}-delete-role
+  apiGroup: ""
+
+---
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  namespace: "{{.Release.Namespace}}"
+  name: {{ template "alarm.fullname" . }}-delete-role
+  labels:
+    app: {{ template "alarm.name" . }}
+    chart: {{ .Chart.Name }}
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+    version: {{ .Chart.Version }}
+  annotations:
+    "helm.sh/hook": post-delete
+    "helm.sh/hook-weight": "-8"
+    "helm.sh/hook-delete-policy": "{{ .Values.helmDeleteHooks }}"
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: '*'
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - endpoints
+  - persistentvolumeclaims
+  - replicationcontrollers
+  - secrets
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - patch
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - persistentvolumeclaims
+  verbs:
+  - get
+  - list
+  - watch
+  - update
+
+{{- end }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "alarm.fullname" . }}-delete-pvc-job
+  labels:
+    app: {{ template "alarm.name" . }}
+    chart: {{ .Chart.Name }}
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+    version: {{ .Chart.Version }}
+  annotations:
+    "helm.sh/hook-weight": "-6"
+    "helm.sh/hook": post-delete
+    "helm.sh/hook-delete-policy": "{{ .Values.helmDeleteHooks }}"
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: '*'
+spec:
+  template:
+    metadata:
+      labels:
+        app: {{ template "alarm.name" . }}
+        chart: {{ .Chart.Name }}
+        heritage: {{ .Release.Service }}
+        release: {{ .Release.Name }}
+        version: {{ .Chart.Version }}
+      annotations:
+        sidecar.istio.io/inject: "false"
+    spec:
+      {{- if .Values.serviceAccountName }}
+      serviceAccountName: {{ .Values.serviceAccountName }}
+      {{- else if .Values.rbac.enabled }}
+      serviceAccountName: {{ printf "%s-delete-service-account" ( include "alarm.fullname" . ) }}
+      {{- end }}
+      restartPolicy: Never
+      containers:
+      - name: {{ template "alarm.container.fullname" . }}-post-delete-pvc  
+        image: "{{ .Values.global.registry }}/{{ .Values.kubectl.image.repo }}:{{ .Values.kubectl.image.tag }}"
+        resources:
+{{ toYaml .Values.kubectl.jobResources | indent 10 }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          privileged: false
+          capabilities:
+             drop:
+              - all
+        command:
+        - sh
+        - "-c"
+        - |
+          kubectl delete pvc --namespace {{ .Release.Namespace }} -l app={{ template "alarm.name" . }}
+
+---
+{{- end }}
+

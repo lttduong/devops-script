@@ -1,0 +1,30 @@
+{{- if gt (int .Values.maxscale.count) 0 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.services.maxscale.name | default (printf "%s-maxscale" (include "cmdb.fullname" .)) | quote }}
+  labels:
+    {{- include "cmdb-maxscale.labels" . | indent 4 }}
+spec:
+  {{- if .Values.geo_redundancy.enabled }}
+  type: NodePort
+  {{- else }}
+  type: {{ .Values.services.maxscale.type }}
+  {{- end }}
+  ports:
+  - name: tcp-maxscale
+    port: {{ .Values.services.maxscale.port }}
+    targetPort: tcp-maxscale
+    {{- if and (or (.Values.geo_redundancy.enabled) (eq .Values.services.maxscale.type "NodePort")) (.Values.services.maxscale.nodePort) }}
+    nodePort: {{ .Values.services.maxscale.nodePort }}
+    {{- end }}
+  # deprecated maxadmin port preserved only for upgrade purposes
+  - name: tcp-maxadmin
+    port: 6603
+    targetPort: tcp-maxadmin
+  selector:
+    {{- include "cmdb-maxscale.labels" . | indent 4 }}
+    type: maxscale
+    maxscale-leader: "yes"
+{{- end }}

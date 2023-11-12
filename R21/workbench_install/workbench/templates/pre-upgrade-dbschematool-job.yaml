@@ -1,0 +1,36 @@
+{{- if ne .Values.dbschematool.operation "skip" }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Chart.Name }}-pre-upgrade-dbschematool
+  annotations:
+    # This is what defines this resource as a hook. Without this line, the
+    # job is considered part of the release.
+    "helm.sh/hook": pre-upgrade
+    "helm.sh/hook-weight": "-6"
+    "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded
+spec:
+  template:
+    metadata:
+      name: "{{ .Release.Name }}"
+    spec:
+      {{- if .Values.global.rbac.enabled }}
+      serviceAccountName: {{ .Chart.Name }}-pre-upgrade-sa
+      {{- else if .Values.global.serviceAccountName }}
+      serviceAccountName: {{ .Values.global.serviceAccountName }}
+      {{- end }}
+      restartPolicy: Never
+{{- if .Values.global.jobNodeAffinityRuleTemplate }}
+{{ tpl .Values.global.jobNodeAffinityRuleTemplate . | indent 6 }}
+{{- end }}
+      containers:
+      - name: delete-dbschematool-job
+        image: "{{ .Values.global.registry }}/{{ .Values.global.kubectl.image.repo }}:{{ .Values.global.kubectl.image.tag }}"
+        command:
+        - sh
+        - -c
+        - |
+          kubectl delete job {{ .Values.global.releaseNamePrefix }}{{ template "name" . }}-dbschematool --namespace {{ .Release.Namespace }} --ignore-not-found=true
+
+{{- end }}

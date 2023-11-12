@@ -1,0 +1,304 @@
+---
+# This condition is to limit rendering the template during heal because of restriction that two resources with same name cannot be created in the same namespace.
+{{ if and ( eq (int .Values.global.preheal ) 0 ) ( eq (int .Values.global.postheal ) 0 ) }}
+apiVersion: v1
+kind: Service
+metadata:
+  {{- if .Values.service.name }}
+  name: {{ .Values.service.name }}
+  {{- else }}
+  name: {{ template "kibana.fullname" . }}
+  {{- end }}
+  labels:
+    name: {{ template "kibana.fullname" . }}
+    component: elasticsearch
+    role: gui
+    release: {{ .Release.Name | quote }}
+    kubernetes.io/cluster-service: "true"
+    kubernetes.io/name: "Kibana"
+    addonmanager.kubernetes.io/mode: Reconcile
+spec:
+  type: {{ .Values.service.type }}
+  selector:
+    component: elasticsearch
+    role: gui
+    release: {{ .Release.Name | quote }}
+  ports:
+    - name: tcp-ui
+      port: {{.Values.kibana.port}}
+      protocol: TCP
+      targetPort: tcp-ui
+      {{- if (and (eq .Values.service.type "NodePort") (not (empty .Values.kibana.node_port))) }}
+      nodePort: {{.Values.kibana.node_port}}
+      {{- end }}
+{{ end }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ template "kibana.deployment.name" . }}
+  labels:
+    component: elasticsearch
+    role: gui
+    release: {{ .Release.Name | quote }}
+    kubernetes.io/cluster-service: "true"
+    addonmanager.kubernetes.io/mode: Reconcile
+  annotations:
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: {{ .Values.global.seccompAllowedProfileNames }}
+    seccomp.security.alpha.kubernetes.io/defaultProfileName: {{ .Values.global.seccompDefaultProfileName }}
+{{- if .Values.kibana.custom }}
+{{- if .Values.kibana.custom.annotations }}
+{{- include "kibana.csf-toolkit-helm.annotations" (tuple .Values.kibana.custom.annotations) | indent 4}}
+{{- end }}
+{{- end }}
+spec:
+  replicas: {{.Values.kibana.replicas}}
+  selector:
+    matchLabels:
+      component: elasticsearch
+      role: gui
+      release: {{ .Release.Name | quote }}
+  template:
+    metadata:
+      labels:
+        name: {{ template "kibana.fullname" . }}
+        component: elasticsearch
+        role: gui
+        release: {{ .Release.Name | quote }}
+        {{- if .Values.kibana.podLabels }}
+        {{- include "kibana.custom-labels" (tuple .Values.kibana.podLabels) | indent 8}}
+        {{- end }}
+      annotations:
+        checksum/secret: {{ include (print $.Template.BasePath "/kibana-secret.yaml") . | sha256sum }}
+        checksum/config: {{ include (print $.Template.BasePath "/kibana-configmap.yaml") . | sha256sum }}
+    spec:
+      securityContext:
+       runAsNonRoot: true
+       runAsUser: 1000
+       {{- if .Values.kibana.securityContext.fsGroup }}
+       fsGroup: {{ .Values.kibana.securityContext.fsGroup }}
+       {{- end }}
+       {{- if .Values.kibana.securityContext.supplementalGroups }}
+       supplementalGroups: {{ .Values.kibana.securityContext.supplementalGroups }}
+       {{- end }}
+       {{- if .Values.kibana.securityContext.seLinuxOptions }}
+       seLinuxOptions:
+{{ toYaml .Values.kibana.securityContext.seLinuxOptions | indent 9 }}
+       {{- end }}
+      serviceAccountName: {{ default ( default (printf "%s-kib-sa" ( include "kibana.fullname" . )) .Values.global.serviceAccountName ) .Values.kibana.serviceAccountName }}
+      {{- if .Values.kibana.affinity }}
+      affinity:
+{{ toYaml .Values.kibana.affinity | indent 8 }}
+      {{- end }}
+      {{- if .Values.kibana.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.kibana.nodeSelector | indent 8 }}
+      {{- end }}
+      {{- if .Values.kibana.tolerations }}
+      tolerations:
+{{ toYaml .Values.kibana.tolerations | indent 8 }}
+      {{- end }}
+      {{- if (and (.Values.searchguard.enable) (.Values.searchguard.keycloak_auth) (.Values.istio.enabled)) }}
+      {{- if eq (default "MESH_INTERNAL" .Values.searchguard.istio.extCkeyLocation) "MESH_INTERNAL" }}
+      ## Adding host alias for ckey external hostname to a dummy IP for serviceentry when ckey location is MESH_INTERNAL
+      hostAliases:
+      - hostnames:
+        - {{ .Values.searchguard.istio.extCkeyHostname }}
+        ip: 1.2.3.4
+      {{- else if .Values.searchguard.istio.extCkeyIP }}
+      # Adding host alias for ckey external hostname to user-defined IP for DNS resolution from pod when ckey location is MESH_EXTERNAL
+      hostAliases:
+      - hostnames:
+        - {{ .Values.searchguard.istio.extCkeyHostname }}
+        ip: {{ .Values.searchguard.istio.extCkeyIP }}
+      {{- end }}
+      {{- end }}
+      containers:
+      - name: {{ template "kibana.container.name" . }}
+        {{- if .Values.searchguard.enable }}
+        image: {{ .Values.global.registry }}/{{.Values.searchguard.image.repo}}:{{.Values.searchguard.image.tag}}
+        {{- else }}
+        image: {{ .Values.global.registry }}/{{.Values.kibana.image.repo}}:{{.Values.kibana.image.tag}}
+        {{- end }} 
+        imagePullPolicy: {{.Values.kibana.ImagePullPolicy}}
+        securityContext:
+          allowPrivilegeEscalation: false
+          privileged: false
+          capabilities:
+             drop:
+               - all
+        resources:
+{{ toYaml .Values.kibana.resources | indent 10 }}
+        livenessProbe:
+          exec:
+            command:
+              - "/bin/sh"
+              - "-c"
+              {{- if and ( .Values.istio.enabled ) ( ne .Values.kibanabaseurl.url "/" ) }}
+              - "curl -s -k http://${SERVER_HOST}:{{ .Values.kibana.port }}{{ .Values.kibanabaseurl.url }}/api/status?pretty | jq .status.overall.state | grep -w green"
+              {{- else if and ( .Values.searchguard.enable ) ( not .Values.istio.enabled ) }}
+              - "curl -s -k https://${SERVER_HOST}:{{ .Values.kibana.port }}/api/status?pretty | jq .status.overall.state | grep -w green"
+              {{- else }}
+              - "curl -s http://${SERVER_HOST}:{{ .Values.kibana.port }}/api/status?pretty | jq .status.overall.state | grep -w green"
+              {{- end }}
+          initialDelaySeconds: {{.Values.kibana.livenessProbe.initialDelaySeconds }}
+          periodSeconds: {{.Values.kibana.livenessProbe.periodSeconds }}
+          timeoutSeconds: {{.Values.kibana.livenessProbe.timeoutSeconds }}
+          successThreshold: {{.Values.kibana.livenessProbe.successThreshold }}
+          failureThreshold: {{.Values.kibana.livenessProbe.failureThreshold }}
+        readinessProbe:
+          exec:
+            command:
+              - "/bin/sh"
+              - "-c"
+              {{- if and ( .Values.istio.enabled ) ( ne .Values.kibanabaseurl.url "/" ) }}
+              - "curl -s -k http://${SERVER_HOST}:{{ .Values.kibana.port }}{{ .Values.kibanabaseurl.url }}/api/status?pretty | jq .status.overall.state | grep -w green"
+              {{- else if and ( .Values.searchguard.enable ) ( not .Values.istio.enabled ) }}
+              - "curl -s -k https://${SERVER_HOST}:{{ .Values.kibana.port }}/api/status?pretty | jq .status.overall.state | grep -w green"
+              {{- else }}
+              - "curl -s http://${SERVER_HOST}:{{ .Values.kibana.port }}/api/status?pretty | jq .status.overall.state | grep -w green"
+              {{- end }}
+          initialDelaySeconds: {{.Values.kibana.readinessProbe.initialDelaySeconds }}
+          periodSeconds: {{.Values.kibana.readinessProbe.periodSeconds }}
+          timeoutSeconds: {{.Values.kibana.readinessProbe.timeoutSeconds }}
+          successThreshold: {{.Values.kibana.readinessProbe.successThreshold }}
+          failureThreshold: {{.Values.kibana.readinessProbe.failureThreshold }}
+        env:
+          # Setting env when istio is enabled
+          {{- if .Values.istio.enabled }}
+          - name: SERVER_HOST
+            value: "0.0.0.0"
+          {{- if ne .Values.kibanabaseurl.url "/" }}
+          - name: "SERVER_REWRITEBASEPATH"
+            value: "true"
+          {{- end }}
+          {{- if (and (.Values.searchguard.enable) (.Values.searchguard.keycloak_auth)) }}
+          ## If istio & keylcoak_auth are enabled, disabling ssl certificate validation
+          - name: NODE_TLS_REJECT_UNAUTHORIZED
+            value: "0"
+          {{- end }}
+          {{- else }}
+          ##Setting server.host to pod hostname instead of IP as kibana has issue with IPv6 addresses.
+          - name: SERVER_HOST
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+          {{- end }}
+          {{- if .Values.searchguard.enable }}
+          {{- if and (.Values.searchguard.base64_kib_es_username) (.Values.searchguard.base64_kib_es_password) }}
+          - name: "ELASTICSEARCH_USERNAME"
+            valueFrom:
+              secretKeyRef:
+                name: {{ template "kibana.fullname" . }}
+                key: kibana_es_username
+          - name: "ELASTICSEARCH_PASSWORD"
+            valueFrom:
+              secretKeyRef:
+                name: {{ template "kibana.fullname" . }}
+                key: kibana_es_password
+          {{- end }}
+          {{- if not .Values.istio.enabled }}
+          - name: "ELASTICSEARCH_SSL_VERIFICATIONMODE"
+            value: {{.Values.searchguard.kibana.es_ssl_verification_mode}}
+          - name: "ELASTICSEARCH_SSL_CERTIFICATEAUTHORITIES"
+            value: "/etc/kibana/ca-cert/root-ca.pem"
+          {{- end }}
+          {{- end }}
+          {{- if .Values.kibana.env}}
+{{ toYaml .Values.kibana.env | indent 10 }}
+          {{- end }}
+        {{- if ne .Values.kibanabaseurl.url "/" }}
+          - name: "SERVER_BASEPATH"
+            value: "{{.Values.kibanabaseurl.url}}"
+        {{- if not .Values.istio.enabled }}
+          - name: "SERVER_REWRITEBASEPATH"
+            value: "false"
+        {{- end }}
+        {{- end }}
+        ports:
+        - containerPort: {{.Values.kibana.port}}
+          name: tcp-ui
+          protocol: TCP
+        volumeMounts:
+        ## Start of custom modification of original chart for CSFID-2092
+        - name: {{ template "kibana.fullname" . }}-tls
+          mountPath: "/usr/share/kibana/ssl"
+          readOnly: true
+        - name: {{ template "kibana.fullname" . }}-tls-client
+          mountPath: "/usr/share/kibana/client-ssl"
+          readOnly: true
+        ## End of custom modification of original chart
+        - name: kibana-config
+          mountPath: "/usr/share/kibana/config"
+          readOnly: true
+        {{- if and (.Values.searchguard.enable) (not .Values.istio.enabled) }}
+        - name: ssl-ca
+          mountPath: "/etc/kibana/ca-cert/"
+          readOnly: true
+        - name: ssl
+          mountPath: "/etc/kibana/certs/"
+          readOnly: true
+        {{- end}}
+        {{- if and .Values.sane .Values.searchguard.keycloak_auth}}
+        - name: csan-keycloak
+          mountPath: "/etc/kibana/csan/"
+          readOnly: true
+        {{- end}}
+      volumes:
+      ## Start of custom modification of original chart for CSFID-2092
+      - name: {{ template "kibana.fullname" . }}-tls
+        secret:
+          secretName: {{ template "kibana.fullname" . }}-tls
+      - name: {{ template "kibana.fullname" . }}-tls-client
+        secret:
+          secretName: {{ template "kibana.fullname" . }}-tls-client
+      ## End of custom modification of original chart
+      - name: kibana-config
+        configMap:
+          name: {{ template "kibana.fullname" . }}
+          items:
+          - key: kibana.yml
+            path: kibana.yml
+      {{- if and (.Values.searchguard.enable) (not .Values.istio.enabled) }}
+      ## Start of custom modification of original chart for CSFID-2092
+      - name: ssl-ca
+        secret:
+          secretName: {{ .Values.global.caCertName }}
+          items:
+          - key: ca.crt
+            path: root-ca.pem
+      - name: ssl
+        secret:
+          ## Start of custom modification of original chart
+          secretName: {{ template "kibana.fullname" . }}-tls
+          items:
+          #  - key: ca.crt
+          #    path: root-ca.pem
+          #  - key: tls.crt
+          #    path: tls.crt
+          #  - key: tls.key
+          #    path: tls.key
+          #- key: root-ca.pem
+          #  path: root-ca.pem
+          #- key: kibana.crt.pem
+          #  path: kibana.crt.pem
+          #- key: kibana.key.pem
+          #  path: kibana.key.pem
+          #{{- if .Values.searchguard.keycloak_auth }}
+          #- key: keycloak-root-ca.pem
+          #  path: keycloak-root-ca.pem
+          #{{- end }}
+          {{- if .Values.kibana.sslsecretvolume }}
+          {{- range $key, $val := .Values.kibana.sslsecretvolume }}
+          - key: {{  $key }}
+            path: {{ $key }}
+          {{- end }}
+          {{- end }}
+      ## End of custom modification of original chart
+      {{- end }}
+      {{- if and .Values.sane .Values.searchguard.keycloak_auth}}
+      - name: csan-keycloak
+        secret:
+          secretName: csan-{{ template "kibana.fullname" . }}
+      {{- end}}
+

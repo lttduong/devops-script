@@ -1,0 +1,35 @@
+{{- if .Values.cbur.enabled }}
+apiVersion: "cbur.bcmt.local/v1"
+kind: BrPolicy
+metadata:
+  name: "{{ .Chart.Name }}"
+  labels:
+    app: "{{ .Chart.Name }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+spec:
+  brOption: 0
+  k8sobjects:
+    - object-type: Secret
+      match-string: ckey-configurator-config
+      match-criteria: name
+    - object-type: Secret
+      match-string: ckey-db-config-config-file
+      match-criteria: name
+    - object-type: Secret
+      match-string: ckey-netguard-config-base-platform-sso-secret
+      match-criteria: name
+  maxiCopy: {{ .Values.cbur.maxiCopy }}
+  selector:
+    matchLabels:
+      app: "{{ .Chart.Name }}"
+      release: "{{ .Release.Name }}"
+      heritage: "{{ .Release.Service }}"
+  backend:
+    mode: "{{ .Values.cbur.backendMode }}"
+  cronSpec: "{{ .Values.cbur.cronSpec }}"
+  autoEnableCron: {{ .Values.cbur.autoEnableCron }}
+  autoUpdateCron: {{ .Values.cbur.autoUpdateCron }}
+  dataEncryption:
+    enable: {{ .Values.cbur.dataEncryption }}
+{{- end }}

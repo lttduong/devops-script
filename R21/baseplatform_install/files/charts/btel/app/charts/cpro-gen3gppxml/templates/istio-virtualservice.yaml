@@ -1,0 +1,88 @@
+{{- if .Values.istio.enable }}
+{{- if .Values.istioIngress.enabled }}
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: {{ template "gen3gppxml.fullname" . }}-vs
+  labels:
+    app: {{ template "gen3gppxml.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+    {{- if .Values.global.labels }}
+{{ toYaml .Values.global.labels | indent 4}}
+    {{- end }}
+{{- if .Values.global.annotations }}
+  annotations:
+{{- include "gen3gpp-annotations" (tuple .Values.global.annotations) | indent 4}}
+{{- end }}
+spec:
+  hosts:
+  - '{{ .Values.istioIngress.host }}'
+  gateways:
+  {{- if eq .Values.istioIngress.gatewayName "" }}
+  - {{ template "gen3gppxml.fullname" . }}-istio-gateway
+  {{- else }}
+  - {{ .Values.istioIngress.gatewayName }}
+  {{- end }}
+
+  {{- if and .Values.istioIngress.tls.enabled (eq .Values.istioIngress.tls.mode "PASSTHROUGH") }}
+  tls:
+  - match:
+    - port: {{ .Values.istioIngress.tls.httpsPort }}
+      sni_hosts:
+      - '{{ .Values.istioIngress.host }}'
+    route:
+    - destination:
+        host: {{ template "gen3gppxml.fullname" . }}
+        port:
+          number: {{ .Values.service.restHttpsPort }}
+  {{- else }}
+  http:
+  - match:
+    - uri:
+        prefix: /{{ .Values.istioIngress.Contextroot }}/
+    rewrite:
+      uri: /
+    route:
+    - destination:
+        host: {{ template "gen3gppxml.fullname" . }}
+        port:
+          number: {{ .Values.service.restHttpPort }}
+  {{- end }}
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: {{ template "gen3gppxml.fullname" . }}-vs-tcp
+  labels:
+    app: {{ template "gen3gppxml.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+    {{- if .Values.global.labels }}
+{{ toYaml .Values.global.labels | indent 4}}
+    {{- end }}
+{{- if .Values.global.annotations }}
+  annotations:
+{{- include "gen3gpp-annotations" (tuple .Values.global.annotations) | indent 4}}
+{{- end }}
+spec:
+  hosts:
+  - '{{ .Values.istioIngress.tcpHost }}'
+  gateways:
+  {{- if eq .Values.istioIngress.tcpGatewayName "" }}
+  - {{ template "gen3gppxml.fullname" . }}-istio-gateway-tcp
+  {{- else }}
+  - {{ .Values.istioIngress.tcpGatewayName }}
+  {{- end }}
+  tcp:
+  - match:
+    - port: {{ .Values.istioIngress.sftpPort }}
+    route:
+    - destination:
+        host: {{ template "gen3gppxml.fullname" . }}
+        port:
+          number: {{ .Values.service.sftpPort }}
+{{- end }}
+{{- end }}

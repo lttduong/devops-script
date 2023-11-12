@@ -1,0 +1,51 @@
+{{- if .Values.hooks.preInstallJob.enabled }}
+{{ $job := dict "Values" .Values "Chart" .Chart "Release" .Release "Hook" .Values.hooks.preInstallJob "HookType" "pre"}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "cmdb-job.name" $job }}
+  labels:
+    {{- include "cmdb-admin.labels" . | indent 4 }}
+  annotations:
+    "helm.sh/hook": pre-install
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": {{ .Values.hooks.deletePolicy | quote }}
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        {{- include "cmdb-admin.labels" . | indent 8 }}
+        type: admin
+      annotations:
+        sidecar.istio.io/inject: "false"
+    spec:
+      {{- include "cmdb-admin.secctx" . | nindent 6 }}
+      {{- include "cmdb.install-sa" . | nindent 6}}
+      restartPolicy: Never
+
+      containers:
+      - name: {{ template "cmdb-job.container-name" $job }}
+        {{- include "cmdb-admin.image" . | indent 8 }}
+        args: [ "install" ]
+        env:
+        - name: CLUSTER_TYPE
+          value: "{{ .Values.cluster_type }}"
+        - name: CLUSTER_NAME
+          value: "{{ .Values.cluster_name | default .Release.Name | trunc 32 }}"
+        # NOTE: Since configmaps have not been created yet, set mariadb
+        # and maxscale cluster sizes here to perform pre-deploy checks
+        {{- if eq .Values.cluster_type "simplex" }}
+        - name: CLUSTER_SIZE
+          value: "1"
+        {{- else }}
+        - name: CLUSTER_SIZE
+          value: "{{ .Values.mariadb.count }}"
+        {{- end }}
+        - name: MAXSCALE_SIZE
+          value: "{{ .Values.maxscale.count }}" 
+        {{- include "cmdb-job.env" $job | nindent 8 }}
+        {{- include "cmdb-k8s.env" . | nindent 8 }}
+        resources:
+{{ toYaml .Values.admin.resources | indent 10 }}
+{{- end }}

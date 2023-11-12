@@ -1,0 +1,12 @@
+---
+- name: Health check all resources 
+  hosts: all
+  become: yes
+  
+  vars:
+  vars_files:
+
+  tasks:
+    - name: Install pip package to support
+      shell: 
+

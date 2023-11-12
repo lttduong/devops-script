@@ -1,0 +1,125 @@
+{{- if .Values.curator.enabled }}
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name:  {{ template "curator.job.name" . }}
+  labels:
+    app: {{ template "curator.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+  annotations:
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: {{ .Values.global.seccompAllowedProfileNames }}
+    seccomp.security.alpha.kubernetes.io/defaultProfileName: {{ .Values.global.seccompDefaultProfileName }}
+{{- if .Values.curator.custom  }}
+{{- if .Values.curator.custom.annotations  }}
+{{- include "curator.csf-toolkit-helm.annotations" (tuple .Values.curator.custom.annotations) | indent 4}}
+{{- end }}
+{{- end }}
+spec:
+  schedule: "{{ .Values.curator.schedule }}"
+{{- if .Values.curator.jobSpec}}
+{{ toYaml .Values.curator.jobSpec | trim | indent 2 }}
+{{- end }}
+  jobTemplate:
+   metadata:
+     labels:
+       release: {{ .Release.Name }}
+   spec:
+{{- if .Values.curator.jobTemplateSpec}}
+{{ toYaml .Values.curator.jobTemplateSpec | trim | indent 4 }}
+{{- end }}
+    template:
+     metadata:
+       labels:
+         {{- if .Values.curator.podLabels }}
+         {{- include "curator.custom-labels" (tuple .Values.curator.podLabels) | indent 9}}
+         {{- end }}
+     spec:
+      ## Start of custom modification of original chart
+      ## Reported CSFS https://jiradc2.int.net.nokia.com/browse/CSFS-20044
+      activeDeadlineSeconds: 3600
+      ## End of custom modification of original chart
+      securityContext:
+        runAsUser: 1000
+        {{- if .Values.curator.securityContext.fsGroup }}
+        fsGroup: {{ .Values.curator.securityContext.fsGroup }}
+        {{- end }}
+        {{- if .Values.curator.securityContext.supplementalGroups }}
+        supplementalGroups: {{ .Values.curator.securityContext.supplementalGroups }}
+        {{- end }}
+        {{- if .Values.curator.securityContext.seLinuxOptions }}
+        seLinuxOptions: {{ toYaml .Values.curator.securityContext.seLinuxOptions | indent 10 }}
+        {{- end }}
+      serviceAccountName: {{ default ( default (printf "%s-curator-sa" ( include "curator.fullname" . )) .Values.global.serviceAccountName ) .Values.curator.serviceAccountName }}
+      containers:
+      - name: {{ template "curator.container.name" . }}
+        image: {{ .Values.global.registry }}/{{ .Values.curator.image.repo }}:{{ .Values.curator.image.tag }}
+        imagePullPolicy: {{ .Values.curator.ImagePullPolicy }}
+        {{- if .Values.istio.enabled }}
+        env:
+         - name: "ISTIO_ENABLED"
+           value: "true"
+         - name: "ISTIO_HEALTHCHK_PORT"
+           value: {{ .Values.istio.envoy_health_chk_port | quote }}
+        {{- end }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          privileged: false
+          capabilities:
+             drop:
+               - all
+        args:
+        - --config
+        - /etc/elasticsearch-curator/curator.yml
+        - /etc/elasticsearch-curator/actions.yml
+        resources:
+{{ toYaml .Values.curator.resources | indent 10 }}
+        volumeMounts:
+        - mountPath: /etc/elasticsearch-curator
+          name: curator-configs
+          readOnly: true
+        {{- if and (.Values.searchguard.enable) (not .Values.istio.enabled) }}
+        ## Start of custom modification of original chart for CSFID-2092
+        - name: {{ template "fullname" . }}-tls
+          mountPath: "/etc/elasticsearch-curator/ssl/"
+          readOnly: true
+        ## End of custom modification of original chart
+        - name: ssl
+          mountPath: "/etc/elasticsearch-curator/certs/"
+          readOnly: true
+        {{- end }}
+      volumes:
+      - name: curator-configs
+        configMap:
+       {{- if empty .Values.curator.configMaps.preCreatedConfigmap }}
+          name: {{ template "curator.fullname" . }}
+       {{- else }}
+          name: {{ .Values.curator.configMaps.preCreatedConfigmap }}
+       {{- end }}
+          items:
+          - key: curator.yml
+            path: curator.yml
+          - key: actions.yml
+            path: actions.yml
+      {{- if and (.Values.searchguard.enable) (not .Values.istio.enabled) }}
+      ## Start of custom modification of original chart for CSFID-2092
+      - name: {{ template "fullname" . }}-tls
+        secret:
+          secretName: {{ template "fullname" . }}-tls
+          items:
+            - key: tls.crt
+              path: admin.crt.pem
+            - key: tls.key
+              path: admin.key.pem
+      - name: ssl
+        secret:
+          secretName: {{ .Values.global.caCertName }}
+          items:
+            - key: ca.crt
+              path: root-ca.pem
+      ## End of custom modification of original chart
+      {{- end }}
+      restartPolicy: Never
+{{- end }}
+

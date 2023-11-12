@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "elasticsearch.fullname" . }}-discovery
+  labels:
+    component: elasticsearch
+    role: master 
+    release: {{ .Release.Name | quote }}
+spec:
+  type: {{ .Values.service.type }} 
+  selector:
+    component: elasticsearch
+    role: master 
+    release: {{ .Release.Name | quote }}
+  ports:
+    - name: tcp-transport 
+      port: {{.Values.service.master_port}}
+      protocol: TCP
+      targetPort: tcp-transport
+      ## Start of custom modification of original chart, CSFS-31053
+      {{- if (and (eq .Values.service.type "NodePort") (not (empty .Values.service.master_nodeport))) }}
+      nodePort: {{.Values.service.master_nodeport}}
+      {{- end }}
+      ## End of custom modification of original chart

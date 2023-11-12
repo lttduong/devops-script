@@ -1,0 +1,32 @@
+{{ if gt (int .Values.global.preheal ) 0 }}
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: "{{ .Release.Name }}-ckey-preheal"
+spec:
+  template:
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "false"
+    spec:
+      {{- if .Values.global.rbacEnable }}
+      serviceAccountName: {{ template "ckeyServiceAccount" . }}
+      {{- end }}
+      # securityContext:
+        # runAsUser: 0
+        # runAsUser: {{ .Values.securityContext.runAsUser | default 1000 }}
+        # fsGroup: {{ .Values.securityContext.fsGroup | default 1000 }}
+        # runAsNonRoot: {{ .Values.securityContext.runAsNonRoot | default true }}
+      restartPolicy: Never
+      containers:
+      - name: {{ .Release.Name }}-ckey-preheal
+        image: "{{ .Values.global.registry }}/{{ .Values.kubectlImage }}:{{ .Values.kubectlTag }}"
+        imagePullPolicy: "{{ .Values.imagePullPolicy }}"
+        command:
+        - sh
+        - -c
+        - |
+         echo 'pre heal for release: {{ .Release.Name }}'
+         kubectl delete pods -l app={{ template "keycloak.name" . }},release={{ .Release.Name }} --namespace={{ .Release.Namespace }}
+{{ end }}

@@ -1,0 +1,36 @@
+{{- if and (.Values.istio.enable) (not .Values.istio.cni_enable) (.Values.rbac.enabled) (.Values.alertmanager.enabled)}}
+apiVersion: {{ template "prometheus.apiVersionExtensionsV1Beta1orPolicyV1Beta1" . }}
+kind: PodSecurityPolicy
+metadata: 
+  labels:
+    app: {{ template "prometheus.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    component: "{{ .Values.alertmanager.name }}"
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+{{- include "prometheus-labels" (tuple .Values.global.labels) | indent 4}}
+{{- include "custom-labels" (tuple .Values.custom.psp.labels) | indent 4}}
+  name: {{ template "prometheus.alertmanager.fullname" . }}-psp
+{{- if  or .Values.global.annotations .Values.custom.psp.annotations .Values.rbac.pspUseAppArmor }}
+  annotations:
+{{- include "prometheus-annotations" (tuple .Values.global.annotations) | indent 4}}
+{{- include "custom-annotations" (tuple .Values.custom.psp.annotations) | indent 4}}
+{{- if .Values.rbac.pspUseAppArmor }}
+{{- include "custom-annotations" (tuple .Values.custom.psp.apparmorAnnotations) | indent 4}}
+{{- end }}
+{{- end }}
+spec:
+  seLinux:
+    rule: RunAsAny
+  runAsUser:
+    rule: RunAsAny
+  supplementalGroups:
+    rule: RunAsAny
+  fsGroup:
+    rule: RunAsAny
+  allowedCapabilities:
+  - 'NET_ADMIN'
+  - 'NET_RAW'
+  volumes:
+  - '*'
+{{- end }}

@@ -1,0 +1,7 @@
+geoRedundancyBtel:
+  persistence:
+    createPv: true
+    storageClass: default
+  volumes:
+    hostPath:
+      restoreMetadata: /var/btel/restore/metadata

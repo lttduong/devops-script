@@ -1,0 +1,335 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ template "zookeeper.name" . }}
+  annotations:
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: {{ .Values.global.seccompAllowedProfileNames }}
+    seccomp.security.alpha.kubernetes.io/defaultProfileName: {{ .Values.global.seccompDefaultProfileName }}
+  labels:
+    app: {{ .Chart.Name }}
+    release: {{ .Release.Name | quote }}
+    heritage: {{ .Release.Service | quote }}
+spec:
+  serviceName: {{ template "zookeeper.name" . }}-headless
+  replicas: {{ .Values.servers }}
+  updateStrategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app: {{ .Chart.Name }}
+      release: {{ .Release.Name | quote }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Chart.Name }}
+        release: {{ .Release.Name | quote }}
+      annotations:
+        {{- if .Values.global.istio.enabled }}
+        sidecar.istio.io/inject: "true"
+        {{- else }}
+        sidecar.istio.io/inject: "false"
+        {{- end }}
+    spec:
+      {{- if eq .Values.security.enabled true }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: {{ .Values.security.runAsUser }}
+        fsGroup: {{ .Values.security.fsGroup }}
+        runAsGroup: {{ .Values.security.runAsGroup }}
+      {{- if .Values.security.supplementalGroups }}
+        supplementalGroups: {{ .Values.security.supplementalGroups }}
+      {{- end }}
+      {{- if eq .Values.security.seLinuxOptions.enabled true }}
+        seLinuxOptions:
+          level: {{ .Values.security.seLinuxOptions.level }}
+          role: {{ .Values.security.seLinuxOptions.role }}
+          type: {{ .Values.security.seLinuxOptions.type }}
+          user: {{ .Values.security.seLinuxOptions.user }}
+      {{- end }}
+      {{- end }}
+      {{- if .Values.global.rbacEnable }}
+      serviceAccountName: {{ template "zkserviceAccount.name" . }}
+      {{- end }}
+      {{- if .Values.tolerationsForTaints.enable }}
+      tolerations:
+      {{- range $index, $tol := .Values.tolerationsForTaints.tolerations }}
+        - key : "{{ $tol.key }}"
+          operator: "{{ $tol.operator }}"
+          value: "{{ $tol.value }}"
+          effect: "{{ $tol.effect }}"
+          {{- if $tol.tolerationSeconds }}
+          tolerationSeconds: {{ $tol.tolerationSeconds }}
+          {{ end }}
+      {{ end }}
+      {{ end }}
+      {{- if eq .Values.antiAffinity "hard" }}
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: "kubernetes.io/hostname"
+              labelSelector:
+                matchLabels:
+                  app: {{ .Chart.Name }}
+                  release: {{ .Release.Name | quote }}
+      {{- else if eq .Values.antiAffinity "soft" }}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 1
+              podAffinityTerm:
+                topologyKey: "kubernetes.io/hostname"
+                labelSelector:
+                  matchLabels:
+                    app: {{ .Chart.Name }}
+                    release: {{ .Release.Name | quote }}
+      {{- end }}
+      {{- if .Values.zookeeperNodeSelector.enable }}
+      nodeSelector:
+{{ toYaml .Values.zookeeperNodeSelector.nodeLabel | indent 8 }}
+      {{- end }}
+      containers:
+      - name: ckaf-zookeeper-jmx-exporter
+        image: "{{ .Values.global.registry1}}/{{ .Values.JmxExporter.imageRepo }}:{{ .Values.JmxExporter.imageTag }}"
+        imagePullPolicy: {{ .Values.JmxExporter.imagePullPolicy }}
+        {{- if eq .Values.security.enabled true }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          privileged: false
+          capabilities:
+            drop:
+              - all
+        {{- end }}
+        volumeMounts:
+        - name: prom-jmx-exporter-volume
+          mountPath: /jmx-exporter
+        resources:
+{{ toYaml .Values.JmxExporter.jmxResources.resources | indent 10 }}
+      {{ if (eq .Values.global.cburEnable true) }}
+      - name: {{ .Values.cbur.name }}
+        image: "{{ .Values.global.registry2}}/{{ .Values.cbur.image }}:{{ .Values.cbur.tag }}"
+        imagePullPolicy: {{ .Values.cbur.imagePullPolicy }}
+        {{- if eq .Values.security.enabled true }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          privileged: false
+          capabilities:
+            drop:
+              - all
+        {{- end }}
+        resources:
+{{ toYaml .Values.cbur.resources | indent 10 }}
+        volumeMounts:
+        - mountPath: /zookeeper-data-dir
+          name: zookeeper-data-dir
+        - mountPath: /zookeeper-log-dir
+          name: zookeeper-log-dir
+        - mountPath: /prom-jmx-exporter-volume
+          name: prom-jmx-exporter-volume
+        - mountPath: /zookeeper-jmx-config-volume
+          name: zookeeper-jmx-config-volume
+        - mountPath: /zk-transaction-log-backup
+          name: zk-transaction-log-backup
+        - mountPath: /tmp
+          name: cbura-tmp-volume
+      {{end}}
+      - name: ckaf-zookeeper-server
+        imagePullPolicy: {{ .Values.imagePullPolicy }}
+        image: "{{ .Values.global.registry }}/{{ .Values.imageRepo }}:{{ .Values.imageTag }}"
+        {{- if eq .Values.security.enabled true }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          privileged: false
+          capabilities:
+            drop:
+              - all
+          runAsUser: {{ .Values.security.runAsUser }}
+        {{- end }}
+        resources:
+{{ toYaml .Values.resources | indent 10 }}
+        ports:
+        - containerPort: 2181
+          name: tcp-client
+        - containerPort: {{ .Values.serverPort }}
+          name: tcp-server
+        - containerPort: {{ .Values.leaderElectionPort }}
+          name: tcp-leader
+        env:
+        - name: ZOOKEEPER_DYNAMIC_CONFIG_FILE
+          value: "/etc/kafka/dynamicfile.cfg.dynamic"
+        - name : ZOOKEEPER_TICK_TIME
+          value: "{{ .Values.tickTimeMs }}"
+        - name : ZOOKEEPER_INIT_LIMIT
+          value: "{{ .Values.initTicks }}"
+        - name : ZOOKEEPER_SYNC_LIMIT
+          value: "{{ .Values.syncTicks }}"
+        - name : ZOOKEEPER_PRE_ALLOC_SIZE
+          value: "{{ .Values.preAllocSize }}"
+        - name : ZOOKEEPER_MAX_CLIENT_CNXNS
+          value: "{{ .Values.clientCnxns }}"
+        - name: ZOOKEEPER_AUTOPURGE_SNAP_RETAIN_COUNT
+          value: "{{ .Values.snapRetain }}"
+        - name: ZOOKEEPER_AUTOPURGE_PURGE_INTERVAL
+          value: "{{ .Values.purgeHours }}"
+        - name: ZOOKEEPER_CLIENT_PORT
+          value: "2181"
+        - name: ZOOKEEPER_SERVER_PORT
+          value: "{{ .Values.serverPort }}"
+        - name: ZOOKEEPER_ELECTION_PORT
+          value: "{{ .Values.leaderElectionPort }}"
+        - name : ZK_HEAP_SIZE
+          value: "{{ .Values.heap }}"
+        - name: ZK_PURGE_INTERVAL
+          value: "{{ .Values.purgeHours }}"
+        - name: ZOOKEEPER_LOG_LEVEL
+          value: "{{ .Values.logLevel }}"
+        - name: ZOOKEEPER_DATA_DIR
+          value: "/var/lib/zookeeper/data"
+        - name: ZOOKEEPER_LOG_DIR
+          value: "/var/log/zookeeper"
+        - name: LOG_DIR
+          value: "/var/log/zookeeper"
+        - name: CLOG_ENABLE
+          value: "{{ .Values.global.clogEnable }}"
+        - name: ZOOKEEPER_MAX_FILE_SIZE
+          value: "{{ .Values.maxFileSize }}"
+        - name: ZOOKEEPER_MAX_BACKUP_INDEX
+          value: "{{ .Values.maxBackupIndex }}"
+        - name: ZOOKEEPER_RECONFIG_ENABLED
+          value: "true"
+        - name: ZOOKEEPER_STANDALONE_ENABLED
+          value: "false"
+        - name: ZOOKEEPER_SKIP_ACL
+          value: "yes"
+        - name: ZOOKEEPER_QUORUM_LISTEN_ON_ALL_IPS
+          value: "true"
+        - name: ZOOKEEPER_SNAPSHOT_TRUST_EMPTY
+          value: "{{ .Values.snapshotTrustEmpty }}"
+          {{- if eq .Values.krb.enable true}}
+        - name: KRB_ENABLE
+          value: "enable"
+          {{- else}}
+        - name: KRB_ENABLE
+          value: "disable"
+          {{- end}}
+          {{- if eq .Values.krb.enable true}}
+        - name: KRB_PRINCIPAL
+          valueFrom:
+            secretKeyRef:
+               name: {{ .Values.krb.krbSecretName }}
+               key: {{ .Values.krb.krbPrincipalKey }}
+          {{- end}}
+        - name: KAFKA_OPTS
+          value: "-javaagent:/jmx-exporter/jmx_prometheus_javaagent.jar={{ .Values.JmxExporter.port }}:/etc/zookeeper/jmx_config/zookeeper-jmx.yaml"
+        - name: IS_RESTORE
+        {{- if (eq .Values.global.cburEnable true) }}
+          valueFrom:
+            configMapKeyRef:
+              name: {{ .Release.Name }}-zk-cbur-conf
+              key: is_restore
+        {{- else }}
+          value: "false"
+        {{- end }}
+        {{- range $key, $value := .Values.configurationOverrides }}
+        - name: {{ printf "ZOOKEEPEROVERRIDE_%s" $key | replace "." "_" | upper | quote }}
+          value: {{ $value | quote }}
+        {{- end }}
+        readinessProbe:
+          exec:
+            command:
+            - sh
+            - -c
+            - /etc/confluent/docker/zk-health-check.sh
+          initialDelaySeconds: {{ .Values.probeInitialDelaySeconds }}
+          timeoutSeconds: {{ .Values.probeTimeoutSeconds }}
+        livenessProbe:
+          exec:
+            command:
+            - sh
+            - -c
+            - /etc/confluent/docker/zk-health-check.sh
+          initialDelaySeconds: {{ .Values.probeInitialDelaySeconds }}
+          timeoutSeconds: {{ .Values.probeTimeoutSeconds }}
+        volumeMounts:
+        - name: zookeeper-data-dir
+          mountPath: /var/lib/zookeeper/data
+        - name: zookeeper-log-dir
+          mountPath: /var/log/zookeeper
+        - name: prom-jmx-exporter-volume
+          mountPath: /jmx-exporter
+        - name: zookeeper-jmx-config-volume
+          mountPath: /etc/zookeeper/jmx_config
+            {{- if eq .Values.krb.enable true}}
+        - name: zk-svc-keytab
+          mountPath: /etc/kafka/keytab
+        - name: krb5config 
+          mountPath: /etc/kafka/krb-conf
+            {{- end}}
+        {{ if (eq .Values.global.cburEnable true) }}
+        - name: zk-transaction-log-backup 
+          mountPath: /zk-transaction-log-backup
+        {{ end }}
+        - name: zk-dynamic-config
+          mountPath: /etc/zookeeper/dynamic_config
+      volumes:
+      - name: zookeeper-jmx-config-volume
+        configMap:
+          name: {{ template "zookeeper.name" . }}
+      - name: prom-jmx-exporter-volume
+        emptyDir: {}
+      {{- if eq .Values.krb.enable true}}
+      - name: zk-svc-keytab
+        secret:
+          secretName: {{ .Values.krb.krbSecretName }}
+          items:
+          - key: {{ .Values.krb.krbKeytabKey }}
+            path: zk.keytab
+      - name: krb5config 
+        configMap: 
+          name: {{ .Values.krb.krbConfigmapName }}
+          items:
+          - key: {{ .Values.krb.KrbConfKeyName }}
+            path: krb5.conf
+      {{- end}}
+      {{- if (eq .Values.global.cburEnable true) }}
+      - name: "cbura-tmp-volume"
+        emptyDir: {}
+      - name: zk-transaction-log-backup
+        emptyDir: {}
+      {{- end }}
+      - name: zk-dynamic-config
+        configMap:
+            name: {{ template "zookeeper.name" . }}-dynamic-config
+  volumeClaimTemplates:
+  - metadata:
+      name: zookeeper-data-dir
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: {{ .Values.dataStorage }}
+    {{- if .Values.autoPvEnabledZk }}
+      selector:
+        matchLabels:
+          for: {{ .Values.autoPvEnabledLabelZk }}
+    {{- else if .Values.compaas }}
+      storageClassName: "{{ .Values.compaas.storageClass }}"
+    {{- else if .Values.global.storageClass }}
+      storageClassName: "{{ .Values.global.storageClass }}"
+    {{- end }}
+  - metadata:
+      name: zookeeper-log-dir
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: {{ .Values.logStorage }}
+    {{- if .Values.autoPvEnabledZk }}
+      selector:
+        matchLabels:
+          for: {{ .Values.autoPvEnabledLabelZk }}
+    {{- else if .Values.compaas }}
+      storageClassName: "{{ .Values.compaas.storageClass }}"
+    {{- else if .Values.global.storageClass }}
+      storageClassName: "{{ .Values.global.storageClass }}"
+    {{- end }}
+

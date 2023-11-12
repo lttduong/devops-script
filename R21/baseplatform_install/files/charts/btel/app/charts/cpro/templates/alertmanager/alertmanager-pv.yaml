@@ -1,0 +1,25 @@
+## Start of custom chart file for CSFID-2996
+{{- if .Values.alertmanager.persistence.createPv }}
+{{- if and .Values.alertmanager.enabled .Values.alertmanager.persistentVolume.enabled -}}
+{{- range $index, $replica := until (int .Values.alertmanager.replicaCount) }}
+---
+kind: PersistentVolume
+apiVersion: v1
+metadata:
+  name: {{ template "prometheus.alertmanager.fullname" $ }}-pv-{{ $index }}
+  labels:
+    type: local
+{{ $.Values.alertmanager.persistence.labels | indent 4 }}
+spec:
+  storageClassName: {{ $.Values.alertmanager.persistentVolume.storageClass }}
+  capacity:
+    storage: {{ quote $.Values.alertmanager.persistentVolume.size }}
+  accessModes:
+{{ toYaml $.Values.alertmanager.persistentVolume.accessModes | indent 4 }}
+  hostPath:
+    path: {{ $.Values.alertmanager.persistence.hostPath }}
+  persistentVolumeReclaimPolicy: {{ default "Delete" $.Values.alertmanager.persistence.resourcePolicyPv }}
+{{- end }}
+{{- end }}
+{{- end }}
+## End of custom chart file

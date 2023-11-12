@@ -1,0 +1,338 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Values.global.releaseNamePrefix }}{{ template "name" . }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  podManagementPolicy: {{ .Values.podManagementPolicy }}
+  serviceName: {{ .Values.global.releaseNamePrefix }}{{ template "name" . }}
+  selector:
+    matchLabels:
+      app: {{ .Values.global.releaseNamePrefix }}{{ template "name" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.global.releaseNamePrefix }}{{ template "name" . }}
+        chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+        release: "{{ .Release.Name }}"
+        heritage: "{{ .Release.Service }}"
+        app.kubernetes.io/component: server
+{{- if .Values.cluster.ha }}
+{{- if tpl .Values.cluster.name . }}
+        cluster: "{{ tpl .Values.cluster.name . }}"
+{{- else }}
+        cluster: "{{ .Release.Name }}-{{ .Values.service.name }}"
+{{- end }}
+{{- end }}
+    spec:
+{{- if .Values.nodeAffinityRuleTemplate }}
+{{ tpl .Values.nodeAffinityRuleTemplate . | indent 6 }}
+{{- end }}
+      {{- if .Values.global.rbac.enabled }}
+      serviceAccountName: {{ template "fullname" . }}
+      {{- else if .Values.global.serviceAccountName }}
+      serviceAccountName: {{ .Values.global.serviceAccountName }}
+      {{- end }}
+      securityContext:
+        runAsUser: {{ .Values.securityContext.user }}
+        fsGroup: {{ .Values.securityContext.group }}
+      initContainers:
+        - name: copy-customcli-config
+          # This init-container copies everything from /opt/nokia/config/customcli (inside the image)
+          # into /opt/nokia/config/customcli-bcmt (mounted as a volume). The customcli environment variable points to
+          # the /opt/nokia/config/customcli-bcmt directory. Therefore, on startup all scripts in the customcli-bcmt
+          # directory will be executed on startup.
+          image: "{{ .Values.global.registry }}/{{ .Values.image }}:{{ tpl .Values.imageTag . }}"
+          imagePullPolicy: "{{ .Values.imagePullPolicy }}"
+          # NSMA-2735: also clean out the /opt/wildfly/security contents here, so that the vault passwords are always regenerated fresh
+          command: ['sh', '-c', 'cp /opt/nokia/config/customcli/* /opt/nokia/config/customcli-bcmt/; rm -rf /opt/wildfly/security/*']
+          volumeMounts:
+            - name: customcli-config-modified
+              mountPath: "/opt/nokia/config/customcli-bcmt"
+{{- if eq .Values.global.storageClass "local-storage" }}
+        # The diagnostic-store folder must be writable by the wildfly user.
+        # This workaround is only for local storage.
+        - name: init-diagnostic-store
+          image: "{{ .Values.global.registry }}/{{ .Values.image }}:{{ tpl .Values.imageTag . }}"
+          imagePullPolicy: "{{ .Values.imagePullPolicy }}"
+          command: ['sh', '-c', "chown {{ .Values.securityContext.user }}:{{ .Values.securityContext.group }} {{ .Values.diagnosticVolume.path }}"]
+          volumeMounts:
+            - mountPath: "{{ .Values.diagnosticVolume.path }}"
+              name: diagnostic-store
+          securityContext:
+            runAsUser: 0
+{{- end }}
+{{ tpl .Values.certsConverter.initContainersTemplate . | indent 8 }}
+{{ tpl .Values.propertyEncrypter.initContainersTemplate . | indent 8 }}
+      containers:
+        - name: {{ .Values.global.releaseNamePrefix }}{{ template "name" . }}
+          image: "{{ .Values.global.registry }}/{{ .Values.image }}:{{ tpl .Values.imageTag . }}"
+          imagePullPolicy: "{{ .Values.imagePullPolicy }}"
+          terminationMessagePolicy: FallbackToLogsOnError
+          {{- if .Values.resources }}
+          resources:
+            requests:
+              memory: {{ .Values.resources.requests.memory | quote }}
+              cpu: {{ .Values.resources.requests.cpu | quote }}
+            limits:
+              memory: {{ .Values.resources.limits.memory | quote }}
+              cpu: {{ .Values.resources.limits.cpu | quote }}
+          {{- end }}
+          readinessProbe:
+            tcpSocket:
+              port: {{ .Values.readinessProbe.port | default 8443 }}
+            initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds | default 10 }}
+            periodSeconds: {{ .Values.readinessProbe.periodSeconds | default 1 }} 
+            successThreshold: {{ .Values.readinessProbe.successThreshold | default 1 }}
+            failureThreshold: {{ .Values.readinessProbe.failureThreshold | default 180 }}
+            timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds | default 5 }}
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/opt/wildfly/service.sh","stop"]
+          env:
+            - name: "Xms"
+              value: "{{ .Values.resources.jvm.Xms }}"
+            - name: "Xmx"
+              value: "{{ .Values.resources.jvm.Xmx }}"
+            - name: "MetaspaceSize"
+              value: "{{ .Values.resources.jvm.MetaspaceSize }}"
+            - name: "MaxMetaspaceSize"
+              value: "{{ .Values.resources.jvm.MaxMetaspaceSize }}"
+            - name: "EXTRA_JAVA_OPTS"
+              value: "-XX:+CrashOnOutOfMemoryError -XX:ErrorFile={{ .Values.diagnosticVolume.path }}/jvm_crash_pid_%p.log -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath={{ .Values.diagnosticVolume.path }} -Dlog4j2.formatMsgNoLookups=true"
+            - name: "resolveparam"
+              value: "true"
+            - name: "httpconnector"
+              value: "false"
+            - name: "runcmdafterconfig"
+              value: "/opt/nokia/bin/postcsfconfig.sh"
+            - name: "postcsfconfigarg1"
+              value: "/opt/nokia/bin/vaultloader.sh"
+{{- if .Values.global.dualStack }}
+            # dualstack: turn off -Djava.net.preferIPv4Stack=true
+            - name: "postcsfconfigarg2"
+              value: "sed -i.bak 's/ -Djava.net.preferIPv4Stack=true//' /opt/wildfly/bin/standalone.conf"
+{{- end }}
+            - name: "applikeystorefile"
+              value: "{{ .Values.certsConverter.keystorefile }}"
+            - name: "applikeystorepass"
+              value: "{{ .Values.certsConverter.jkspass }}"
+            - name: "applicertpass"
+              value: "{{ .Values.certsConverter.jkspass }}"
+            - name: "applicertalias"
+              value: "{{ .Values.belkCName }}"
+            - name: "truststorefile"
+              value: "{{ .Values.certsConverter.truststorefile }}"
+            - name: "truststorepass"
+              value: "{{ .Values.certsConverter.jkspass }}"
+            - name: "enableconsole"
+              value: "{{ .Values.resources.config.enableconsole }}"
+            - name: "logtostdout"
+              value: "{{ .Values.logtostdout }}"
+            - name: "syslog"
+              value: "{{ .Values.syslog }}"
+            - name: "standaloneconfiguration"
+{{- if .Values.cluster.ha }}
+              value: "{{ .Values.standaloneconfiguration.ha }}"
+{{- else }}
+              value: "{{ .Values.standaloneconfiguration.nonHa }}"
+{{- end }}
+{{- if .Values.resources.jvm.debugPort }}
+            - name: "extraargs"
+              value: "{{ tpl .Values.extraargs . }} --debug {{ .Values.resources.jvm.debugPort }}"
+{{- else }}
+            - name: "extraargs"
+              value: "{{ tpl .Values.extraargs . }}"
+{{- end }}
+            - name: "customcli"
+              value: "{{ .Values.customcliDir }}"
+            - name: "DB_HOST"
+              value: "{{ tpl .Values.global.mariadbExternalName $ }}"
+            - name: "DB_PORT"
+              value: "{{ .Values.global.mariadbPort }}"
+            - name: "TRANSACTION_TIMEOUT_SECONDS"
+              value: "{{ .Values.dbConfig.transactionTimeoutSeconds }}"
+            - name: "messagebroker.host"
+              value: "{{ tpl .Values.global.crmq.serviceName . }}"
+            - name: "messagebroker.port"
+              value: "{{ tpl .Values.global.crmq.port . }}"
+            - name: "messagebroker.usessl"
+              value: "{{ tpl .Values.global.crmq.useSsl . }}"
+            - name: "netagentmgmt.use-ssl"
+              value: "true"
+            - name: "neaudit.agent-audit.use-corrective-action"
+              value: "false"
+            # keycloakserver is host:port. Used by CSF to pull the keycloak SSL certificate. Temporarily hardcoded:
+            - name: "keycloakserver"
+              value: "{{ .Values.global.BP_RELEASE_NAME_PREFIX }}ckey-ckey.{{ .Values.global.BP_NAMESPACE }}.{{ tpl .Values.global.svcDnsDomain . }}:8443"
+            - name: "keycloak.address"
+              value: "https://{{ .Values.global.BP_RELEASE_NAME_PREFIX }}ckey-ckey.{{ .Values.global.BP_NAMESPACE }}.{{ tpl .Values.global.svcDnsDomain . }}:8443/auth"
+            - name: "KEYCLOAK_AUTH_SERVER_URL"
+              value: "https://{{ .Values.global.BP_RELEASE_NAME_PREFIX }}ckey-ckey.{{ .Values.global.BP_NAMESPACE }}.{{ tpl .Values.global.svcDnsDomain . }}:8443/auth"
+            - name: "MY_POD_IP"
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: "MY_POD_NAME"
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: "elasticsearch.host"
+              value: "{{ tpl .Values.global.elasticsearch.serviceName . }}"
+            - name: "elasticsearch.port"
+              value: "{{ tpl .Values.global.elasticsearch.port . }}"
+            - name: "STATISTICS_ENABLED"
+              value: "{{ tpl .Values.statisticsEnabled . }}"
+{{- if .Values.cluster.ha }}
+            # - name: "START_JMS_TEST"
+            #   value: "true"
+            - name: "START_JMS_TEST_CONTROLFILE"
+              value: "/opt/nokia/config/JMS_TEST_CONTROL"
+            # HA support, taken from CSF-CHARTS/cjee-wildfly/templates/deployment.yaml
+            - name: kube_ping_jgroups
+              value: "true"
+            - name: kube_ping_jgroups_namespace
+              value: "{{ .Release.Namespace }}"
+            - name: kube_ping_jgroups_label
+{{- if tpl .Values.cluster.name . }}
+              value: "{{ tpl .Values.cluster.name . }}"
+{{- else }}
+              value: "{{ .Release.Name }}-{{ .Values.service.name }}"
+{{- end }}
+            - name: kube_ping_jgroups_k8s_ip
+              value: "{{ .Values.cluster.api.ip }}"
+            - name: kube_ping_jgroups_k8s_port
+              value: "{{ .Values.cluster.api.port }}"
+            - name: kube_ping_jgroups_k8s_protocol
+              value: "{{ .Values.cluster.api.protocol }}"
+            - name: kube_ping_jgroups_k8s_version
+              value: "{{ .Values.cluster.api.version }}"
+            - name: kube_ping_jgroups_k8s_cert_file
+              value: "{{ .Values.cluster.api.cert }}"
+            - name: kube_ping_jgroups_k8s_token
+              value: "{{ .Values.cluster.api.token }}"
+            - name: kube_ping_jgroups_k8s_debug
+              value: "{{ .Values.cluster.api.debug }}"
+{{- end }}
+{{- if .Values.global.ipv6Only }}
+            # Settings for NETWORK_STACK=IPV6_ONLY:
+            - name: ipv6
+              value: "true"
+{{- else if .Values.global.dualStack }}
+            # Settings for NETWORK_STACK=IPV4_DUALSTACK:
+            # Leaving wildfly in ipv4-only mode, but see postcsfconfigarg2 above
+            # which turns off ipv4-only addressing
+            - name: ipv6
+              value: "false"
+            - name: dualstack
+              value: "false"
+{{- end }}
+{{- if .Values.extraEnv }}
+{{ tpl .Values.extraEnv . | indent 12 }}
+{{- end }}
+          # 'volumeMounts': defines how the volumes (defined in 'volumes' below) are mounted into this container:
+          volumeMounts:
+            - name: config-override
+              mountPath: "{{ .Values.configOverrideDir }}"
+            - name: keycloak
+              mountPath: /opt/nokia/config/keycloak.json
+              subPath: framework-keycloak.json
+            - name: extprops
+              mountPath: /opt/nokia/config/extprops
+            - name: application-properties
+              mountPath: /opt/nokia/config/applicationPropertiesOverrides
+            - name: adapter-config
+              mountPath: /opt/nokia/config/adapterConfigurationOverrides
+            - name: wildfly-vaultdir
+              mountPath: /opt/wildfly/security/vault
+            - name: customcli-mail-config
+              mountPath: "{{ .Values.customcliDir }}/05-mail.cli"
+              subPath: 05-mail.cli
+            - name: customcli-config-modified
+              mountPath: "{{ .Values.customcliDir }}"
+            - name: ssh-config
+              mountPath: /opt/nokia/config/ssh
+            {{- if .Values.diagnosticVolume.size }}
+            - name: diagnostic-store
+              mountPath: "{{ .Values.diagnosticVolume.path }}"
+            {{- end }}
+            {{- range $v := .Values.dbAccounts }}
+            - name: "{{ $.Values.global.releaseNamePrefix }}{{ $v.secretName }}-volume"
+              mountPath: "/opt/nokia/config/vaultinit/db/{{ $v.name }}"
+            {{- end }}
+{{- if .Values.encryptionKey.enabled }}
+            - name: "{{ .Values.encryptionKey.secretName }}-volume"
+              mountPath: "/opt/nokia/config/enc-{{ .Values.encryptionKey.version }}.properties"
+              subPath: "enc-{{ .Values.encryptionKey.version }}.properties"
+{{- if .Values.encryptionKey.previous.password }}
+            - name: "{{ .Values.encryptionKey.previous.secretName }}-volume"
+              mountPath: "/opt/nokia/config/enc-{{ .Values.encryptionKey.previous.version }}.properties"
+              subPath: "enc-{{ .Values.encryptionKey.previous.version }}.properties"
+{{- end }}
+{{- end }}
+{{ tpl .Values.certsConverter.volumeMountsTemplate . | indent 12 }}
+{{ tpl .Values.propertyEncrypter.volumeMountsTemplate . | indent 12 }}
+{{- if .Values.extraVolumeMounts }}
+{{ .Values.extraVolumeMounts | indent 12 }}
+{{- end }}
+      # 'volumes': this section defines 'external' volumes - these can be a cinder volume, or a configmap, or secret
+      # used with the volumeMounts section above, which defines how these volumes are mounted into the container
+      volumes:
+        - name: config-override
+          configMap:
+            name:  {{ .Values.global.releaseNamePrefix }}{{ template "name" . }}-config-override
+        - name: keycloak
+          configMap:
+            name:  {{ .Values.global.releaseNamePrefix }}{{ template "name" . }}-keycloak
+        - name: wildfly-vaultdir
+          emptyDir: {}
+        {{- range $v := .Values.dbAccounts }}
+        - name: "{{ $.Values.global.releaseNamePrefix }}{{ $v.secretName }}-volume"
+          secret:
+            secretName: "{{ $.Values.global.releaseNamePrefix }}{{ $v.secretName }}"
+        {{- end }}
+{{- if .Values.encryptionKey.enabled }}
+        - name: "{{ .Values.encryptionKey.secretName }}-volume"
+          secret:
+            secretName: "{{ .Values.encryptionKey.secretName }}"
+{{- if .Values.encryptionKey.previous.password }}
+        - name: "{{ .Values.encryptionKey.previous.secretName }}-volume"
+          secret:
+            secretName: "{{ .Values.encryptionKey.previous.secretName }}"
+{{- end }}
+{{- end }}
+        - name: customcli-mail-config
+          configMap:
+            name:  {{ .Values.global.releaseNamePrefix }}{{ template "name" . }}-customcli-mail
+        - name: customcli-config-modified
+          emptyDir: {}
+        - name: ssh-config
+          configMap:
+            name:  {{ tpl .Values.global.sshConfigMapName . }}
+        - name: extprops
+          configMap:
+            name:  {{ tpl .Values.global.extendedPropertiesConfigMapName . }}
+        - name: application-properties
+          configMap:
+            name:  {{ tpl .Values.global.applicationPropertiesOverridesConfigMapName . }}
+        - name: adapter-config
+          configMap:
+            name:  {{ tpl .Values.global.adapterConfigOverridesConfigMapName . }}
+{{ tpl .Values.certsConverter.volumesTemplate . | indent 8 }}
+{{ tpl .Values.propertyEncrypter.volumesTemplate . | indent 8 }}
+{{- if .Values.extraVolumes }}
+{{ tpl .Values.extraVolumes . | indent 8 }}
+{{- end }}
+{{- if .Values.diagnosticVolume.size }}
+  volumeClaimTemplates:
+    - metadata:
+        name: diagnostic-store
+      spec:
+        accessModes:
+          - "ReadWriteOnce"
+        storageClassName: {{ .Values.global.storageClass | quote}}
+        resources:
+          requests:
+            storage: {{ .Values.diagnosticVolume.size | quote }}
+{{- end }}

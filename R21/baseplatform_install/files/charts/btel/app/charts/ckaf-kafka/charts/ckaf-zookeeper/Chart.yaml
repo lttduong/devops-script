@@ -1,0 +1,14 @@
+apiVersion: v1
+appVersion: 3.5.7
+description: Centralized service for maintaining configuration information, naming,
+  providing distributed synchronization, and providing group services.
+home: https://zookeeper.apache.org/
+icon: https://zookeeper.apache.org/images/zookeeper_small.gif
+maintainers:
+- email: cdf-compass@list.nokia.com
+  name: ComPaaS PIE Team
+name: ckaf-zookeeper
+sources:
+- https://github.com/apache/zookeeper
+- https://github.com/kubernetes/contrib/tree/master/statefulset/zookeeper
+version: 3.0.1

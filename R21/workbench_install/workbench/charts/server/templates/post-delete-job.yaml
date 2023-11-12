@@ -1,0 +1,47 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Chart.Name }}-post-delete
+  annotations:
+    # This is what defines this resource as a hook. Without this line, the
+    # job is considered part of the release.
+    "helm.sh/hook": post-delete
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  template:
+    metadata:
+      name: "{{ .Release.Name }}"
+    spec:
+      {{- if .Values.global.rbac.enabled }}
+      serviceAccountName: {{ .Chart.Name }}-hook-sa
+      {{- else if .Values.global.serviceAccountName }}
+      serviceAccountName: {{ .Values.global.serviceAccountName }}
+      {{- end }}
+{{- if .Values.global.jobNodeAffinityRuleTemplate }}
+{{ tpl .Values.global.jobNodeAffinityRuleTemplate . | indent 6 }}
+{{- end }}
+      restartPolicy: Never
+      containers:
+      - name: post-delete-hook
+        image: "{{ .Values.global.registry }}/{{ .Values.global.kubectl.image.repo }}:{{ .Values.global.kubectl.image.tag }}"
+        command:
+        - sh
+        - -c
+        - |
+          kubectl delete job {{ .Values.global.releaseNamePrefix }}nos-dbschematool-{{ template "name" . }} --namespace {{ .Release.Namespace }} --ignore-not-found=true
+          kubectl delete cert {{ .Values.global.releaseNamePrefix }}{{ template "name" . }}-tls --namespace {{ .Release.Namespace }} --ignore-not-found=true
+          kubectl delete cm {{ .Values.global.releaseNamePrefix }}{{ template "name" . }}-config-override --namespace {{ .Release.Namespace }} --ignore-not-found=true
+          kubectl delete cm {{ .Values.global.releaseNamePrefix }}{{ template "name" . }}-customcli-mail --namespace {{ .Release.Namespace }} --ignore-not-found=true
+          kubectl delete cm {{ .Values.global.releaseNamePrefix }}{{ template "name" . }}-keycloak --namespace {{ .Release.Namespace }} --ignore-not-found=true
+          kubectl delete cm {{ .Values.global.releaseNamePrefix }}{{ template "name" . }}-truststore-extra --namespace {{ .Release.Namespace }} --ignore-not-found=true
+          {{- if .Values.encryptionKey.enabled }}
+          kubectl delete secret {{ .Values.encryptionKey.secretName }} --namespace {{ .Release.Namespace }} --ignore-not-found=true
+          {{- if .Values.encryptionKey.previous.password }}.
+          kubectl delete secret {{ .Values.encryptionKey.previous.secretName }} --namespace {{ .Release.Namespace }} --ignore-not-found=true
+          {{- end }}
+          {{- end }}
+          kubectl delete secret {{ .Values.global.releaseNamePrefix }}{{ .Values.global.nosdbSecret }} --namespace {{ .Release.Namespace }} --ignore-not-found=true
+          kubectl delete secret {{ .Values.global.releaseNamePrefix }}{{ template "name" . }}-tls-secret --namespace {{ .Release.Namespace }} --ignore-not-found=true
+          kubectl delete pvc -l app={{ .Values.global.releaseNamePrefix }}{{ template "name" . }} --namespace {{ .Release.Namespace }} --ignore-not-found=true

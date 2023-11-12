@@ -1,0 +1,10 @@
+---
+- name: "Clean copied files on installation node"
+  file:
+    state: absent
+    path: "{{ temporaryAppFilesDirectory }}"
+
+- name: "Display upgrade summary"
+  debug:
+    msg:
+      - "Base platform upgrade successful!"

@@ -1,0 +1,33 @@
+{{- if and .Values.istio.enabled .Values.istio.ingress.enabled }}
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  labels:
+    app: {{ template "alarm.name" . }}
+    chart: {{ .Chart.Name }}
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+    version: {{ .Chart.Version }}
+  name: {{ template "alarm.fullname" . }}-virtualservice
+  namespace: {{ .Release.Namespace }}
+spec:
+  hosts:
+  - '{{ .Values.istio.ingress.host }}'
+  gateways:
+  {{- if not .Values.istio.ingress.gatewayName }}
+  - {{ template "alarm.fullname" . }}-gateway
+  {{- else }}
+  - {{- .Values.istio.ingress.gatewayName | indent 1 }}
+  {{- end }}
+  http:
+  - match:
+    - uri:
+        prefix: /{{ .Values.istio.ingress.uriRoot }}/
+    rewrite:
+      uri: /  
+    route:
+    - destination:
+        port:
+          number: {{ .Values.restPort }}
+        host: {{ template "alarm.fullname" . }}
+{{- end }}

@@ -1,0 +1,488 @@
+{{- include "elasticsearch.istio.initIstio" . }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ template "elasticsearch.data.fullname" . }}
+  labels:
+    component: elasticsearch
+    role: data 
+    release: {{ .Release.Name | quote }}
+  annotations:
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: {{ .Values.global.seccompAllowedProfileNames }}
+    seccomp.security.alpha.kubernetes.io/defaultProfileName: {{ .Values.global.seccompDefaultProfileName }} 
+{{- if .Values.custom }}
+{{- if .Values.custom.annotations }}
+{{- include "elasticsearch.csf-toolkit-helm.annotations" (tuple .Values.custom.annotations) | indent 4}}
+{{- end }}
+{{- end }}
+spec:
+  serviceName: elk
+  podManagementPolicy: {{ .Values.esdata.podManagementPolicy }}
+  updateStrategy:
+{{ toYaml .Values.esdata.updateStrategy | indent 4 }}
+  replicas: {{.Values.esdata.replicas}} 
+  selector:
+    matchLabels:
+      component: elasticsearch
+      role: data 
+      release: {{ .Release.Name | quote }}
+  template:
+    metadata:
+      labels:
+        component: elasticsearch
+        role: data 
+        release: {{ .Release.Name | quote }}
+        {{- if .Values.esdata.podLabels }}
+        {{- include "elasticsearch.custom-labels" (tuple .Values.esdata.podLabels) | indent 8}}
+        {{- end }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/es-secret.yaml") . | sha256sum }}
+        {{- if and (.Values.istio.enabled) (ne $.istioVersion 1.4) }}
+        traffic.sidecar.istio.io/excludeInboundPorts: "9300"
+        traffic.sidecar.istio.io/excludeOutboundPorts: "9300"
+        {{- end }}
+    spec:
+      ## Start of custom modification of original chart for CSFID-2092
+      initContainers:
+        - name: {{ template "elasticsearch.data.fullname" . }}-init
+          image: {{ .Values.global.registry }}/{{ .Values.global.certsConverter.image.name }}:{{ .Values.global.certsConverter.image.tag }}
+          imagePullPolicy: {{.Values.elasticsearch_master.ImagePullPolicy}}
+          command: ["certs_converter"]
+          args: ["--certs-dir={{ .Values.volumes.path.certs }}",
+                 "--output={{ .Values.volumes.path.keys }}",
+                 "--format=JKS"]
+          env:
+            - name: TS_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ template "fullname" . }}
+                  key: trustpass
+            - name: KS_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ template "fullname" . }}
+                  key: keypass
+          volumeMounts:
+            - name: {{ template "fullname" . }}-tls
+              mountPath: {{ .Values.volumes.path.certs }}
+              readOnly: true
+            - name: es-data-generated-certs
+              mountPath: {{ .Values.volumes.path.keys }}
+        - name: {{ template "elasticsearch.data.fullname" . }}-init-client-jks
+          image: {{ .Values.global.registry }}/{{ .Values.global.certsConverter.image.name }}:{{ .Values.global.certsConverter.image.tag }}
+          imagePullPolicy: {{.Values.elasticsearch_master.ImagePullPolicy}}
+          command: ["certs_converter"]
+          args: ["--certs-dir={{ .Values.volumes.path.certs }}",
+                 "--output={{ .Values.volumes.path.keys }}",
+                 "--format=JKS"]
+          env:
+            - name: TS_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ template "fullname" . }}
+                  key: trustpass
+            - name: KS_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ template "fullname" . }}
+                  key: keypass
+          volumeMounts:
+            - name: {{ template "fullname" . }}-tls-client
+              mountPath: {{ .Values.volumes.path.certs }}
+              readOnly: true
+            - name: es-data-generated-certs-client-jks
+              mountPath: {{ .Values.volumes.path.keys }}
+        - name: {{ template "elasticsearch.data.fullname" . }}-init-client-pem
+          image: {{ .Values.global.registry }}/{{ .Values.global.certsConverter.image.name }}:{{ .Values.global.certsConverter.image.tag }}
+          imagePullPolicy: {{.Values.elasticsearch_master.ImagePullPolicy}}
+          command: ["certs_converter"]
+          args: ["--certs-dir={{ .Values.volumes.path.certs }}",
+                 "--output={{ .Values.volumes.path.keys }}",
+                 "--format=PEM"]
+          volumeMounts:
+            - name: {{ template "fullname" . }}-tls-client
+              mountPath: {{ .Values.volumes.path.certs }}
+              readOnly: true
+            - name: es-data-generated-certs-client-pem
+              mountPath: {{ .Values.volumes.path.keys }}
+      ## End of custom modification of original chart
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        {{- if .Values.es_securityContext.fsGroup }}
+        fsGroup: {{ .Values.es_securityContext.fsGroup }}
+        {{- end }}
+        {{- if .Values.es_securityContext.supplementalGroups }}
+        supplementalGroups: {{ .Values.es_securityContext.supplementalGroups }}
+        {{- end }}
+        {{- if .Values.es_securityContext.seLinuxOptions }}
+        seLinuxOptions:
+{{ toYaml .Values.es_securityContext.seLinuxOptions | indent 10 }}
+        {{- end }}
+      {{- if or .Values.esdata.antiAffinity .Values.esdata.nodeAffinity }}
+      affinity:
+      {{- end }}
+      {{- if eq .Values.esdata.antiAffinity "hard" }}
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: "kubernetes.io/hostname"
+              labelSelector:
+                matchLabels:
+                  role: data
+                  release: {{ .Release.Name | quote }}
+                  component: elasticsearch
+      {{- else if eq .Values.esdata.antiAffinity "soft" }}
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: {{.Values.esdata.podweight}}
+            podAffinityTerm:
+              topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  role: data
+                  release: {{ .Release.Name | quote }}
+                  component: elasticsearch
+      {{- end }}
+      {{- if .Values.esdata.podAffinity }}
+        podAffinity:
+{{ toYaml .Values.esdata.podAffinity | indent 10 }}
+      {{- end }}
+      serviceAccountName: {{ default ( default (printf "%s-es-sa" ( include "elasticsearch.fullname" . )) .Values.global.serviceAccountName ) .Values.serviceAccountName }}
+      {{- with .Values.esdata.nodeAffinity }}
+        nodeAffinity:
+{{ toYaml . | indent 10 }}
+      {{- end }}
+{{- if .Values.esdata.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.esdata.nodeSelector | indent 8 }}
+{{- end }}
+{{- if .Values.esdata.tolerations }}
+      tolerations:
+{{ toYaml .Values.esdata.tolerations | indent 8 }}
+{{- end }}
+      containers:
+      - name: {{ template "elasticsearch.data.container" . }}
+        {{- if .Values.searchguard.enable }}
+        image: {{.Values.global.registry}}/{{.Values.searchguard.image.repo}}:{{.Values.searchguard.image.tag}}
+        {{- else }}
+        image: {{.Values.global.registry}}/{{.Values.elasticsearch_master.image.repo}}:{{.Values.elasticsearch_master.image.tag}}
+        {{- end }}
+        imagePullPolicy: {{.Values.elasticsearch_master.ImagePullPolicy}}
+        resources:
+{{ toYaml .Values.esdata.resources | indent 10 }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          privileged: false
+          capabilities:
+             drop:
+               - all
+        readinessProbe:
+          tcpSocket:
+            port: 9300
+          initialDelaySeconds: {{.Values.esdata.readinessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.esdata.readinessProbe.periodSeconds }}
+          timeoutSeconds: {{ .Values.esdata.readinessProbe.timeoutSeconds }}
+          successThreshold: {{ .Values.esdata.readinessProbe.successThreshold }}
+          failureThreshold: {{ .Values.esdata.readinessProbe.failureThreshold }}
+        livenessProbe:
+          tcpSocket:
+            port: 9300
+          initialDelaySeconds: {{.Values.esdata.livenessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.esdata.livenessProbe.periodSeconds }}
+          timeoutSeconds: {{ .Values.esdata.livenessProbe.timeoutSeconds }}
+          successThreshold: {{ .Values.esdata.livenessProbe.successThreshold }}
+          failureThreshold: {{ .Values.esdata.livenessProbe.failureThreshold }}
+        env:
+          - name: "CLUSTER_NAME"
+            value: {{ printf "%s-%s" .Release.Namespace .Release.Name | quote }}
+          - name: "NODE_MASTER"
+            value: "false"
+          - name: "NODE_DATA"
+            value: "true" 
+          - name: "NODE_INGEST"
+            value: "false"
+          - name: "NODE_REMOTE_CLUSTER_CLIENT"
+            value: "false"
+          - name: "ES_JAVA_OPTS"
+            value: "{{.Values.esdata.es_java_opts}}"
+          - name: "DISCOVERY_SERVICE"
+            value: "{{ template "elasticsearch.fullname" . }}-discovery"
+          - name: NETWORK_HOST
+            {{- if .Values.istio.enabled }}
+            value: "0.0.0.0"
+            {{- else }}
+            value: "{{.Values.network_host}}"
+            {{- end }}
+          {{- if .Values.cbur.enabled }}
+          - name: "PATH_REPO"
+            value: "/elasticsearch-backup"
+          {{- end }}
+          - name: "CLIENT_PORT"
+            value: "{{.Values.service.client_port}}"
+          - name: "ELASTICSEARCH_SERVICE"
+            value: "{{.Values.service.name}}"
+          - name: NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+          - name: NODE_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+          - name: ISTIO_ENABLED
+            value: "{{ .Values.istio.enabled }}"
+          {{- if .Values.searchguard.enable }}
+          - name: HTTP_SSL
+            {{- if .Values.istio.enabled }}
+            value: "false"
+            {{- else }}
+            value: "{{.Values.searchguard.http_ssl}}"
+            {{- end }}
+          {{- if or (.Values.istio.enabled) (not .Values.searchguard.http_ssl) }}
+          - name: SG_INTERNAL_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: {{ template "elasticsearch.fullname" . }}
+                key: adminUsername
+          - name: SG_INTERNAL_PWD
+            valueFrom:
+              secretKeyRef:
+                name: {{ template "elasticsearch.fullname" . }}
+                key: adminPwd
+          {{- end }}
+          {{- if .Values.searchguard.ciphers }}
+          - name: searchguard.ssl.http.enabled_ciphers
+            value: "{{ template "elasticsearch.esciphers" . }}"
+          {{- end }}
+          {{- if not .Values.istio.enabled }}
+          - name: "KEYSTORE_TYPE"
+            value: "{{.Values.searchguard.keystore_type}}"
+          - name: "TRUSTSTORE_TYPE"
+            value: "{{.Values.searchguard.truststore_type}}"
+          - name: "KEYSTORE_FILEPATH"
+            value: "/etc/elasticsearch/certs/keystore.jks"
+          - name: "KS_PWD"
+            valueFrom:
+              secretKeyRef:
+                name: {{ template "elasticsearch.fullname" . }}
+                key: keypass
+          - name: "TRUSTSTORE_FILEPATH"
+            value: "/etc/elasticsearch/certs/truststore.jks"
+          - name: "TS_PWD"
+            valueFrom:
+              secretKeyRef:
+                name: {{ template "elasticsearch.fullname" . }}
+                key: trustpass
+          - name: "CLIENT_KEYSTORE_FILEPATH"
+            value: "/etc/elasticsearch/certs/client-keystore.jks"
+          - name: "AUTH_ADMIN_DN"
+            value: "{{.Values.searchguard.auth_admin_identity}}"
+          - name: "NODES_DN"
+            value: "{{ .Values.searchguard.nodes_dn }}"
+          {{- else }}
+          - name: "KEYSTORE_FILEPATH"
+            value: "/etc/elasticsearch/certs/elasticsearch.jks"
+          - name: "KS_PWD"
+            valueFrom:
+              secretKeyRef:
+                name: {{ template "elasticsearch.fullname" . }}
+                key: keypass
+          - name: "TRUSTSTORE_FILEPATH"
+            value: "/etc/elasticsearch/certs/root.jks"
+          - name: "TS_PWD"
+            valueFrom:
+              secretKeyRef:
+                name: {{ template "elasticsearch.fullname" . }}
+                key: trustpass
+          - name: "CLIENT_KEYSTORE_FILEPATH"
+            value: "/etc/elasticsearch/certs/admin-keystore.jks"
+          - name: "AUTH_ADMIN_DN"
+            value: "CN=admin"
+          - name: "NODES_DN"
+            value: "CN=elasticsearch"
+          {{- end }}
+          - name: "SG_CONFIG_DIRECTORY"
+            value: "/usr/share/elasticsearch/plugins/search-guard-7/sgconfig/"
+          {{- end }}
+          ## Start of custom modification of original chart
+          {{- if .Values.cbur.enabled }}
+          - name: "SNAPSHOTS_CLEANUP_INTERVAL"
+            value: "{{ .Values.snapshotsCleanupInterval }}"
+          {{- end }}
+          ## End of custom modification of original chart
+        ports:
+        - containerPort: {{.Values.service.master_port}}
+          name: tcp-transport 
+          protocol: TCP
+        - containerPort: {{.Values.service.client_port}}
+          name: tcp-rest
+          protocol: TCP
+        volumeMounts:
+        - name: datadir
+          mountPath: /data
+        {{- if .Values.cbur.enabled }}
+        - name: elasticsearch-backup
+          mountPath: /elasticsearch-backup
+        ## Start of custom modification of original chart
+        - name: es-post-restore
+          mountPath: "/opt/elasticsearch/scripts/{{ .Values.global.config.btel.restoreScriptFilename }}"
+          subPath: "{{ .Values.global.config.btel.restoreScriptFilename }}"
+        - name: es-pre-backup
+          mountPath: "/opt/elasticsearch/scripts/{{ .Values.global.config.btel.backupScriptFilename }}"
+          subPath: "{{ .Values.global.config.btel.backupScriptFilename }}"
+        ## End of custom modification of original chart
+        {{- end }}
+        {{- if .Values.searchguard.enable }}
+        ## Start of custom modification of original chart for CSFID-2092
+        #- name: ssl
+        #  mountPath: "/opt/elasticsearch/certs/"
+        #  readOnly: true
+        - name: es-data-generated-certs
+          mountPath: "/etc/elasticsearch/certs/keystore.jks"
+          subPath: "keystore.jks"
+        - name: es-data-generated-certs
+          mountPath: "/etc/elasticsearch/certs/truststore.jks"
+          subPath: "truststore.jks"
+        - name: es-data-generated-certs-client-jks
+          mountPath: "/etc/elasticsearch/certs/client-keystore.jks"
+          subPath: "keystore.jks"
+        - name: es-data-generated-certs-client-pem
+          mountPath: "/etc/elasticsearch/certs/admin.crt.pem"
+          subPath: "tls.pem"
+        - name: {{ template "fullname" . }}-tls-client
+          mountPath: "/etc/elasticsearch/certs/admin.key.pem"
+          subPath: "tls.key"
+        ## End of custom modification of original chart
+        - name: searchguard-config
+          mountPath: "/usr/share/elasticsearch/plugins/search-guard-7/sgconfig/"
+        {{- end }}
+      ## Start of custom modification of original chart for CSFID-2092
+        - name: es-config
+          mountPath: "/etc/elasticsearch/elasticsearch.yml"
+          readOnly: true
+          subPath: "elasticsearch.yml"
+      ## End of custom modification of original chart
+      {{- if .Values.cbur.enabled }}
+      - name: cbura-sidecar
+        image: {{ .Values.global.registry1 }}/{{ .Values.cbur.cbura.imageRepo }}:{{ .Values.cbur.cbura.imageTag }}
+        imagePullPolicy: {{ .Values.cbur.cbura.imagePullPolicy }}
+        resources:
+{{ toYaml .Values.cbur.cbura.resources | indent 10 }}
+        securityContext:
+            runAsUser: {{ .Values.cbur.cbura.userId }}
+        volumeMounts:
+        - name: "elasticsearch-backup"
+          mountPath: /elasticsearch-backup
+      ## Start of custom modification of original chart
+      # - mountPath: /tmp
+      #   name: "cbura-sidecar-volume"
+      ## End of custom modification of original chart
+      {{- end}}
+      volumes:
+      {{- if .Values.searchguard.enable }}
+      ## Start of custom modification of original chart for CSFID-2092
+      #- name: ssl
+      #  secret:
+      #    secretName: {{ template "elasticsearch.fullname" . }}
+      #    items:
+      #    {{- if not .Values.istio.enabled }}
+      #    - key: keystore.jks
+      #      path: keystore.jks
+      #    - key: truststore.jks
+      #      path: truststore.jks
+      #    - key: client-keystore.jks
+      #      path: client-keystore.jks
+      #    {{- end }}
+      #    {{- if and (not .Values.istio.enabled) (.Values.searchguard.http_ssl) }}
+      #    - key: admin.crt.pem
+      #      path: admin.crt.pem
+      #    - key: admin.key.pem
+      #      path: admin.key.pem
+      #    {{- end }}
+      - name: {{ template "fullname" . }}-tls
+        secret:
+          secretName: {{ template "fullname" . }}-tls
+          defaultMode: 0600
+      - name: es-data-generated-certs
+        emptyDir: {}
+      - name: {{ template "fullname" . }}-tls-client
+        secret:
+          secretName: {{ template "fullname" . }}-tls-client
+          items:
+          - key: ca.crt
+            path: ca.crt
+          - key: tls.key
+            path: tls.key
+          - key: tls.crt
+            path: tls.crt
+          - key: tls.key
+            path: admin.key.pem
+          - key: tls.crt
+            path: admin.crt.pem
+          defaultMode: 0600
+      - name: es-data-generated-certs-client-jks
+        emptyDir: {}
+      - name: es-data-generated-certs-client-pem
+        emptyDir: {}
+      ## End of Custom modification of original chart
+      - configMap:
+          name: {{ template "elasticsearch.fullname" . }}-searchguard-config
+        name: searchguard-config 
+      {{- end }} 
+      {{- if .Values.cbur.enabled }} 
+      - name: "elasticsearch-backup"
+      ## Start of custom modification of original chart
+        persistentVolumeClaim:
+          claimName: {{ template "fullname" . }}-nfs-pvc
+      #  persistentVolumeClaim:
+      #    claimName: {{ template "fullname" . }}-pvc
+      #- name: "cbura-sidecar-volume"
+      #  persistentVolumeClaim:
+      #    claimName: {{ template "elasticsearch.fullname" . }}-cbur-tmp-pvc
+      - name: es-post-restore
+        configMap:
+          name: {{ template "fullname" . }}-restore-script
+          defaultMode: 0750
+          items:
+            - key: {{ .Values.global.config.btel.restoreScriptFilename }}
+              path: {{ .Values.global.config.btel.restoreScriptFilename }}
+      - name: es-pre-backup
+        configMap:
+          name: {{ template "fullname" . }}-backup-script
+          defaultMode: 0750
+          items:
+            - key: {{ .Values.global.config.btel.backupScriptFilename }}
+              path: {{ .Values.global.config.btel.backupScriptFilename }}
+      {{- end }}
+        ## Custom modification of original chart for BASE-269
+      - name: es-config
+        configMap:
+          name: {{ template "elasticsearch.fullname" . }}-es-config
+          items:
+            - key: elasticsearch.yml
+              path: elasticsearch.yml
+              mode: 0600
+      ## End of custom modification of original chart
+  volumeClaimTemplates:
+  - metadata:
+      name: datadir
+      labels:
+       app: {{ template "elasticsearch.fullname" . }}
+       release: "{{ .Release.Name }}"
+       heritage: "{{ .Release.Service }}"
+    spec:
+      accessModes:
+        - {{ .Values.persistence.accessMode | quote }}
+      resources:
+        requests:
+          storage: {{ .Values.persistence.size | quote }}
+    {{- if .Values.persistence.storageClassName }}
+      storageClassName: "{{ .Values.persistence.storageClassName }}"
+    {{- end }}
+    ## Start of custom modification of original chart for CSFID-2094
+    {{- if .Values.esdata.persistence.createPv }}
+      selector:
+        matchLabels:
+{{ .Values.esdata.persistence.labels | indent 12 }}
+    {{- end }}
+    ## End of custom modification of original chart

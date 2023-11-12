@@ -1,0 +1,7 @@
+{
+        "auths": {
+               "wasr22containerregistry.azurecr.io": {
+                    "auth": "V0FTUjIyQ29udGFpbmVyUmVnaXN0cnk6VU1hYkZ2NGYyU3RCaDJJWFZ0M1cxYUZQUWJDbmdZL3I="
+             }
+        }
+}

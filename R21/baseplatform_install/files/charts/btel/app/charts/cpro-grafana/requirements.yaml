@@ -1,0 +1,7 @@
+dependencies:
+  - name: cmdb
+    version: 7.12.2
+    repository: https://repo.lab.pl.alcatel-lucent.com/csf-helm-stable/
+    condition: cmdb.need_deployed
+    tags:
+    - cmdb

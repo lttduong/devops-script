@@ -1,0 +1,72 @@
+{{- if .Values.createDB.enabled }}
+{{- range $name, $entry := .Values.jobs }}
+{{- if .enabled }}
+{{ with $ }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Values.global.releaseNamePrefix }}{{ .Release.Name}}-{{ .Chart.Name }}-{{ tpl $entry.secretName $ }}-job
+  namespace: "{{ .Values.global.BP_CONFIG_NAMESPACE }}"
+  annotations:
+    "helm.sh/hook": {{ tpl ($entry.jobHook | default .Values.global.helmHooks.appdbconfig.hook) . | quote }}
+    "helm.sh/hook-weight": {{ tpl ($entry.jobHookWeight | default .Values.global.helmHooks.appdbconfig.weight) . | quote }}
+    "helm.sh/hook-delete-policy": "before-hook-creation"
+spec:
+  template:
+    metadata:
+      labels:
+        name: {{ .Chart.Name }}
+    spec:
+      securityContext:
+        runAsUser: 1773
+        runAsGroup: 1773
+        fsGroup: 1773
+{{- if .Values.global.jobNodeAffinityRuleTemplate }}
+{{ tpl .Values.global.jobNodeAffinityRuleTemplate . | indent 6 }}
+{{- end }}
+      restartPolicy: Never
+      containers:
+      - name: {{ .Chart.Name }}-{{ $name }}
+        image: {{ .Values.global.registry }}/{{ .Values.config.cmdb.configurator.image.name }}:{{ tpl .Values.config.cmdb.configurator.image.tag . }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        terminationMessagePolicy: FallbackToLogsOnError
+        args: [ "mysql" ]
+        env:
+        - name: MYSQL_USER
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.config.cmdb.configurator.secretName }}
+              key: mariadb-user
+        - name: MYSQL_PWD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.config.cmdb.configurator.secretName }}
+              key: mariadb-password
+        - name: MYSQL_HOST
+          value: {{ (tpl .Values.global.mariadbExternalName .) | quote }}
+        - name: MYSQL_TCP_PORT
+          value: {{ .Values.global.mariadbPort | quote }}
+        - name: MYSQL_SQL_FILE
+          value: "/opt/scripts/script.sql"
+        - name: USE_CLEARTEXT
+          value: "0"
+        - name: MYSQL_SSL_CA_FILE_PATH
+          value: "/etc/my.cnf.d/ssl/ca.crt"
+        volumeMounts:
+        - name: script-volume
+          mountPath: "/opt/scripts/"
+        - name: {{ .Values.global.releaseNamePrefix }}{{ .Values.certificatesSecretName }}
+          mountPath: "/etc/my.cnf.d/ssl"
+          readOnly: true
+      volumes:
+        - name: script-volume
+          secret:
+            secretName: {{ $.Release.Name}}-{{ $.Chart.Name}}-{{ tpl $entry.secretName $ }}-script
+        - name: {{ .Values.global.releaseNamePrefix }}{{ .Values.certificatesSecretName }}
+          secret:
+            secretName: {{ .Values.global.releaseNamePrefix }}{{ .Values.certificatesSecretName }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end -}}

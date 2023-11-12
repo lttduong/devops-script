@@ -1,0 +1,69 @@
+- name: Create Azure VM
+  hosts: localhost
+  connection: local
+  collections:
+   - azure.azcollection
+  vars:
+    vm_name: worker-node
+    location: westeurope
+    resource_group: open-sanity
+    net_security_group: VPNServerVM-nsg
+    vnet: open-sanity-vnet
+    subnet: was
+    publicIP: workerIP
+    ssh_key: "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDTtSvHPqcrGMgXYiUWWq20ehxpK1O4gZe3fPon59jeLQGUwxp9oxKKbm3MpWNaYYGb+qcW00AsOWbbO0iBL5ZC+ZbxjNNO74c57q21B+V0zuHKu7uydK18jnyk7PXHeQyOwbMQ1UbmMImywGEcDno4cni4EVpqnWAq0yTppry0xFP+x//YCocHMLW4vXmwoGwSg97sU7dgtNpKEMZL+z3wScHURGS3NbXxu3ChGtTw140Fki7SnSrWP+3OYVIB2Ef1s00exe7q3EFxp4G8OzJBHma4aY+fjKgt6/mHf8fdmFYLDnxa9/XSztkyfKfomAV0Df1E3z8OUd/H2bt7ja3z azureuser@test-host"
+  tasks:
+  - name: Create virtual network
+    azure_rm_virtualnetwork:
+      resource_group: "{{ resource_group }}"
+      name: "{{ vnet }}"
+      address_prefixes: "172.17.0.0/16"
+  - name: Add subnet
+    azure_rm_subnet:
+      resource_group: "{{ resource_group }}"
+      name: "{{ subnet }}"
+      address_prefix: "172.17.2.0/24"
+      virtual_network: "{{ vnet }}"
+  - name: Create public IP address
+    azure_rm_publicipaddress:
+      resource_group: "{{ resource_group }}"
+      allocation_method: Static
+      name: "{{ publicIP }}"
+    register: output_ip_address
+  - name: Public IP of VM
+    debug:
+      msg: "The public IP is {{ output_ip_address.state.ip_address }}."
+  - name: Create Network Security Group that allows SSH
+    azure_rm_securitygroup:
+      resource_group: "{{ resource_group }}"
+      name: "{{ net_security_group }}"
+      rules:
+          - name: 'Port_443'
+            destination_port_range: 443
+            access: Allow
+            priority: 320
+            direction: Inbound
+  - name: Create virtual network interface card
+    azure_rm_networkinterface:
+      resource_group: "{{ resource_group }}"
+      name: "{{ vm_name }}"
+      virtual_network: "{{ vnet }}"
+      subnet: "{{ subnet }}"
+      public_ip_name: "{{ publicIP }}"
+      security_group: "{{ net_security_group }}"
+  - name: Create VM
+    azure_rm_virtualmachine:
+      resource_group: "{{ resource_group }}"
+      name: "{{ vm_name }}"
+      vm_size: Standard_F32s_v2
+      admin_username: azureuser
+      ssh_password_enabled: false
+      ssh_public_keys:
+        - path: /home/azureuser/.ssh/authorized_keys
+          key_data: "{{ ssh_key }}"
+      network_interfaces: "{{ vm_name }}"
+      image:
+        offer: RHEL
+        publisher: RedHat
+        sku: '7-LVM'
+        version: latest

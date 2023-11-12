@@ -1,0 +1,44 @@
+{{- if not .Values.ha.enabled -}}
+{{- if and .Values.alertmanager.enabled .Values.alertmanager.persistentVolume.enabled -}}
+{{- if not .Values.alertmanager.persistentVolume.existingClaim -}}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+{{- if or .Values.global.annotations .Values.alertmanager.persistentVolume.annotations }}
+  annotations:
+{{- include "prometheus-annotations" (tuple .Values.global.annotations) | indent 4}}
+{{- with .Values.alertmanager.persistentVolume.annotations }}
+{{ toYaml . | indent 4 }}
+{{- end }}
+{{- end }}
+  labels:
+    app: {{ template "prometheus.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    component: "{{ .Values.alertmanager.name }}"
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+{{- include "prometheus-labels" (tuple .Values.global.labels) | indent 4}}
+  name: {{ template "prometheus.alertmanager.fullname" . }}
+spec:
+  accessModes:
+{{ toYaml .Values.alertmanager.persistentVolume.accessModes | indent 4 }}
+{{- if .Values.alertmanager.persistentVolume.storageClass }}
+{{- if (eq "-" .Values.alertmanager.persistentVolume.storageClass) }}
+  storageClassName: ""
+{{- else }}
+  storageClassName: "{{ .Values.alertmanager.persistentVolume.storageClass }}"
+{{- end }}
+{{- end }}
+  resources:
+    requests:
+      storage: "{{ .Values.alertmanager.persistentVolume.size }}"
+  ## Start of custom modification of original chart for CSFID-2996
+  {{- if .Values.alertmanager.persistence.createPv }}
+  selector:
+    matchLabels:
+{{ .Values.alertmanager.persistence.labels | indent 6 }}
+  {{- end }}
+  ## End of custom modification of original chart
+{{- end -}}
+{{- end -}}
+{{- end -}}

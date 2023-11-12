@@ -1,0 +1,4 @@
+apiVersion: v1
+description: CRMQ config for BTEL event publisher
+name: btel-crmq-config
+version: 1.0.0

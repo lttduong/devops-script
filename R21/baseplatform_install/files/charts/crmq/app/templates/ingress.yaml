@@ -1,0 +1,46 @@
+{{- if and .Values.ingress.enabled .Values.rabbitmq.management.enabled }}
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: "{{ template "rabbitmq.fullname" . }}"
+  labels:
+    app: {{ template "rabbitmq.name" . }}
+    chart: {{ template "rabbitmq.chart" .  }}
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    nginx.ingress.kubernetes.io/service-upstream: "true"
+    # Start of custom modification of original chart for CSFS-31476
+    nginx.ingress.kubernetes.io/upstream-vhost: {{ template "rabbitmq.fullname" . }}-ext.{{ .Release.Namespace }}.{{ .Values.dns.domain }}
+    # End of custom modification of original chart for CSFS-31476
+    {{- if .Values.ingress.tls }}
+    ingress.kubernetes.io/secure-backends: "true"
+    {{- end }}
+    {{- range $key, $value := .Values.ingress.annotations }}
+    {{ $key }}: {{ $value | quote }}
+    {{- end }}
+spec:
+  rules:
+  {{- if .Values.ingress.hostName }}
+  - host: {{ .Values.ingress.hostName }}
+    http:
+  {{- else }}
+  - http:
+  {{- end }}
+      paths:
+        - path: {{ default "/" .path }}
+          backend:
+            serviceName: {{ template "rabbitmq.fullname" . }}-ext
+            servicePort: {{ .Values.rabbitmq.management.port }}
+{{- if .Values.ingress.enabled }}
+  tls:
+  {{- if  .Values.ingress.hostName }}
+  - hosts:    
+    - {{ .Values.ingress.hostName }}
+    secretName: {{  .Values.ingress.tlsSecret }}
+    {{- else}}
+    - secretName: {{ .Values.ingress.tlsSecret }}
+    {{- end }}
+{{- end }}
+{{- end }}

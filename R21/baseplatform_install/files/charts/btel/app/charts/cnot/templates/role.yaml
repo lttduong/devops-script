@@ -1,0 +1,42 @@
+{{- if (and (.Values.rbac.enabled) (not .Values.serviceAccountName ) ) }}
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: Role
+metadata:
+  labels:
+    app: {{ template "cnot.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    component: "{{ .Values.cnot.name }}"
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+{{- if .Values.cnot.service.labels }}
+{{ toYaml .Values.cnot.service.labels | indent 4 }}
+{{- end }}
+  name: {{ template "cnot.fullname" . }}
+rules:
+  - apiGroups:
+      - ""
+      - extensions
+    resourceNames:
+      - {{ template "cnot.podSecurityPolicyName" . }}
+    resources:
+      - services
+      - endpoints
+      - pods
+      - podsecuritypolicies
+    verbs:
+      - get
+      - list
+      - watch
+      - use
+  - apiGroups:
+      - ""
+      - extensions
+    resourceNames:
+      - {{ template "cnot.podSecurityPolicyName" . }}
+    resources:
+      - configmaps
+      - podsecuritypolicies
+    verbs:
+      - get
+      - use
+{{- end }}

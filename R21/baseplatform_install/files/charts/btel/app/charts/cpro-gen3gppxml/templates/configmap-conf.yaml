@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "gen3gppxml.fullname" . }}-configs-configmap
+data:
+  Gen3GPPXML.json:
+{{ toYaml .Values.configs.Gen3GPPXML | indent 4 }}

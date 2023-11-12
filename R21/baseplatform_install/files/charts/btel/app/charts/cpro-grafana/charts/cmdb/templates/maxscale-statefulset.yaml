@@ -1,0 +1,347 @@
+{{- if gt (int .Values.maxscale.count) 0 }}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ template "cmdb.pod-prefix" . }}-maxscale
+  labels:
+    {{- include "cmdb-maxscale.labels" . | indent 4 }}
+  {{- if .Values.istio.enabled }}
+    mtls-strict: "true"
+  {{- end }}
+    
+spec:
+  serviceName: {{ template "cmdb.fullname" . }}
+  replicas: {{ .Values.maxscale.count }}
+  updateStrategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      {{- include "cmdb-maxscale.labels" . | indent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "cmdb-maxscale.labels" . | indent 8 }}
+      {{- if .Values.istio.enabled }}
+        mtls-strict: "true"
+      {{- end }}
+        type: maxscale
+      annotations:
+      {{- if .Values.admin.configAnnotation }}
+        checksum/config: {{ include (print $.Template.BasePath "/maxscale-config-configmap.yaml") . | sha256sum }}
+      {{- end }}
+      {{- if and (.Values.mariadb.use_tls) (eq (default "none" .Values.mariadb.certificates.secret) "cmgr") }}
+        checksum/client:  {{ include (print $.Template.BasePath "/tls-client-secret.yaml") . | sha256sum }}
+        checksum/server:  {{ include (print $.Template.BasePath "/tls-server-secret.yaml") . | sha256sum }}
+      {{- end }}
+      {{- if .Values.istio.enabled }}
+        sidecar.istio.io/inject: "true"
+      {{- end }}
+    spec:
+      securityContext:
+        runAsUser: 1772
+        runAsGroup: 1772
+      {{- include "cmdb.le-sa" . | nindent 6 }}
+
+      initContainers:
+      - name: {{ template "cmdb.container-prefix" . }}init-config
+        {{- include "cmdb-maxscale.image" . | indent 8 }}
+        env:
+        command:
+          - bash
+          - "-c"
+          - |
+            cp /import-maxscale-cm/maxscale.site /import/
+            cp /import-maxscale-cm/*.sql /import/ 2>/dev/null
+            cp /import-mariadb-cm/mysqld.site /import/
+            cp /import-maxscale-cm/*.conf /import/
+            sed -i -e '$a\' /import/*
+        volumeMounts:
+        - name: import
+          mountPath: /import
+        - name: import-maxscale-cm
+          mountPath: /import-maxscale-cm
+        - name: import-mariadb-cm
+          mountPath: /import-mariadb-cm
+        resources:
+          limits:
+            cpu: 100m
+            memory: 64Mi
+          requests:
+            cpu: 100m
+            memory: 64Mi
+
+      containers:
+      - name: {{ template "cmdb.container-prefix" . }}maxscale
+        {{- include "cmdb-maxscale.image" . | indent 8 }}
+        ports:
+      {{- if .Values.maxscale.listeners }}
+        - containerPort: {{ default 3306 .Values.maxscale.listeners.rwSplit }}
+          name: tcp-mysql
+        {{- if gt (default 0 (int .Values.maxscale.listeners.readOnly)) 0 }}
+        - containerPort: {{ .Values.maxscale.listeners.readOnly }}
+          name: tcp-mysql-ro
+        {{- end }}
+        {{- if gt (default 0 (int .Values.maxscale.listeners.masterOnly)) 0 }}
+        - containerPort: {{ .Values.maxscale.listeners.masterOnly }}
+          name: tcp-mysql-mstr
+        {{- end }}
+        {{- if or (.Values.maxscale.metrics.enabled) (gt (default 0 (int .Values.maxscale.listeners.maxInfo)) 0) }}
+        - containerPort: {{ default 8003 .Values.maxscale.listeners.maxInfo }}
+          name: tcp-mxs-info
+        {{- end }}
+      {{- else }}
+        - containerPort: 3306
+          name: tcp-mysql
+      {{- end }}
+        - containerPort: {{ .Values.services.maxscale.port }}
+          name: tcp-maxscale
+        env:
+        - name: CLUSTER_NAME
+          value: "{{ .Values.cluster_name | default .Release.Name | trunc 32 }}"
+        - name: MYIP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: K8S_NAMESPACE
+          value: "{{ .Release.Namespace }}"
+        - name: KEYSTORE_PULL
+          value: {{ .Values.maxscale.keystorePullTimeout | quote }}
+        - name: REBUILD_ENABLED
+          value: {{ .Values.admin.rebuildSlave.enabled | quote }}
+        {{- include "cmdb-admin.service" . | indent 8 }}
+
+      {{- if .Values.maxscale.listeners }}
+        {{- if .Values.maxscale.listeners.rwSplit }}
+        - name: MAXSCALE_RW_PORT
+          value: {{ .Values.maxscale.listeners.rwSplit | quote }}
+        {{- end }}
+        {{- if .Values.maxscale.listeners.readOnly }}
+        - name: MAXSCALE_RO_PORT
+          value: {{ .Values.maxscale.listeners.readOnly | quote }}
+        {{- end }}
+        {{- if .Values.maxscale.listeners.masterOnly }}
+        - name: MAXSCALE_MSTR_PORT
+          value: {{ .Values.maxscale.listeners.masterOnly | quote }}
+        {{- end }}
+        {{- if or (.Values.maxscale.metrics.enabled) (.Values.maxscale.listeners.maxInfo) }}
+        - name: MAXSCALE_INFO_PORT
+          value: {{ default 8003 .Values.maxscale.listeners.maxInfo | quote }}
+        {{- end }}
+      {{- end }}
+       
+      {{- $ctx := . }}
+      {{- with .Values.geo_redundancy }}
+        {{- if .enabled }}
+        - name: DATACENTER_REMOTE_HOST
+          value: {{ template "cmdb.fullname" $ctx }}-maxscale-{{ .remote.name }}
+        - name: DATACENTER_REMOTE_MASTER
+          value: {{ template "cmdb.fullname" $ctx }}-master-{{ .remote.name }}
+        - name: DATACENTER_LAG_THRESHOLD
+          value: {{ .lag_threshold | quote }}
+        - name: DATACENTER_SLAVE_PURGE_INTERVAL
+          value: {{ .slave_purge_interval | quote }}
+        {{- end }}
+      {{- end }}
+
+        volumeMounts:
+        {{- if and (.Values.mariadb.use_tls) (eq (default "none" .Values.mariadb.certificates.secret) "cmgr") }}
+        - name: mdb-certificates-server
+          readOnly: true
+          mountPath: "/etc/.certificates/{{ .Values.mariadb.certificates.server_cert }}"
+          subPath: {{ .Values.mariadb.certificates.server_cert }}
+        - name: mdb-certificates-server
+          readOnly: true
+          mountPath: "/etc/.certificates/{{ .Values.mariadb.certificates.server_key }}"
+          subPath: {{ .Values.mariadb.certificates.server_key }}
+        - name: mdb-certificates-server
+          readOnly: true
+          mountPath: "/etc/.certificates/{{ .Values.mariadb.certificates.server_ca_cert }}"
+          subPath: {{ .Values.mariadb.certificates.server_ca_cert }}
+        - name: mdb-certificates-client
+          readOnly: true
+          mountPath: "/etc/.certificates/{{ .Values.mariadb.certificates.client_cert }}"
+          subPath: {{ .Values.mariadb.certificates.client_cert }}
+        - name: mdb-certificates-client
+          readOnly: true
+          mountPath: "/etc/.certificates/{{ .Values.mariadb.certificates.client_key }}"
+          subPath: {{ .Values.mariadb.certificates.client_key }}
+        - name: mdb-certificates-client
+          readOnly: true
+          mountPath: "/etc/.certificates/{{ .Values.mariadb.certificates.client_ca_cert }}"
+          subPath: {{ .Values.mariadb.certificates.client_ca_cert }}
+        {{- else if and (.Values.mariadb.use_tls) (ne (default "none" .Values.mariadb.certificates.secret) "none") }}
+        - name: mdb-certificates
+          readOnly: true
+          mountPath: "/etc/.certificates"
+        {{- end }}
+        - name: cluster-cm
+          mountPath: /chart
+        - name: import
+          mountPath: /import
+        livenessProbe:
+          exec:
+            command:
+            - bash
+            - "-c"
+            - |
+              /usr/bin/maxscale_adm --check-sanity --timeout=5
+          initialDelaySeconds: 300
+          periodSeconds: 10
+          timeoutSeconds: 6
+          failureThreshold: 6
+        readinessProbe:
+          exec:
+            command:
+            - bash
+            - "-c"
+            - |
+              /usr/bin/maxscale_adm  --check-ready --timeout=5
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 6
+          failureThreshold: 4
+        resources:
+{{ toYaml .Values.maxscale.resources | indent 10 }}
+
+      - name: {{ template "cmdb.container-prefix" . }}leader-elector
+        {{- include "maxscale-elector.image" . | indent 8 }}
+        args: [ "--election={{ template "cmdb.fullname" . }}-leader --election-namespace={{ .Release.Namespace }} --ttl=5s --http=0.0.0.0:4040" ]
+        ports:
+        - name: tcp-leaderquery
+          containerPort: 4040
+        env:
+        - name: ISTIO_ENABLED
+          value: "{{ .Values.istio.enabled }}"
+        resources:
+{{ toYaml .Values.maxscale.elector.resources | indent 10 }}
+
+      {{- if .Values.maxscale.metrics.enabled }}
+      - name: {{ template "cmdb.container-prefix" . }}metrics
+        {{- include "maxscale-metrics.image" . | indent 8 }}
+        args: [ "-address=localhost:{{ default 8003 .Values.maxscale.listeners.maxInfo }}", "-port={{ .Values.services.maxscale.exporter_port }}" ]
+        ports:
+        - name: tcp-mxs-metrics
+          containerPort: {{ .Values.services.maxscale.exporter_port }}
+        volumeMounts:
+        - name: metrics
+          mountPath: /metrics
+        resources:
+{{ toYaml .Values.maxscale.metrics.resources | indent 10 }}
+      {{- end }}
+
+      terminationGracePeriodSeconds: {{ default 30 .Values.maxscale.terminationGracePeriodSeconds }}
+
+      volumes:
+      {{- if and (.Values.mariadb.use_tls) (eq (default "none" .Values.mariadb.certificates.secret) "cmgr") }}
+      - name: mdb-certificates-server
+        secret:
+          secretName: {{ template "cmdb.fullname" . }}-server-cert
+          items:
+          - key: tls.crt
+            path: {{ .Values.mariadb.certificates.server_cert }}
+          - key: tls.key
+            path: {{ .Values.mariadb.certificates.server_key }}
+          - key: ca.crt
+            path: {{ .Values.mariadb.certificates.server_ca_cert }}
+      - name: mdb-certificates-client
+        secret:
+          secretName: {{ template "cmdb.fullname" . }}-client-cert
+          items:
+          - key: tls.crt
+            path: {{ .Values.mariadb.certificates.client_cert }}
+          - key: tls.key
+            path: {{ .Values.mariadb.certificates.client_key }}
+          - key: ca.crt
+            path: {{ .Values.mariadb.certificates.client_ca_cert }}
+      {{- else if and (.Values.mariadb.use_tls) (ne (default "none" .Values.mariadb.certificates.secret) "none") }}
+      - name: mdb-certificates
+        secret:
+          secretName: {{ .Values.mariadb.certificates.secret }}
+      {{- end }}
+
+      - name: cluster-cm
+        configMap:
+          name: {{ template "cmdb.fullname" . }}-mariadb-cluster
+      - name: import
+        emptyDir: {}
+      - name: import-maxscale-cm
+        configMap:
+          name: {{ template "cmdb.fullname" . }}-maxscale-config
+      - name: import-mariadb-cm
+        configMap:
+          name: {{ template "cmdb.fullname" . }}-mariadb-config
+      {{- if .Values.maxscale.metrics.enabled }}
+      - name: metrics
+        emptyDir:
+          medium: Memory
+      {{- end }}
+
+    {{- if .Values.maxscale.tolerations }}
+      tolerations:
+{{ toYaml .Values.maxscale.tolerations | indent 8 }}
+    {{- end }}
+    {{- if .Values.maxscale.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.maxscale.nodeSelector | indent 8 }}
+    {{- end }}
+      affinity:
+      {{- if .Values.maxscale.nodeAffinity.enabled }}
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: {{ .Values.maxscale.nodeAffinity.key }}
+                operator: In
+                values:
+                - {{ quote .Values.maxscale.nodeAffinity.value }}
+      {{- end }}
+        podAntiAffinity:
+        ## Unset value uses soft for backwards-compatibility
+        {{- if eq (default "soft" .Values.nodeAntiAffinity) "hard" }}
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - {{ template "cmdb.fullname" . }}
+              - key: type
+                operator: In
+                values:
+                - mariadb
+                - maxscale
+            topologyKey: "kubernetes.io/hostname"
+          preferredDuringSchedulingIgnoredDuringExecution:
+        {{- else }}
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - {{ template "cmdb.fullname" . }}
+                - key: type
+                  operator: In
+                  values:
+                  - mariadb
+                  - maxscale
+              topologyKey: "kubernetes.io/hostname"
+        {{- end }}
+          - weight: 50
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - {{ template "cmdb.fullname" . }}
+                - key: type
+                  operator: In
+                  values:
+                  - mariadb
+                  - maxscale
+              topologyKey: "failure-domain.beta.kubernetes.io/zone"
+{{- end }}

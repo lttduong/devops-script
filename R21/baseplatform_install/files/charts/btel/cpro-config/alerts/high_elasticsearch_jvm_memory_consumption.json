@@ -1,0 +1,13 @@
+{
+  "alert": "HighElasticSearchJVMMemoryConsumption",
+  "expr": "es_jvm_mem_heap_used_percent > 95",
+  "for": "1m",
+  "labels": {
+    "alert_id": "6002",
+    "alert_severity": "WARNING"
+  },
+  "annotations": {
+    "description": "Alarm - `JVM consumption is high for more than a minute. Please check elasticsearch pod logs for more details.`",
+    "summary": "Instance - {{ $labels.instance }}"
+  }
+}

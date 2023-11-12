@@ -1,0 +1,17 @@
+---
+- name: Backup Items for WSHA
+  hosts: localhost
+  connection: local
+  collections:
+   - azure.azcollection
+
+  vars:
+   resource_group: open-wavehub-dev
+   new_rg: "{{ lookup('env', 'rg') }}"
+   vm_name: "{{ lookup('env', 'wshaname') }}"
+   vault_name: "{{ lookup('env', 'vaultname') }}"
+
+  tasks:
+   - name: Enable backup for vm
+     shell: sudo az backup protection enable-for-vm --resource-group "{{ resource_group }}" --vault-name "{{ vault_name }}" --vm $(az vm show -g "{{ new_rg }}" -n "{{ vm_name }}" --query id | tr -d '"') --policy-name wsha-policy
+

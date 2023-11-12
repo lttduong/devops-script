@@ -1,0 +1,6 @@
+dependencies:
+- name: default404
+  repository: https://repo.lab.pl.alcatel-lucent.com/csf-helm-stable
+  version: 1.0.27
+digest: sha256:00afe2122ce501f3be333d583228ef404ca1d27b0a3d693c9643989e7d6f33e4
+generated: "2020-07-02T10:48:02.841526998Z"

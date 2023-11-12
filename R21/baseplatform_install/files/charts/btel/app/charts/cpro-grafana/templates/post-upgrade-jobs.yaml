@@ -1,0 +1,95 @@
+{{- if .Values.sqlitetomdb -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "grafana.postUpgradejob" . }}
+  labels:
+    app: {{ template "grafana.fullname" . }}
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    component: "{{ .Values.name }}"
+    heritage: "{{ .Release.Service }}"
+    release: "{{ .Release.Name }}"
+    {{- if .Values.global.labels }}
+{{ toYaml .Values.global.labels | indent 4}}
+    {{- end }}
+  annotations:
+{{- if .Values.global.annotations }}
+{{ toYaml .Values.global.annotations | indent 4}}
+{{- end }}
+    "helm.sh/hook": post-upgrade
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": hook-succeeded, hook-failed
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app: {{ template "grafana.fullname" . }}
+        release: "{{ .Release.Name }}"
+{{- include "custom-labels" (tuple .Values.custom.pod.labels) | indent 8}}
+      annotations:
+{{- include "custom-annotations" (tuple .Values.custom.pod.annotations) | indent 8}}
+{{- if .Values.rbac.pspUseAppArmor }}
+{{- include "custom-annotations" (tuple .Values.custom.pod.apparmorAnnotations) | indent 8}}
+{{- end }}
+        sidecar.istio.io/inject: "false"
+    spec:
+      {{- if or .Values.serviceAccountName .Values.global.serviceAccountName }}
+      serviceAccountName: {{ template "grafana.serviceAccountName" . }}
+      {{- else if .Values.rbac.enabled }}
+      serviceAccountName: {{ template "grafana.fullname" . }}-post-upgrade
+      {{- else }}
+      serviceAccountName: "default"
+      {{- end }}
+      securityContext:
+        runAsUser: {{ template "grafana.user" . }}
+        fsGroup: {{ template "grafana.fsgroup" . }}
+        {{- if .Values.supplementalGroups }}
+        supplementalGroups: {{ .Values.supplementalGroups }}
+        {{- end }}
+        {{- if .Values.seLinuxOptions.enabled }}
+        seLinuxOptions:
+          level: {{ .Values.seLinuxOptions.level }}
+          role: {{ .Values.seLinuxOptions.role }}
+          type: {{ .Values.seLinuxOptions.type }}
+          user: {{ .Values.seLinuxOptions.user }}
+        {{- end }}
+      restartPolicy: Never
+      containers:
+      - name: {{ template "grafana.postUpgradejobContainer" . }} 
+        image: "{{ .Values.global.registry3 }}/{{ .Values.mdbToolImage.imageRepo }}:{{ .Values.mdbToolImage.imageTag }}"
+        imagePullPolicy: {{ .Values.mdbToolImage.imagePullPolicy }}
+        resources:
+{{ toYaml .Values.mdbToolImage.resources | indent 10 }}
+{{- if and  (.Values.cmdb.enabled) (not .Values.cmdb.need_deployed) (.Values.need_dbupdate) }}
+        command:
+          - sh
+          - -c
+          - |
+            sqlite3 /var/lib/grafana/grafana.db ".read /etc/grafana/lcm/db-alter.sql"
+            echo 'Change db schema OK'
+            /usr/bin/sqlitetomdb.sh {{ .Values.dbIP }} {{ .Values.dbName }} {{ .Values.dbUser }} {{ .Values.dbPassword }}
+{{- end }}
+{{- if and  (not .Values.cmdb.enabled) (.Values.cmdb.need_deployed) (.Values.need_dbupdate) }}
+        command:
+          - sh
+          - -c
+          - |
+            sqlite3 /var/lib/grafana/grafana.db ".read /etc/grafana/lcm/db-alter.sql"
+            echo 'Change db schema OK'
+            /usr/bin/sqlitetomdb.sh {{ template "grafana.cmdb.fullname" $ }} {{ .Values.dbName }} {{ .Values.dbUser }} {{ .Values.dbPassword }}
+{{- end }}
+{{- if and  (.Values.cmdb.enabled) (not .Values.cmdb.need_deployed) (not .Values.need_dbupdate) }}
+        command: ["sh", "-c", "/usr/bin/sqlitetomdb.sh {{ .Values.dbIP }} {{ .Values.dbName }} {{ .Values.dbUser }} {{ .Values.dbPassword }} "]
+{{- end }}
+{{- if and  (not .Values.cmdb.enabled) (.Values.cmdb.need_deployed) (not .Values.need_dbupdate) }}
+        command: ["sh", "-c", "/usr/bin/sqlitetomdb.sh {{ template "grafana.cmdb.fullname" $ }} {{ .Values.dbName }} {{ .Values.dbUser }} {{ .Values.dbPassword }} "]
+{{- end }}
+        volumeMounts:
+          - name: storage
+            mountPath: "/var/lib/grafana"
+      volumes:
+        - name: storage
+          persistentVolumeClaim:
+            claimName: {{ .Values.persistence.existingClaim | default (include "grafana.fullname" .) }}
+{{- end -}}

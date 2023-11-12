@@ -1,0 +1,63 @@
+- name: Change IP for host ansible
+  hosts: localhost
+  connection: local
+#  collections:
+#   - azure.azcollection   
+  tasks:
+   - name: Copy host file to /etc/ansible/hosts
+     copy:
+      src: hosts
+      dest: /etc/ansible/
+      owner: root
+      group: root
+      remote_src: yes
+     become: yes
+
+   - name: copy was_config_vars to was_install/playbook/was-package
+     copy:
+      src: was_config_vars.yml
+      dest: $HOME/was_installation/k8s_installation/kube-cluster-rhel-7.9/was-install/playbook/was-packages/
+      remote_src: yes
+
+   - name: copy env_variables to was_install
+     copy:
+      src: env_variables
+      dest: $HOME/was_installation/k8s_installation/kube-cluster-rhel-7.9/was-install/playbook/
+      remote_src: yes
+
+   - name: copy bp_config_vars.yml to was-install
+     copy:
+      src: bp_config_vars.yml
+      dest: $HOME/was_installation/k8s_installation/kube-cluster-rhel-7.9/was-install/playbook/bp-packages/
+      remote_src: yes
+
+   - name: Query IP Private vm master node
+     command: sudo az vm show -g open-sanity -n master-node  --query privateIps -d --out tsv
+     register: ipmaster
+    
+   - name: Query IP Public vm master node
+     command: sudo az vm show -g open-sanity -n master-node  --query publicIps -d --out tsv
+     register: publicip
+
+   - name: Replace IP master to host
+     shell: |   
+      sudo sed -i "s/172.17.0.4/"{{ ipmaster.stdout }}"/g" /etc/ansible/hosts
+      sudo sed -i "s/172.17.0.4/"{{ ipmaster.stdout }}"/g" $HOME/was_installation/k8s_installation/kube-cluster-rhel-7.9/was-install/playbook/bp-packages/bp_config_vars.yml
+      sudo sed -i "s/172.17.0.4/"{{ ipmaster.stdout }}"/g" $HOME/was_installation/k8s_installation/kube-cluster-rhel-7.9/was-install/playbook/was-packages/was_config_vars.yml
+      sudo sed -i "s/51.132.124.36/"{{ publicip.stdout }}"/g" $HOME/was_installation/k8s_installation/kube-cluster-rhel-7.9/was-install/playbook/bp-packages/bp_config_vars.yml
+      sudo sed -i "s/51.132.124.36/"{{ publicip.stdout }}"/g" $HOME/was_installation/k8s_installation/kube-cluster-rhel-7.9/was-install/playbook/was-packages/was_config_vars.yml
+   
+   - name: Query IP Private vm worker node
+     command: sudo az vm show -g open-sanity -n worker-node  --query privateIps -d --out tsv
+     register: ipworker
+
+   - name: Replace IP worker to host ansible
+     shell: |
+      sudo sed -i "s/172.17.0.5/"{{ ipworker.stdout }}"/g" /etc/ansible/hosts
+      sudo sed -i "s/172.17.0.5/"{{ ipworker.stdout }}"/g" $HOME/was_installation/k8s_installation/kube-cluster-rhel-7.9/was-install/playbook/bp-packages/bp_config_vars.yml
+      sudo sed -i "s/172.17.0.5/"{{ ipworker.stdout }}"/g" $HOME/was_installation/k8s_installation/kube-cluster-rhel-7.9/was-install/playbook/was-packages/was_config_vars.yml
+
+   - name: Change env name for cluster
+     shell: |
+      sudo sed -i "s/tonyk8smastervm/master-node/g" $HOME/was_installation/k8s_installation/kube-cluster-rhel-7.9/was-install/playbook/env_variables
+      sudo sed -i "s/tonyk8sworker1vm/worker-node/g" $HOME/was_installation/k8s_installation/kube-cluster-rhel-7.9/was-install/playbook/env_variables

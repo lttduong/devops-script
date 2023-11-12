@@ -1,0 +1,33 @@
+cluster_type: master-slave
+nodeAntiAffinity: soft
+
+admin:
+  persistence:
+    size: 1Gi
+  resources:
+    requests:
+      cpu: 100m
+
+mariadb:
+  count: 2
+  persistence:
+    size: 1Gi
+
+maxscale:
+  count: 2
+  resources:
+    requests:
+      memory: 512Mi
+      cpu: 500m
+    limits:
+      memory: 512Mi
+      cpu: 500m
+
+db_configurator:
+  resources:
+    requests:
+      cpu: "10m"
+      memory: "50Mi"
+    limits:
+      cpu: "200m"
+      memory: "300Mi"

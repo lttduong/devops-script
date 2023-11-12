@@ -1,0 +1,23 @@
+## Start of custom chart file for CSSID-2996
+{{- if .Values.server.persistence.createPv }}
+{{- range $index, $replica := until (int .Values.server.replicaCount) }}
+---
+kind: PersistentVolume
+apiVersion: v1
+metadata:
+  name: {{ template "prometheus.name" $ }}-pv-{{ $index }}
+  labels:
+    type: local
+{{ $.Values.server.persistence.labels | indent 4 }}
+spec:
+  storageClassName: {{ $.Values.server.persistentVolume.storageClass }}
+  capacity:
+    storage: {{ quote $.Values.server.persistentVolume.size }}
+  accessModes:
+{{ toYaml $.Values.server.persistentVolume.accessModes | indent 4 }}
+  hostPath:
+    path: {{ $.Values.server.persistence.hostPath }}
+  persistentVolumeReclaimPolicy: {{ default "Delete" $.Values.server.persistence.resourcePolicyPv }}
+{{- end }}
+{{- end }}
+## End of custom chart file

@@ -1,0 +1,55 @@
+{{- if and .Values.cbur .Values.cbur.enabled }}
+{{- if and (.Capabilities.APIVersions.Has "cbur.csf.nokia.com/v1") (not .Values.cbur.legacyHooks) }}
+apiVersion: "cbur.csf.nokia.com/v1"
+kind: BrHook
+metadata:
+  name: {{ template "cmdb.fullname" . }}-brhook-prebackup
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "cmdb-mariadb.labels" . | indent 4 }}
+spec:
+  properties:
+    targetType: "{{ .Values.cbur.brhookType }}"
+    targetName: {{ template "cmdb.fullname" . }}-mariadb
+    hookPoint: prebackup
+    weight: {{ .Values.cbur.brhookWeight }}
+    enable: {{ .Values.cbur.brhookEnable }}
+    timeout: {{ .Values.cbur.brhookTimeout }}
+    deletePolicy: {{ .Values.hooks.deletePolicy | nospace | quote }}
+  template:
+    spec:
+      template:
+        {{- if .Values.istio.enabled }}
+        metadata:
+            annotations:
+              sidecar.istio.io/inject: "true"
+        {{- end }}
+        spec:
+          {{- include "cmdb-admin.secctx" . | nindent 10 }}
+          {{- include "cmdb.sa" . | nindent 10 }}
+          restartPolicy: Never
+          terminationGracePeriodSeconds: 30
+
+          containers:
+            - name: prebackup-admin
+              {{- include "cmdb-admin.image" . | indent 14 }}
+              args: [ "backup" ]
+              env:
+              - name: CLUSTER_TYPE
+                value: "{{ .Values.cluster_type }}"
+              - name: CLUSTER_NAME
+                value: "{{ .Values.cluster_name | default .Release.Name | trunc 32 }}"
+              - name: HOOK_TYPE
+                value: "pre"
+              {{- if gt (int .Values.cbur.preBackupTimeout) 0 }}
+              - name: HOOK_TIMEOUT
+                value: "{{ .Values.cbur.preBackupTimeout }}"
+              {{- end }}
+              {{- if and .Values.admin.debug (gt (int (default '0' .Values.hooks.jobDelay)) 0) }}
+              - name: HOOK_DELAY
+                value: "{{ .Values.hooks.jobDelay }}"
+              {{- end }}
+              {{- include "cmdb-k8s.env" . | nindent 14 }}
+              {{- include "cmdb-admin.service" . | indent 14 }}
+{{- end }}
+{{- end }}

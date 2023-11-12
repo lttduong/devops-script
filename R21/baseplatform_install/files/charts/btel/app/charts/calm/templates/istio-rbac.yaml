@@ -1,0 +1,91 @@
+{{- if and ( not .Values.serviceAccountName ) .Values.rbac.enabled .Values.istio.enabled }}
+{{- if not .Values.istio.cni_enabled }}
+{{- if semverCompare "<1.18.0" .Capabilities.KubeVersion.GitVersion }}
+apiVersion: extensions/v1beta1
+{{- else }}
+apiVersion: policy/v1beta1
+{{- end }}
+kind: PodSecurityPolicy
+metadata:
+  labels:
+    app: {{ template "alarm.name" . }}
+    chart: {{ .Chart.Name }}
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+    version: {{ .Chart.Version }}
+  name: {{ template "alarm.fullname" . }}-psp
+  annotations:
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: '*'
+spec:
+  seLinux:
+    rule: RunAsAny
+  runAsUser:
+    rule: RunAsAny
+  supplementalGroups:
+    rule: RunAsAny
+  fsGroup:
+    rule: RunAsAny
+  volumes:
+  - '*'
+  allowPrivilegeEscalation: true
+  allowedCapabilities:
+  - 'NET_ADMIN'
+  - 'NET_RAW'
+  requiredDropCapabilities:
+  - ALL
+{{- end }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  labels:
+    app: {{ template "alarm.name" . }}
+    chart: {{ .Chart.Name }}
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+    version: {{ .Chart.Version }}
+  name: {{ template "alarm.fullname" . }}-role
+  namespace: {{ .Release.Namespace }}
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - get
+  - list
+{{- if not .Values.istio.cni_enabled }}
+- apiGroups:
+{{- if semverCompare "<1.18.0" .Capabilities.KubeVersion.GitVersion }}
+  - extensions
+{{- else }}
+  - policy
+{{- end }}
+  resourceNames:
+  - {{ template "alarm.fullname" . }}-psp
+  resources:
+  - podsecuritypolicies
+  verbs:
+  - use
+{{- end }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  labels:
+    app: {{ template "alarm.name" . }}
+    chart: {{ .Chart.Name }}
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+    version: {{ .Chart.Version }}
+  name: {{ template "alarm.fullname" . }}-rolebinding
+  namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ template "alarm.fullname" . }}-role
+subjects:
+- kind: ServiceAccount
+  name: {{ template "alarm.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+{{- end }}

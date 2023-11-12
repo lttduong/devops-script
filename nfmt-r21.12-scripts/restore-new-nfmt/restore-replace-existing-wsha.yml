@@ -1,0 +1,73 @@
+---
+- name: Recovery Existing WSHA VM
+  hosts: localhost
+  connection: local
+  collections:
+   - azure.azcollection
+
+  vars:
+    resourceGroup: open-wavehub-dev
+    new_rg: "{{ lookup('env', 'rg') }}"
+    vaultName: "{{ lookup('env', 'vaultname') }}"
+    containerName: "{{ lookup('env', 'containername') }}"
+    storageName: "{{ lookup('env', 'storagename') }}"
+    policyVault: "{{ lookup('env', 'policyVault') }}"
+    wshaRecoveryPoint: "{{ lookup('env', 'wshaRecoveryPoint') }}"
+    wshaName: "{{ lookup('env', 'wshaname') }}"
+
+  tasks: 
+  - name: Resume backup if VM is disabled
+    shell: sudo  az backup protection resume --vault-name "{{ vaultName }}" --resource-group "{{ resourceGroup }}" --container-name "{{ wshaName }}" --backup-management-type AzureIaasVM --item-name "{{ wshaName }}" --policy-name "{{ policyVault }}"
+    ignore_errors: yes
+
+  - name: Restore the disk from your recovery point
+    shell: sudo az backup restore restore-disks --resource-group "{{ resourceGroup }}" --vault-name "{{ vaultName }}" --container-name "{{ wshaName }}" --item-name "{{ wshaName }}" --storage-account "{{ storageName }}" --rp-name "{{ wshaRecoveryPoint }}" --target-resource-group "{{ new_rg }}" --query name
+    register: backupjob
+
+  - name: Pause for 5 minutes for restore disk
+    pause:
+     minutes: 5
+  
+  - name: Disable backup of VM
+    shell: sudo az backup protection disable --resource-group "{{ resourceGroup }}" --vault-name "{{ vaultName }}" --container-name "{{ wshaName}}" --item-name "{{ wshaName }}" --backup-management-type AzureIaaSVM -y
+  
+  - name: Get new Id disk
+    shell: sudo az disk list -g "{{ new_rg }}" --query '[?managedBy==`null`].[id]' -o tsv | grep -i "{{ wshaName }}"
+    register: newiddisk
+
+  - name: Get old Id fisk
+    shell: sudo az vm show -d -g "{{ new_rg }}" -n "{{ wshaName }}" --query "storageProfile.osDisk.managedDisk.id" | awk -F '[/]' '{print $9}' | sed 's/"//'
+    register: oldiddisk
+
+  - name: Stop WSHA VM
+    shell: sudo az vm stop -n "{{ wshaName }}" -g "{{ new_rg }}"
+
+  - name: Swap disk for wsse vm
+    shell: sudo az vm update -g "{{ new_rg }}" -n "{{ wshaName }}" --os-disk {{ newiddisk.stdout }}
+
+  - name: Start WSHA VM
+    shell: sudo az vm start -n "{{ wshaName }}" -g "{{ new_rg }}"
+
+  - name: Remove Os Disk
+    azure_rm_manageddisk:
+     name: "{{ oldiddisk.stdout }}"
+     location: eastus
+     resource_group: "{{ new_rg }}"
+     state: absent
+
+  - name: Get public new restore vm
+    shell: sudo az vm show -g "{{ new_rg }}" -n "{{ wshaName }}"  --query publicIps -d --out tsv
+    register: publicip
+
+  - name: Replace public ip of wsha hosts
+    shell: sudo sed -i "s/172.17.0.6/"{{ publicip.stdout }}"/g" ../hosts
+
+  - name: Replace public ip for hosts
+    shell: sudo sed -i "s/ansible_port=22/ansible_port=5522/g" ../hosts
+  
+  - name: Refresh inventory to ensure new instances exist in inventory
+    meta: refresh_inventory
+
+  - name: Pause 2 minutes for sync hosts file
+    pause:
+     minutes: 2

@@ -1,0 +1,23 @@
+## Start of custom chart file for CSFID-2994
+{{- if .Values.esdata.persistence.createPv }}
+{{- range $index, $replica := until (int .Values.esdata.replicas) }}
+---
+kind: PersistentVolume
+apiVersion: v1
+metadata:
+  name: {{ $.Chart.Name }}-esdata-pv-{{ $index }}
+  labels:
+    type: local
+{{ $.Values.esdata.persistence.labels | indent 4 }}
+spec:
+  storageClassName: {{ $.Values.persistence.storageClassName }}
+  capacity:
+    storage: {{ quote $.Values.persistence.size }}
+  accessModes:
+    - {{ quote $.Values.persistence.accessMode }}
+  hostPath:
+    path: {{ $.Values.esdata.persistence.hostPath }}
+  persistentVolumeReclaimPolicy: {{ default "Delete" $.Values.esdata.persistence.resourcePolicyPv }}
+{{- end }}
+{{- end }}
+## End of custom chart file

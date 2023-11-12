@@ -1,0 +1,1710 @@
+---
+
+# Source: citm-ingress/templates/controller-psp.yaml
+apiVersion: policy/v1beta1
+kind: PodSecurityPolicy
+metadata:
+  name: nbp-citm-citm-ingress
+  labels:
+    app: citm-ingress
+    chart: citm-ingress-22.2.0
+    heritage: Helm
+    release: nbp-citm    
+    app.kubernetes.io/name: "controller"
+    helm.sh/chart: "citm-ingress-22.2.0"
+    app.kubernetes.io/instance: "nbp-citm"
+    app.kubernetes.io/managed-by: "helm"
+    app.kubernetes.io/component: "MessagingAndProtocols"
+    app.kubernetes.io/version: "22.2.0"
+    app.kubernetes.io/part-of: "citm"
+    
+spec:
+  allowedCapabilities:
+    - NET_BIND_SERVICE
+  privileged: true
+  # We need this for setcap cap_net_bind_service
+  allowPrivilegeEscalation: true
+  volumes:
+    - 'configMap'
+    - 'secret'
+    - 'hostPath'
+    - 'emptyDir'
+  hostNetwork: true
+  hostPorts:
+  - min: 80
+    max: 80
+  - min: 443
+    max: 443
+  - min: 30028
+    max: 30028
+  - min: 30029
+    max: 30029
+  hostIPC: false
+  hostPID: false
+  runAsUser:
+    rule: 'RunAsAny'
+  supplementalGroups:
+    rule: 'MustRunAs'
+    ranges:
+      # Forbid adding the root group.
+      - min: 0
+        max: 65535
+  fsGroup:
+    rule: 'MustRunAs'
+    ranges:
+      - min: 0
+        max: 65535
+  readOnlyRootFilesystem: true
+  seLinux:
+    rule: 'RunAsAny'
+---
+
+# Source: citm-ingress/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app: citm-ingress
+    chart: citm-ingress-22.2.0
+    heritage: Helm
+    release: nbp-citm    
+    app.kubernetes.io/name: "controller"
+    helm.sh/chart: "citm-ingress-22.2.0"
+    app.kubernetes.io/instance: "nbp-citm"
+    app.kubernetes.io/managed-by: "helm"
+    app.kubernetes.io/component: "MessagingAndProtocols"
+    app.kubernetes.io/version: "22.2.0"
+    app.kubernetes.io/part-of: "citm"
+    
+  name: nbp-citm-citm-ingress
+---
+
+# Source: citm-ingress/templates/role.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  labels:
+    app: citm-ingress
+    chart: citm-ingress-22.2.0
+    heritage: Helm
+    release: nbp-citm    
+    app.kubernetes.io/name: "controller"
+    helm.sh/chart: "citm-ingress-22.2.0"
+    app.kubernetes.io/instance: "nbp-citm"
+    app.kubernetes.io/managed-by: "helm"
+    app.kubernetes.io/component: "MessagingAndProtocols"
+    app.kubernetes.io/version: "22.2.0"
+    app.kubernetes.io/part-of: "citm"
+    
+  name: nbp-citm-citm-ingress
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+      - endpoints
+      - nodes
+      - pods
+      - secrets      
+    verbs:
+      - list
+      - watch
+      - get
+## Start of custom modification of original chart
+      - delete
+## End of custom modification of original chart
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+    resourceNames:
+      - netguard-base-nbp-citm-ingress-controller-leader-netguard
+      - ingress-controller-leader-netguard
+      - netguard-base-nbp-citm-ingress-controller-leader    
+    verbs:
+      - get
+      - update
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+    verbs:
+      - create
+  - apiGroups:
+      - ""
+    resources:
+      - endpoints
+    verbs:
+      - create
+      - get
+      - update
+  - apiGroups:
+      - ""
+    resources:
+      - namespaces
+    resourceNames:
+      - "netguard-base"
+    verbs:
+      - get
+  - apiGroups:
+      - ""
+    resources:
+      - nodes
+    verbs:
+      - get
+  - apiGroups:
+      - ""
+    resources:
+      - services
+    verbs:
+      - get
+      - list
+      - patch      
+      - update
+      - watch
+  - apiGroups:
+      - extensions
+      - "networking.k8s.io"
+    resources:
+      - ingresses
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - ""
+    resources:
+      - events
+    verbs:
+      - create
+      - patch
+  - apiGroups:
+      - extensions
+      - "networking.k8s.io"
+    resources:
+      - ingresses/status
+    verbs:
+      - update
+  - apiGroups:                                                                                                                                                                                  
+      - "networking.k8s.io"
+    resources:                                                                                                                                                                                  
+      - ingressclasses                                                                                                                                                                          
+    verbs:                                                                                                                                                                                      
+      - get                                                                                                                                                                                     
+      - list                                                                                                                                                                                    
+      - watch
+  - apiGroups:
+      - extensions
+    resourceNames:          
+      - nbp-citm-citm-ingress    
+    resources:
+      - podsecuritypolicies
+    verbs:
+      - use
+---
+
+# Source: citm-ingress/templates/rolebinding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  labels:
+    app: citm-ingress
+    chart: citm-ingress-22.2.0
+    heritage: Helm
+    release: nbp-citm    
+    app.kubernetes.io/name: "controller"
+    helm.sh/chart: "citm-ingress-22.2.0"
+    app.kubernetes.io/instance: "nbp-citm"
+    app.kubernetes.io/managed-by: "helm"
+    app.kubernetes.io/component: "MessagingAndProtocols"
+    app.kubernetes.io/version: "22.2.0"
+    app.kubernetes.io/part-of: "citm"
+    
+  name: nbp-citm-citm-ingress
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: nbp-citm-citm-ingress
+subjects:
+  - kind: ServiceAccount
+    name: nbp-citm-citm-ingress
+    namespace: netguard-base
+---
+
+# Source: citm-ingress/templates/controller-sysctl.yaml
+## Start of custom modification
+## End of custom modification  
+apiVersion: ncm.nokia.com/v1alpha1
+kind: Sysctl
+metadata:
+  labels:
+    controller-tools.k8s.io: "1.0"    
+    app.kubernetes.io/name: "controller"
+    helm.sh/chart: "citm-ingress-22.2.0"
+    app.kubernetes.io/instance: "nbp-citm"
+    app.kubernetes.io/managed-by: "helm"
+    app.kubernetes.io/component: "MessagingAndProtocols"
+    app.kubernetes.io/version: "22.2.0"
+    app.kubernetes.io/part-of: "citm"
+    
+  name: nbp-citm-citm-ingress
+spec:
+  sysctlRules:
+    - net.ipv4.ip_nonlocal_bind=1
+---
+
+# Source: citm-ingress/templates/controller-victor-job.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: nbp-citm-victor
+  namespace: "netguard-base"
+  labels:
+    heritage: Helm
+    release: nbp-citm
+  annotations:
+    "helm.sh/hook": post-delete, post-upgrade, pre-rollback, pre-install
+    "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded
+    "helm.sh/hook-weight": "-43"
+---
+
+# Source: citm-ingress/templates/controller-victor-job.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: "netguard-base"
+  name: nbp-citm-victor
+  labels:
+    release: nbp-citm
+  annotations:
+    "helm.sh/hook": post-delete, post-upgrade, pre-rollback, pre-install
+    "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded
+    "helm.sh/hook-weight": "-42"
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  resourceNames:
+  - netguard-base-nbp-citm-ingress-controller-leader-netguard
+  - ingress-controller-leader-netguard
+  - netguard-base-nbp-citm-ingress-controller-leader
+  verbs:
+  - delete
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  resourceNames:
+  - tls-nbp-citm-citm-ingress
+  verbs:
+  - delete
+---
+
+# Source: citm-ingress/templates/controller-victor-job.yaml
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: nbp-citm-victor
+  namespace: "netguard-base"
+  labels:
+    release: nbp-citm
+  annotations:    
+    "helm.sh/hook": post-delete, post-upgrade, pre-rollback, pre-install
+    "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded
+    "helm.sh/hook-weight": "-41"
+subjects:
+- kind: ServiceAccount
+  name: nbp-citm-victor
+  namespace: "netguard-base"
+roleRef:
+  kind: Role
+  name: nbp-citm-victor
+  apiGroup: rbac.authorization.k8s.io
+---
+
+# Source: ckey-crmq-config/templates/crmq-config-serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: nbp-ckey-crmq-config
+---
+
+# Source: ckey/templates/brhook_rbac.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: nbp-ckey-ckey-brhook-sa
+  namespace: "netguard-base"
+  labels:
+    app: nbp-ckey-ckey
+    heritage: Helm
+    release: nbp-ckey
+---
+
+# Source: ckey/templates/deletion_rbac.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: nbp-ckey-ckey-delete-sa
+  namespace: "netguard-base"
+  labels:
+    app: nbp-ckey-ckey
+    heritage: Helm
+    release: nbp-ckey
+---
+
+# Source: ckey/templates/healing_rbac.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: nbp-ckey-ckey-heal-sa
+  namespace: "netguard-base"
+  labels:
+    app: nbp-ckey-ckey
+    heritage: Helm
+    release: nbp-ckey
+---
+
+# Source: ckey/templates/masterrealm_rbac.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: nbp-ckey-ckey-master-realm-sa
+  namespace: "netguard-base"
+  labels:
+    app: nbp-ckey-ckey
+    heritage: Helm
+    release: nbp-ckey
+---
+
+# Source: ckey/templates/secretcleanup_rbac.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: nbp-ckey-ckey-secret-cleanup-sa
+  namespace: "netguard-base"
+  labels:
+    app: nbp-ckey-ckey
+    heritage: Helm
+    release: nbp-ckey
+---
+
+# Source: ckey/templates/stateful_rbac.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: nbp-ckey-ckey-stateful-sa
+  namespace: "netguard-base"
+  labels:
+    app: nbp-ckey-ckey
+    heritage: Helm
+    release: nbp-ckey
+---
+
+# Source: ckey/templates/brhook_rbac.yaml
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  namespace: "netguard-base"
+  name: nbp-ckey-ckey-brhook-role
+  labels:
+    app: nbp-ckey-ckey
+    release: nbp-ckey
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get","list","delete"]
+---
+
+# Source: ckey/templates/deletion_rbac.yaml
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  namespace: "netguard-base"
+  name: nbp-ckey-ckey-delete-role
+  labels:
+    app: nbp-ckey-ckey
+    release: nbp-ckey
+        
+rules:
+- apiGroups: [""]
+  resources: ["persistentvolumeclaims"]
+  verbs: ["list","delete"]
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["list","delete"]
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["list","delete"]
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["delete"]
+- apiGroups: [ "" ]
+  resources: [ "serviceaccounts" ]
+  verbs: [ "list","delete" ]
+---
+
+# Source: ckey/templates/healing_rbac.yaml
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  namespace: "netguard-base"
+  name: nbp-ckey-ckey-heal-role
+  labels:
+    app: nbp-ckey-ckey
+    release: nbp-ckey
+        
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list", "delete"]
+---
+
+# Source: ckey/templates/masterrealm_rbac.yaml
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  namespace: "netguard-base"
+  name: nbp-ckey-ckey-master-realm-role
+  labels:
+    app: nbp-ckey-ckey
+    release: nbp-ckey
+        
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "list"]
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get", "list", "delete"]
+---
+
+# Source: ckey/templates/secretcleanup_rbac.yaml
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  namespace: "netguard-base"
+  name: nbp-ckey-ckey-secret-cleanup-role
+  labels:
+    app: nbp-ckey-ckey
+    release: nbp-ckey
+        
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["delete"]
+- apiGroups: ["apps"]
+  resources: ["statefulsets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["batch"]
+  resources: ["jobs"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["delete"]
+---
+
+# Source: ckey/templates/stateful_rbac.yaml
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  namespace: "netguard-base"
+  name: nbp-ckey-ckey-stateful-role
+  labels:
+    app: nbp-ckey-ckey
+    release: nbp-ckey
+        
+rules:
+---
+
+# Source: ckey/templates/brhook_rbac.yaml
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: nbp-ckey-ckey-brhook-rolebinding
+  namespace: "netguard-base"
+  labels:
+    app: nbp-ckey-ckey
+    release: nbp-ckey
+subjects:
+- kind: ServiceAccount
+  name: nbp-ckey-ckey-brhook-sa
+  namespace: "netguard-base"
+  apiGroup: ""
+roleRef:
+  kind: Role
+  name: nbp-ckey-ckey-brhook-role
+  apiGroup: rbac.authorization.k8s.io
+---
+
+# Source: ckey/templates/deletion_rbac.yaml
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: nbp-ckey-ckey-delete-rolebinding
+  namespace: "netguard-base"
+  labels:
+    app: nbp-ckey-ckey
+    release: nbp-ckey
+        
+subjects:
+- kind: ServiceAccount
+  name: nbp-ckey-ckey-delete-sa
+  namespace: "netguard-base"
+  apiGroup: ""
+roleRef:
+  kind: Role
+  name: nbp-ckey-ckey-delete-role
+  apiGroup: rbac.authorization.k8s.io
+---
+
+# Source: ckey/templates/healing_rbac.yaml
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: nbp-ckey-ckey-heal-rolebinding
+  namespace: "netguard-base"
+  labels:
+    app: nbp-ckey-ckey
+    release: nbp-ckey
+        
+subjects:
+- kind: ServiceAccount
+  name: nbp-ckey-ckey-heal-sa
+  namespace: "netguard-base"
+  apiGroup: ""
+roleRef:
+  kind: Role
+  name: nbp-ckey-ckey-heal-role
+  apiGroup: rbac.authorization.k8s.io
+---
+
+# Source: ckey/templates/masterrealm_rbac.yaml
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: nbp-ckey-ckey-master-realm-rolebinding
+  namespace: "netguard-base"
+  labels:
+    app: nbp-ckey-ckey
+    release: nbp-ckey
+        
+subjects:
+- kind: ServiceAccount
+  name: nbp-ckey-ckey-master-realm-sa
+  namespace: "netguard-base"
+  apiGroup: ""
+roleRef:
+  kind: Role
+  name: nbp-ckey-ckey-master-realm-role
+  apiGroup: rbac.authorization.k8s.io
+---
+
+# Source: ckey/templates/secretcleanup_rbac.yaml
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: nbp-ckey-ckey-secret-cleanup-rolebinding
+  namespace: "netguard-base"
+  labels:
+    app: nbp-ckey-ckey
+    release: nbp-ckey
+        
+subjects:
+- kind: ServiceAccount
+  name: nbp-ckey-ckey-secret-cleanup-sa
+  namespace: "netguard-base"
+  apiGroup: ""
+roleRef:
+  kind: Role
+  name: nbp-ckey-ckey-secret-cleanup-role
+  apiGroup: rbac.authorization.k8s.io
+---
+
+# Source: ckey/templates/stateful_rbac.yaml
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: nbp-ckey-ckey-stateful-rolebinding
+  namespace: "netguard-base"
+  labels:
+    app: nbp-ckey-ckey
+    release: nbp-ckey
+        
+subjects:
+- kind: ServiceAccount
+  name: nbp-ckey-ckey-stateful-sa
+  namespace: "netguard-base"
+  apiGroup: ""
+roleRef:
+  kind: Role
+  name: nbp-ckey-ckey-stateful-role
+  apiGroup: rbac.authorization.k8s.io
+---
+
+# Source: ckey/templates/decrypt-secret-rbac.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: nbp-ckey-ckey-decrypt-secret-sa
+  namespace: "netguard-base"
+  annotations:
+    helm.sh/hook: pre-upgrade, pre-rollback
+    helm.sh/hook-delete-policy: before-hook-creation, hook-succeeded
+    helm.sh/hook-weight: "-10"
+  labels:
+    app: nbp-ckey-ckey
+    heritage: Helm
+    release: nbp-ckey
+---
+
+# Source: ckey/templates/isu_rbac.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: nbp-ckey-ckey-isu-sa
+  namespace: "netguard-base"
+  labels:
+    app: nbp-ckey-ckey
+    heritage: Helm
+    release: nbp-ckey
+        
+  annotations:
+    helm.sh/hook: pre-upgrade, pre-rollback, post-upgrade, post-rollback
+    helm.sh/hook-delete-policy: before-hook-creation, hook-succeeded
+    helm.sh/hook-weight: "-10"
+---
+
+# Source: ckey/templates/populate_secret_rbac.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: nbp-ckey-ckey-populate-secret-sa
+  namespace: "netguard-base"
+  annotations:
+    helm.sh/hook: pre-upgrade, pre-rollback
+    helm.sh/hook-delete-policy: before-hook-creation, hook-succeeded
+    helm.sh/hook-weight: "-10"
+  labels:
+    app: nbp-ckey-ckey
+    heritage: Helm
+    release: nbp-ckey
+---
+
+# Source: ckey/templates/decrypt-secret-rbac.yaml
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  namespace: "netguard-base"
+  name: nbp-ckey-ckey-decrypt-secret-role
+  labels:
+    app: nbp-ckey-ckey
+    release: nbp-ckey
+        
+  annotations:
+    helm.sh/hook: pre-upgrade, pre-rollback
+    helm.sh/hook-delete-policy: before-hook-creation, hook-succeeded
+    helm.sh/hook-weight: "-10"
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list"]
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "list", "patch"]
+- apiGroups: [""]
+  resources: ["pods/log"]
+  verbs: ["get"]
+- apiGroups: [""]
+  resources: ["pods/exec"]
+  verbs: ["create"]
+---
+
+# Source: ckey/templates/isu_rbac.yaml
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  namespace: "netguard-base"
+  name: nbp-ckey-ckey-isu-role
+  labels:
+    app: nbp-ckey-ckey
+    release: nbp-ckey
+  annotations:
+    helm.sh/hook: pre-upgrade, pre-rollback, post-upgrade, post-rollback
+    helm.sh/hook-delete-policy: before-hook-creation, hook-succeeded
+    helm.sh/hook-weight: "-10"
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list", "delete"]
+- apiGroups: ["apps"]
+  resources: ["statefulsets"]
+  verbs: ["get", "list", "watch", "patch", "create", "delete"]
+- apiGroups: [""]
+  resources: ["services"]
+  verbs: ["get", "patch"]
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "list", "delete"]
+- apiGroups: [""]
+  resources: ["pods/log"]
+  verbs: ["get"]
+- apiGroups: [""]
+  resources: ["pods/exec"]
+  verbs: ["create"]
+---
+
+# Source: ckey/templates/populate_secret_rbac.yaml
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  namespace: "netguard-base"
+  name: nbp-ckey-ckey-populate-secret-role
+  labels:
+    app: nbp-ckey-ckey
+    release: nbp-ckey
+        
+  annotations:
+    helm.sh/hook: pre-upgrade, pre-rollback
+    helm.sh/hook-delete-policy: before-hook-creation, hook-succeeded
+    helm.sh/hook-weight: "-10"
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list"]
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "list", "patch"]
+- apiGroups: [""]
+  resources: ["pods/log"]
+  verbs: ["get"]
+- apiGroups: [""]
+  resources: ["pods/exec"]
+  verbs: ["create"]
+---
+
+# Source: ckey/templates/decrypt-secret-rbac.yaml
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: nbp-ckey-ckey-decrypt-secret-rolebinding
+  namespace: "netguard-base"
+  labels:
+    app: nbp-ckey-ckey
+    release: nbp-ckey
+        
+  annotations:
+    helm.sh/hook: pre-upgrade, pre-rollback
+    helm.sh/hook-delete-policy: before-hook-creation, hook-succeeded
+    helm.sh/hook-weight: "-10"
+subjects:
+- kind: ServiceAccount
+  name: nbp-ckey-ckey-decrypt-secret-sa
+  namespace: "netguard-base"
+  apiGroup: ""
+roleRef:
+  kind: Role
+  name: nbp-ckey-ckey-decrypt-secret-role
+  apiGroup: rbac.authorization.k8s.io
+---
+
+# Source: ckey/templates/isu_rbac.yaml
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: nbp-ckey-ckey-isu-rolebinding
+  namespace: "netguard-base"
+  labels:
+    app: nbp-ckey-ckey
+    release: nbp-ckey
+  annotations:
+    helm.sh/hook: pre-upgrade, pre-rollback, post-upgrade, post-rollback
+    helm.sh/hook-delete-policy: before-hook-creation, hook-succeeded
+    helm.sh/hook-weight: "-10"
+subjects:
+- kind: ServiceAccount
+  name: nbp-ckey-ckey-isu-sa
+  namespace: "netguard-base"
+  apiGroup: ""
+roleRef:
+  kind: Role
+  name: nbp-ckey-ckey-isu-role
+  apiGroup: rbac.authorization.k8s.io
+---
+
+# Source: ckey/templates/populate_secret_rbac.yaml
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: nbp-ckey-ckey-populate-secret-rolebinding
+  namespace: "netguard-base"
+  labels:
+    app: nbp-ckey-ckey
+    release: nbp-ckey
+        
+  annotations:
+    helm.sh/hook: pre-upgrade, pre-rollback
+    helm.sh/hook-delete-policy: before-hook-creation, hook-succeeded
+    helm.sh/hook-weight: "-10"
+subjects:
+- kind: ServiceAccount
+  name: nbp-ckey-ckey-populate-secret-sa
+  namespace: "netguard-base"
+  apiGroup: ""
+roleRef:
+  kind: Role
+  name: nbp-ckey-ckey-populate-secret-role
+  apiGroup: rbac.authorization.k8s.io
+---
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: nbp-cmdb-minlcm
+  namespace: netguard-base
+  labels:
+    app: nbp-cmdb
+    release: "nbp-cmdb"
+    heritage: "Helm"
+    csf-component: cmdb
+    cmdb-dbtype: mariadb
+    csf-subcomponent: admin
+    app.kubernetes.io/name: cmdb
+    app.kubernetes.io/instance: "nbp-cmdb"
+    app.kubernetes.io/version: 22.2.0
+    app.kubernetes.io/component: Database
+    app.kubernetes.io/part-of: cmdb
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+---
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: nbp-cmdb
+  namespace: netguard-base
+  labels:
+    app: nbp-cmdb
+    release: "nbp-cmdb"
+    heritage: "Helm"
+    csf-component: cmdb
+    cmdb-dbtype: mariadb
+    csf-subcomponent: admin
+    app.kubernetes.io/name: cmdb
+    app.kubernetes.io/instance: "nbp-cmdb"
+    app.kubernetes.io/version: 22.2.0
+    app.kubernetes.io/component: Database
+    app.kubernetes.io/part-of: cmdb
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+---
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: nbp-cmdb-le
+  namespace: netguard-base
+  labels:
+    app: nbp-cmdb
+    release: "nbp-cmdb"
+    heritage: "Helm"
+    csf-component: cmdb
+    cmdb-dbtype: mariadb
+    csf-subcomponent: maxscale
+    app.kubernetes.io/name: cmdb
+    app.kubernetes.io/instance: "nbp-cmdb"
+    app.kubernetes.io/version: 22.2.0
+    app.kubernetes.io/component: Database
+    app.kubernetes.io/part-of: cmdb
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+---
+
+# Source: cmdb/templates/rbac.yaml
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: nbp-cmdb-minlcm
+  namespace: netguard-base
+  labels:
+    app: nbp-cmdb
+    release: "nbp-cmdb"
+    heritage: "Helm"
+    csf-component: cmdb
+    cmdb-dbtype: mariadb
+    csf-subcomponent: admin
+    app.kubernetes.io/name: cmdb
+    app.kubernetes.io/instance: "nbp-cmdb"
+    app.kubernetes.io/version: 22.2.0
+    app.kubernetes.io/component: Database
+    app.kubernetes.io/part-of: cmdb
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "list", "patch"]
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list"]
+- apiGroups: [""]
+  resources: ["pods/exec"]
+  verbs: ["create"]
+---
+
+# Source: cmdb/templates/rbac.yaml
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: nbp-cmdb
+  namespace: netguard-base
+  labels:
+    app: nbp-cmdb
+    release: "nbp-cmdb"
+    heritage: "Helm"
+    csf-component: cmdb
+    cmdb-dbtype: mariadb
+    csf-subcomponent: admin
+    app.kubernetes.io/name: cmdb
+    app.kubernetes.io/instance: "nbp-cmdb"
+    app.kubernetes.io/version: 22.2.0
+    app.kubernetes.io/component: Database
+    app.kubernetes.io/part-of: cmdb
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    
+rules:
+- apiGroups: [""]
+  resources: ["configmaps", "pods", "persistentvolumeclaims", "secrets", "endpoints"]
+  verbs: ["create", "get", "list", "patch", "update", "delete"]
+- apiGroups: ["apps"]
+  resources: ["statefulsets"]
+  verbs: ["get", "list"]
+- apiGroups: ["apps"]
+  resources: ["statefulsets/status"]
+  verbs: ["get"]
+- apiGroups: [""]
+  resources: ["pods/exec"]
+  verbs: ["create", "get"]
+- apiGroups: [""]
+  resources: ["pods/status"]
+  verbs: ["get"]
+---
+
+# Source: cmdb/templates/rbac.yaml
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: nbp-cmdb-le
+  namespace: netguard-base
+  labels:
+    app: nbp-cmdb
+    release: "nbp-cmdb"
+    heritage: "Helm"
+    csf-component: cmdb
+    cmdb-dbtype: mariadb
+    csf-subcomponent: maxscale
+    app.kubernetes.io/name: cmdb
+    app.kubernetes.io/instance: "nbp-cmdb"
+    app.kubernetes.io/version: 22.2.0
+    app.kubernetes.io/component: Database
+    app.kubernetes.io/part-of: cmdb
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    
+rules:
+- apiGroups: [""]
+  resources: ["endpoints"]
+  verbs: ["create", "delete", "get", "list", "patch", "update"]
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list", "patch", "update"]
+---
+
+# Source: cmdb/templates/rbac.yaml
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: nbp-cmdb-minlcm
+  namespace: netguard-base
+  labels:
+    app: nbp-cmdb
+    release: "nbp-cmdb"
+    heritage: "Helm"
+    csf-component: cmdb
+    cmdb-dbtype: mariadb
+    csf-subcomponent: admin
+    app.kubernetes.io/name: cmdb
+    app.kubernetes.io/instance: "nbp-cmdb"
+    app.kubernetes.io/version: 22.2.0
+    app.kubernetes.io/component: Database
+    app.kubernetes.io/part-of: cmdb
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    
+subjects:
+- kind: ServiceAccount
+  name: nbp-cmdb-minlcm
+  namespace: netguard-base
+  apiGroup: ""
+roleRef:
+  kind: Role
+  name: nbp-cmdb-minlcm
+  apiGroup: rbac.authorization.k8s.io
+---
+
+# Source: cmdb/templates/rbac.yaml
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: nbp-cmdb
+  namespace: netguard-base
+  labels:
+    app: nbp-cmdb
+    release: "nbp-cmdb"
+    heritage: "Helm"
+    csf-component: cmdb
+    cmdb-dbtype: mariadb
+    csf-subcomponent: admin
+    app.kubernetes.io/name: cmdb
+    app.kubernetes.io/instance: "nbp-cmdb"
+    app.kubernetes.io/version: 22.2.0
+    app.kubernetes.io/component: Database
+    app.kubernetes.io/part-of: cmdb
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    
+subjects:
+- kind: ServiceAccount
+  name: nbp-cmdb
+  namespace: netguard-base
+  apiGroup: ""
+roleRef:
+  kind: Role
+  name: nbp-cmdb
+  apiGroup: rbac.authorization.k8s.io
+---
+
+# Source: cmdb/templates/rbac.yaml
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: nbp-cmdb-le
+  namespace: netguard-base
+  labels:
+    app: nbp-cmdb
+    release: "nbp-cmdb"
+    heritage: "Helm"
+    csf-component: cmdb
+    cmdb-dbtype: mariadb
+    csf-subcomponent: maxscale
+    app.kubernetes.io/name: cmdb
+    app.kubernetes.io/instance: "nbp-cmdb"
+    app.kubernetes.io/version: 22.2.0
+    app.kubernetes.io/component: Database
+    app.kubernetes.io/part-of: cmdb
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    
+subjects:
+- kind: ServiceAccount
+  name: nbp-cmdb-le
+  namespace: netguard-base
+  apiGroup: ""
+roleRef:
+  kind: Role
+  name: nbp-cmdb-le
+  apiGroup: rbac.authorization.k8s.io
+---
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: nbp-cmdb-install
+  namespace: netguard-base
+  labels:
+    app: nbp-cmdb
+    release: "nbp-cmdb"
+    heritage: "Helm"
+    csf-component: cmdb
+    cmdb-dbtype: mariadb
+    csf-subcomponent: admin
+    app.kubernetes.io/name: cmdb
+    app.kubernetes.io/instance: "nbp-cmdb"
+    app.kubernetes.io/version: 22.2.0
+    app.kubernetes.io/component: Database
+    app.kubernetes.io/part-of: cmdb
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    
+    "helm.sh/hook": pre-install
+    "helm.sh/hook-weight": "-10"
+    "helm.sh/hook-delete-policy": "hook-succeeded,hook-failed,before-hook-creation"
+---
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: nbp-cmdb-delete
+  namespace: netguard-base
+  labels:
+    app: nbp-cmdb
+    release: "nbp-cmdb"
+    heritage: "Helm"
+    csf-component: cmdb
+    cmdb-dbtype: mariadb
+    csf-subcomponent: admin
+    app.kubernetes.io/name: cmdb
+    app.kubernetes.io/instance: "nbp-cmdb"
+    app.kubernetes.io/version: 22.2.0
+    app.kubernetes.io/component: Database
+    app.kubernetes.io/part-of: cmdb
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    
+    "helm.sh/hook": post-delete
+    "helm.sh/hook-weight": "-10"
+    "helm.sh/hook-delete-policy": "hook-succeeded,hook-failed,before-hook-creation"
+---
+
+# Source: cmdb/templates/rbac.yaml
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  namespace: netguard-base
+  name: nbp-cmdb-install
+  labels:
+    app: nbp-cmdb
+    release: "nbp-cmdb"
+    heritage: "Helm"
+    csf-component: cmdb
+    cmdb-dbtype: mariadb
+    csf-subcomponent: admin
+    app.kubernetes.io/name: cmdb
+    app.kubernetes.io/instance: "nbp-cmdb"
+    app.kubernetes.io/version: 22.2.0
+    app.kubernetes.io/component: Database
+    app.kubernetes.io/part-of: cmdb
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    
+    "helm.sh/hook": pre-install
+    "helm.sh/hook-weight": "-9"
+    "helm.sh/hook-delete-policy": "hook-succeeded,hook-failed,before-hook-creation"
+rules:
+- apiGroups: [""]
+  resources: ["persistentvolumeclaims"]
+  verbs: ["get", "list"]
+- apiGroups: [""]
+  resources: ["configmaps", "secrets"]
+  verbs: ["create", "get", "list", "patch", "update", "delete"]
+---
+
+# Source: cmdb/templates/rbac.yaml
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  namespace: netguard-base
+  name: nbp-cmdb-delete
+  labels:
+    app: nbp-cmdb
+    release: "nbp-cmdb"
+    heritage: "Helm"
+    csf-component: cmdb
+    cmdb-dbtype: mariadb
+    csf-subcomponent: admin
+    app.kubernetes.io/name: cmdb
+    app.kubernetes.io/instance: "nbp-cmdb"
+    app.kubernetes.io/version: 22.2.0
+    app.kubernetes.io/component: Database
+    app.kubernetes.io/part-of: cmdb
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    
+    "helm.sh/hook": post-delete
+    "helm.sh/hook-weight": "-9"
+    "helm.sh/hook-delete-policy": "hook-succeeded,hook-failed,before-hook-creation"
+rules:
+- apiGroups: [""]
+  resources: ["persistentvolumeclaims", "secrets", "configmaps", "endpoints"]
+  verbs: ["create", "get", "list", "patch", "update", "delete"]
+- apiGroups: ["batch"]
+  resources: ["jobs"]
+  verbs: ["get", "list", "patch", "update", "delete"]
+---
+
+# Source: cmdb/templates/rbac.yaml
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: nbp-cmdb-install
+  namespace: netguard-base
+  labels:
+    app: nbp-cmdb
+    release: "nbp-cmdb"
+    heritage: "Helm"
+    csf-component: cmdb
+    cmdb-dbtype: mariadb
+    csf-subcomponent: admin
+    app.kubernetes.io/name: cmdb
+    app.kubernetes.io/instance: "nbp-cmdb"
+    app.kubernetes.io/version: 22.2.0
+    app.kubernetes.io/component: Database
+    app.kubernetes.io/part-of: cmdb
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    
+    "helm.sh/hook": pre-install
+    "helm.sh/hook-weight": "-8"
+    "helm.sh/hook-delete-policy": "hook-succeeded,hook-failed,before-hook-creation"
+subjects:
+- kind: ServiceAccount
+  name: nbp-cmdb-install
+  namespace: netguard-base
+  apiGroup: ""
+roleRef:
+  kind: Role
+  name: nbp-cmdb-install
+  apiGroup: rbac.authorization.k8s.io
+---
+
+# Source: cmdb/templates/rbac.yaml
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: nbp-cmdb-delete
+  namespace: netguard-base
+  labels:
+    app: nbp-cmdb
+    release: "nbp-cmdb"
+    heritage: "Helm"
+    csf-component: cmdb
+    cmdb-dbtype: mariadb
+    csf-subcomponent: admin
+    app.kubernetes.io/name: cmdb
+    app.kubernetes.io/instance: "nbp-cmdb"
+    app.kubernetes.io/version: 22.2.0
+    app.kubernetes.io/component: Database
+    app.kubernetes.io/part-of: cmdb
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    
+    "helm.sh/hook": post-delete
+    "helm.sh/hook-weight": "-8"
+    "helm.sh/hook-delete-policy": "hook-succeeded,hook-failed,before-hook-creation"
+subjects:
+- kind: ServiceAccount
+  name: nbp-cmdb-delete
+  namespace: netguard-base
+  apiGroup: ""
+roleRef:
+  kind: Role
+  name: nbp-cmdb-delete
+  apiGroup: rbac.authorization.k8s.io
+---
+
+# Source: crmq/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: nbp-crmq-crmq
+  labels:
+    app: crmq
+    chart: crmq-22.2.0
+    release: "nbp-crmq"
+    heritage: "Helm"    
+    app.kubernetes.io/name: "crmq"
+    app.kubernetes.io/instance: "nbp-crmq"
+    app.kubernetes.io/managed-by: "Helm"
+    app.kubernetes.io/component: "Message_Broker"
+    app.kubernetes.io/part-of: "crmq"
+    app.kubernetes.io/version: "22.2.0"
+automountServiceAccountToken: false
+---
+
+# Source: crmq/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: nbp-crmq-crmq-scale
+  namespace: "netguard-base"
+  labels:
+    app: crmq
+    chart: crmq-22.2.0
+    heritage: Helm
+    release: nbp-crmq    
+    app.kubernetes.io/name: "crmq"
+    app.kubernetes.io/instance: "nbp-crmq"
+    app.kubernetes.io/managed-by: "Helm"
+    app.kubernetes.io/component: "Message_Broker"
+    app.kubernetes.io/part-of: "crmq"
+    app.kubernetes.io/version: "22.2.0"
+automountServiceAccountToken: false
+---
+
+# Source: crmq/templates/role-patch.yaml
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: nbp-crmq-crmq-endpoint-reader
+  labels:
+    app: crmq
+    chart: crmq-22.2.0
+    release: "nbp-crmq"
+    heritage: "Helm"    
+    app.kubernetes.io/name: "crmq"
+    app.kubernetes.io/instance: "nbp-crmq"
+    app.kubernetes.io/managed-by: "Helm"
+    app.kubernetes.io/component: "Message_Broker"
+    app.kubernetes.io/part-of: "crmq"
+    app.kubernetes.io/version: "22.2.0"
+rules:
+- apiGroups: [""]
+  resources: ["endpoints"]
+  verbs: ["get"]
+---
+
+# Source: crmq/templates/role-patch.yaml
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  # Start of custom modification of original chart for CSFS-40531 - Duplicated roles defined
+  name: nbp-crmq-crmq-cluster-role-scale
+  # End of custom modification of original chart for CSFS-40531
+  namespace: "netguard-base"
+  labels:
+    app: crmq
+    chart: crmq-22.2.0
+    release: "nbp-crmq"
+    heritage: "Helm"    
+    app.kubernetes.io/name: "crmq"
+    app.kubernetes.io/instance: "nbp-crmq"
+    app.kubernetes.io/managed-by: "Helm"
+    app.kubernetes.io/component: "Message_Broker"
+    app.kubernetes.io/part-of: "crmq"
+    app.kubernetes.io/version: "22.2.0"
+rules:
+- apiGroups: [""]
+  resources: ["persistentvolumeclaims"]
+  verbs: ["get", "list", "delete"]
+- apiGroups: [""]
+  resources: [ "pods", "pods/exec"]
+  verbs: ["get", "create"]
+---
+
+# Source: crmq/templates/rolebinding-patch.yaml
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: nbp-crmq-crmq-endpoint-reader
+  labels:
+    app: crmq
+    chart: crmq-22.2.0
+    release: "nbp-crmq"
+    heritage: "Helm"    
+    app.kubernetes.io/name: "crmq"
+    app.kubernetes.io/instance: "nbp-crmq"
+    app.kubernetes.io/managed-by: "Helm"
+    app.kubernetes.io/component: "Message_Broker"
+    app.kubernetes.io/part-of: "crmq"
+    app.kubernetes.io/version: "22.2.0"
+subjects:
+- kind: ServiceAccount
+  name: nbp-crmq-crmq
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: nbp-crmq-crmq-endpoint-reader
+---
+
+# Source: crmq/templates/rolebinding-patch.yaml
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  # Start of custom modification of original chart for CSFS-40531 - Duplicated roles defined
+  name: nbp-crmq-crmq-cluster-role-binding-scale
+  namespace: "netguard-base"
+  labels:
+    app: crmq
+    chart: crmq-22.2.0    
+    app.kubernetes.io/name: "crmq"
+    app.kubernetes.io/instance: "nbp-crmq"
+    app.kubernetes.io/managed-by: "Helm"
+    app.kubernetes.io/component: "Message_Broker"
+    app.kubernetes.io/part-of: "crmq"
+    app.kubernetes.io/version: "22.2.0"
+subjects:
+- kind: ServiceAccount
+  name: nbp-crmq-crmq-scale
+  namespace: "netguard-base"
+roleRef:
+  kind: Role
+  name: nbp-crmq-crmq-cluster-role-scale
+  # End of custom modification of original chart for CSFS-40531
+  apiGroup: rbac.authorization.k8s.io
+---
+
+# Source: crmq/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: nbp-crmq-crmq-post-del
+  namespace: "netguard-base"
+  labels:
+    app: crmq
+    chart: crmq-22.2.0
+    heritage: Helm
+    release: nbp-crmq    
+    app.kubernetes.io/name: "crmq"
+    app.kubernetes.io/instance: "nbp-crmq"
+    app.kubernetes.io/managed-by: "Helm"
+    app.kubernetes.io/component: "Message_Broker"
+    app.kubernetes.io/part-of: "crmq"
+    app.kubernetes.io/version: "22.2.0"
+  annotations:
+    # This is what defines this resource as a hook. Without this line, the
+    # job is considered part of the release.
+    # If there're multiple hooks, may define differnent hook-weight value.
+    "helm.sh/hook": post-delete, pre-install
+    "helm.sh/hook-weight": "-8"
+    "helm.sh/hook-delete-policy": hook-succeeded, before-hook-creation
+    "meta.helm.sh/release-name": nbp-crmq
+    "meta.helm.sh/release-namespace": netguard-base
+automountServiceAccountToken: false
+---
+
+# Source: crmq/templates/tests/test_serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: nbp-crmq-crmq-test-account
+  namespace: "netguard-base"
+  annotations:
+   "helm.sh/hook": test
+   "helm.sh/hook-delete-policy": before-hook-creation,hook-failed,hook-succeeded
+   "helm.sh/hook-weight": "2"
+  labels:
+    app: crmq
+    chart: crmq-22.2.0
+    heritage: Helm
+    release: nbp-crmq    
+    app.kubernetes.io/name: "crmq"
+    app.kubernetes.io/instance: "nbp-crmq"
+    app.kubernetes.io/managed-by: "Helm"
+    app.kubernetes.io/component: "Message_Broker"
+    app.kubernetes.io/part-of: "crmq"
+    app.kubernetes.io/version: "22.2.0"
+automountServiceAccountToken: false
+---
+
+# Source: crmq/templates/role-patch.yaml
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: nbp-crmq-crmq-cluster-role
+  namespace: "netguard-base"
+  labels:
+    app: crmq
+    chart: crmq-22.2.0
+    release: "nbp-crmq"
+    heritage: "Helm"    
+    app.kubernetes.io/name: "crmq"
+    app.kubernetes.io/instance: "nbp-crmq"
+    app.kubernetes.io/managed-by: "Helm"
+    app.kubernetes.io/component: "Message_Broker"
+    app.kubernetes.io/part-of: "crmq"
+    app.kubernetes.io/version: "22.2.0"
+  annotations:
+    # This is what defines this resource as a hook. Without this line, the
+    # job is considered part of the release.
+    # If there're multiple hooks, may define differnent hook-weight value.
+    "helm.sh/hook": post-delete, pre-install
+    "helm.sh/hook-weight": "-8"
+    "helm.sh/hook-delete-policy": hook-succeeded, before-hook-creation
+    "meta.helm.sh/release-name": nbp-crmq
+    "meta.helm.sh/release-namespace": netguard-base
+rules:
+- apiGroups: [""]
+  resources: ["persistentvolumeclaims", "serviceaccounts", "secrets"]
+  verbs: ["get", "list", "delete"]
+---
+
+# Source: crmq/templates/tests/test_serviceaccount.yaml
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: nbp-crmq-crmq-test-role
+  namespace: "netguard-base"
+  annotations:
+   "helm.sh/hook": test
+   "helm.sh/hook-delete-policy": before-hook-creation,hook-failed,hook-succeeded
+   "helm.sh/hook-weight": "1"
+  labels:
+    app: crmq
+    chart: crmq-22.2.0
+    release: "nbp-crmq"
+    heritage: "Helm"    
+    app.kubernetes.io/name: "crmq"
+    app.kubernetes.io/instance: "nbp-crmq"
+    app.kubernetes.io/managed-by: "Helm"
+    app.kubernetes.io/component: "Message_Broker"
+    app.kubernetes.io/part-of: "crmq"
+    app.kubernetes.io/version: "22.2.0"
+rules:
+- apiGroups: [""]
+  resources: ["persistentvolumeclaims", "secrets","pods", "pods/log"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["apps"]
+  resources: ["statefulsets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["pods/exec"]
+  verbs: ["create"]
+---
+
+# Source: crmq/templates/rolebinding-patch.yaml
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: nbp-crmq-crmq-cluster-role-binding
+  namespace: "netguard-base"
+  labels:
+    app: crmq
+    chart: crmq-22.2.0
+    release: "nbp-crmq"
+    heritage: "Helm"    
+    app.kubernetes.io/name: "crmq"
+    app.kubernetes.io/instance: "nbp-crmq"
+    app.kubernetes.io/managed-by: "Helm"
+    app.kubernetes.io/component: "Message_Broker"
+    app.kubernetes.io/part-of: "crmq"
+    app.kubernetes.io/version: "22.2.0"
+  annotations:
+    "helm.sh/hook": post-delete, pre-install
+    "helm.sh/hook-weight": "-6"
+    "helm.sh/hook-delete-policy": hook-succeeded, before-hook-creation
+    "meta.helm.sh/release-name": nbp-crmq
+    "meta.helm.sh/release-namespace": netguard-base
+subjects:
+- kind: ServiceAccount
+  name: nbp-crmq-crmq-post-del
+  namespace: "netguard-base"
+roleRef:
+  kind: Role
+  name: nbp-crmq-crmq-cluster-role
+  apiGroup: rbac.authorization.k8s.io
+---
+
+# Source: crmq/templates/tests/test_serviceaccount.yaml
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: nbp-crmq-crmq-test-binding
+  annotations:
+   "helm.sh/hook": test
+   "helm.sh/hook-delete-policy": before-hook-creation,hook-failed,hook-succeeded
+   "helm.sh/hook-weight": "1"
+  labels:
+    app: crmq
+    chart: crmq-22.2.0
+    release: "nbp-crmq"
+    heritage: "Helm"    
+    app.kubernetes.io/name: "crmq"
+    app.kubernetes.io/instance: "nbp-crmq"
+    app.kubernetes.io/managed-by: "Helm"
+    app.kubernetes.io/component: "Message_Broker"
+    app.kubernetes.io/part-of: "crmq"
+    app.kubernetes.io/version: "22.2.0"
+subjects:
+- kind: ServiceAccount
+  name: nbp-crmq-crmq-test-account
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: nbp-crmq-crmq-test-role
+---
+
+# Source: citm-server/templates/victor-job.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: nbp-start-page-citm-server-victor
+  namespace: "netguard-base"
+  labels:
+    heritage: Helm
+    release: nbp-start-page    
+    app.kubernetes.io/name: "citm-server"
+    helm.sh/chart: "citm-server-22.2.0"
+    app.kubernetes.io/instance: "nbp-start-page"
+    app.kubernetes.io/managed-by: "helm"
+    app.kubernetes.io/component: "MessagingAndProtocols"
+    app.kubernetes.io/version: "22.2.0"
+    app.kubernetes.io/part-of: "citm"
+    
+  annotations:
+    "helm.sh/hook": post-delete, post-upgrade, pre-rollback, pre-install
+    "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded
+    "helm.sh/hook-weight": "-43"
+---
+
+# Source: citm-server/templates/victor-job.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: "netguard-base"
+  name: nbp-start-page-citm-server-victor
+  labels:
+    release: nbp-start-page    
+    app.kubernetes.io/name: "citm-server"
+    helm.sh/chart: "citm-server-22.2.0"
+    app.kubernetes.io/instance: "nbp-start-page"
+    app.kubernetes.io/managed-by: "helm"
+    app.kubernetes.io/component: "MessagingAndProtocols"
+    app.kubernetes.io/version: "22.2.0"
+    app.kubernetes.io/part-of: "citm"
+    
+  annotations:
+    "helm.sh/hook": post-delete, post-upgrade, pre-rollback, pre-install
+    "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded
+    "helm.sh/hook-weight": "-42"
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  resourceNames:
+  - tls-nbp-start-page-citm-server
+  verbs:
+  - delete
+---
+
+# Source: citm-server/templates/victor-job.yaml
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: nbp-start-page-citm-server-victor
+  namespace: "netguard-base"
+  labels:
+    release: nbp-start-page    
+    app.kubernetes.io/name: "citm-server"
+    helm.sh/chart: "citm-server-22.2.0"
+    app.kubernetes.io/instance: "nbp-start-page"
+    app.kubernetes.io/managed-by: "helm"
+    app.kubernetes.io/component: "MessagingAndProtocols"
+    app.kubernetes.io/version: "22.2.0"
+    app.kubernetes.io/part-of: "citm"
+    
+  annotations:    
+    "helm.sh/hook": post-delete, post-upgrade, pre-rollback, pre-install
+    "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded
+    "helm.sh/hook-weight": "-41"
+subjects:
+- kind: ServiceAccount
+  name: nbp-start-page-citm-server-victor
+  namespace: "netguard-base"
+roleRef:
+  kind: Role
+  name: nbp-start-page-citm-server-victor
+  apiGroup: rbac.authorization.k8s.io

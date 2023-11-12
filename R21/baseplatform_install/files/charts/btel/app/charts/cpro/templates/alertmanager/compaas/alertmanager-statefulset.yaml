@@ -1,0 +1,232 @@
+{{- if .Values.alertmanager.enabled -}}
+{{- if .Values.ha.enabled -}}
+{{- if .Values.deployOnComPaaS }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  labels:
+    app: {{ template "prometheus.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    component: "{{ .Values.alertmanager.name }}"
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+{{- include "prometheus-labels" (tuple .Values.global.labels) | indent 4}}
+  name: {{ template "prometheus.alertmanager.DeploymentOrStsName" . }}
+{{- if .Values.global.annotations }}
+  annotations:
+{{- include "prometheus-annotations" (tuple .Values.global.annotations) | indent 4}}
+{{- end }}
+spec:
+  serviceName: {{ template "prometheus.alertmanager.fullname" .  }}
+  replicas: {{ .Values.alertmanager.replicaCount }}
+  {{- if .Values.alertmanager.strategy }}
+  strategy:
+{{ toYaml .Values.alertmanager.strategy | indent 4 }}
+  {{- end }}
+  volumeClaimTemplates:
+  - metadata:
+      name: "storage-volume"
+      labels:
+        app: {{ template "prometheus.name" . }}
+        component: "{{ .Values.alertmanager.name }}"
+        release: {{ .Release.Name }}
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: "{{ .Values.alertmanager.persistentVolume.size }}"
+  selector:
+    matchLabels:
+      app: {{ template "prometheus.name" . }}
+      release: "{{ .Release.Name }}"
+  template:
+    metadata:
+    {{- if .Values.alertmanager.podAnnotations }}
+      annotations:
+{{ toYaml .Values.alertmanager.podAnnotations | indent 8 }}
+    {{- end }}
+{{- include "custom-annotations" (tuple .Values.custom.pod.annotations) | indent 8}}
+{{- if .Values.rbac.pspUseAppArmor }}
+{{- include "custom-annotations" (tuple .Values.custom.pod.apparmorAnnotations) | indent 8}}
+{{- end }}
+      labels:
+        app: {{ template "prometheus.name" . }}
+        component: "{{ .Values.alertmanager.name }}"
+        release: {{ .Release.Name }}
+        {{- include "custom-labels" (tuple .Values.custom.pod.labels) | indent 8}}
+    spec:
+{{- if .Values.alertmanager.schedulerName }}
+      schedulerName: "{{ .Values.alertmanager.schedulerName }}"
+{{- end }}
+      serviceAccountName: {{ template "prometheus.serviceAccountName" . }}
+      {{- if .Values.seLinuxOptions.enabled }}
+      securityContext:
+        seLinuxOptions:
+          level: {{ .Values.seLinuxOptions.level }}
+          role: {{ .Values.seLinuxOptions.role }}
+          type: {{ .Values.seLinuxOptions.type }}
+          user: {{ .Values.seLinuxOptions.user }}
+      {{- end }}
+      containers:
+        - name: {{ template "prometheus.alertmanager.alertmanagerContainerName" . }}
+          image: "{{ .Values.global.registry1 }}/{{ .Values.alertmanager.image.imageRepo }}:{{ .Values.alertmanager.image.imageTag }}"
+          imagePullPolicy: "{{ .Values.alertmanager.image.imagePullPolicy }}"
+          securityContext:
+            runAsUser: 65534
+          env:
+            {{- range $key, $value := .Values.alertmanager.extraEnv }}
+            - name: {{ $key }}
+              value: {{ $value }}
+            {{- end }}
+            - name: MY_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: PEER_NAME
+              value: {{ template "prometheus.alertmanager.fullname" .  }}
+            - name: REPLICA
+              value: "{{ .Values.alertmanager.replicaCount }}"
+          ports:
+            - name: tcp-9090
+              containerPort: 9090
+          command:
+            - bash
+            - -ec
+            - |
+               args="--config.file=/etc/config/alertmanager.yml
+                 --storage.path={{ .Values.alertmanager.persistentVolume.mountPath }}
+                 {{- range $key, $value := .Values.alertmanager.extraArgs }}
+                 --{{ $key }}={{ $value }}
+                 {{- end }}
+                 {{- if .Values.alertmanager.retention.time }}
+                 --data.retention={{ .Values.alertmanager.retention.time }}
+                 {{- end }}
+                 {{- if .Values.alertmanager.baseURL }}
+                 --web.external-url={{ .Values.alertmanager.baseURL }}
+                 {{- end }}
+                 {{- if ne .Values.alertmanager.prefixURL "" }}
+                 --web.route-prefix=/{{ .Values.alertmanager.prefixURL }}
+                 {{- end }}"
+               if [ $REPLICA != '1' ] ; then
+                    port=":{{ .Values.alertmanager.service.clusterPort }}"
+                    listen=" --cluster.listen-address=0.0.0.0$port"
+                    args=$args$listen
+                    peer=" --cluster.peer=${PEER_NAME}${port}"
+                    args=$args$peer
+               fi
+               exec /bin/alertmanager $args
+          ports:
+            - name: tcp-9093
+              containerPort: 9093
+           {{- if .Values.ha.enabled }}
+            - name: tcp-cluster
+              containerPort: {{ .Values.alertmanager.service.clusterPort }}
+           {{- end }}
+           {{- if .Values.alertmanager.service.enableMeshPeer }}
+            - name: tcp-meshpeer
+              containerPort: 6783
+           {{- end }}
+          readinessProbe:
+            httpGet:
+              path: {{ template "alertmanager.routePrefixURL" . }}/#/status
+              port: tcp-9093
+            initialDelaySeconds: 30
+            timeoutSeconds: 30
+          resources:
+{{ toYaml .Values.alertmanager.resources | indent 12 }}
+          volumeMounts:
+            - name: config-volume
+              mountPath: /etc/config
+            - name: storage-volume
+              mountPath: "{{ .Values.alertmanager.persistentVolume.mountPath }}"
+              subPath: "{{ .Values.alertmanager.persistentVolume.subPath }}"
+            {{ if .Values.alertmanager.outboundTLS.enabled }}
+            - name: tls
+              readOnly: true
+              mountPath: "/etc/config/alertmanager/tls"
+            {{- end }}
+
+        - name: {{ template "prometheus.alertmanager.alertmanagerReloadContainerName" . }}
+          image: "{{ .Values.global.registry }}/{{ .Values.configmapReload.image.imageRepo }}:{{ .Values.configmapReload.image.imageTag }}"
+          imagePullPolicy: "{{ .Values.configmapReload.image.imagePullPolicy }}"
+          securityContext:
+            runAsUser: 1999
+          args:
+            - --volume-dir=/etc/config
+            - --webhook-url=http://localhost:9093{{ template "alertmanager.routePrefixURL" . }}/-/reload
+          resources:
+{{ toYaml .Values.configmapReload.resources | indent 12 }}
+          volumeMounts:
+            - name: config-volume
+              mountPath: /etc/config
+              readOnly: true
+    {{- if .Values.alertmanager.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.alertmanager.nodeSelector | indent 8 }}
+    {{- end }}
+    {{- if .Values.alertmanager.tolerations }}
+      tolerations:
+{{ toYaml .Values.alertmanager.tolerations | indent 8 }}
+    {{- end }}
+      affinity:
+        podAntiAffinity:
+{{- if eq .Values.alertmanager.antiAffinityMode "hard" }}
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - {{  template "prometheus.name" . }}
+              - key: component
+                operator: In
+                values:
+                - {{  .Values.alertmanager.name }}
+              - key: release
+                operator: In
+                values:
+                - {{ .Release.Name }}
+            topologyKey: "kubernetes.io/hostname"
+{{- else }}
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - {{  template "prometheus.name" . }}
+                - key: component
+                  operator: In
+                  values:
+                  - {{  .Values.alertmanager.name }}
+                - key: release
+                  operator: In
+                  values:
+                  - {{ .Release.Name }}
+              topologyKey: "kubernetes.io/hostname"
+{{- end }}
+      {{- if .Values.alertmanager.dnsConfig}}
+      dnsConfig:
+        searches:
+        # Start of custom modification of original chart for CSFS-31473
+          - {{ template "prometheus.alertmanager.fullname" .  }}.{{ .Release.Namespace }}.{{ .Values.dns.domain }}
+          - {{ .Release.Namespace }}.{{ .Values.dns.domain }}
+          - {{ .Values.dns.domain }}
+        # end
+          - cluster.local 
+          - bcmt.cluster.local
+      {{- end }}
+      volumes:
+        {{ if .Values.alertmanager.outboundTLS.enabled }}
+        - name: tls
+          secret:
+            secretName: {{ template "prometheus.alertmanager.fullname" . }}
+        {{- end }}
+        - name: config-volume
+          configMap:
+            name: {{ if .Values.alertmanager.configMapOverrideName }}{{ .Release.Name }}-{{ .Values.alertmanager.configMapOverrideName }}{{- else }}{{ template "prometheus.alertmanager.fullname" . }}{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

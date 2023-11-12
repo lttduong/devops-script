@@ -1,0 +1,27 @@
+{{- if .Values.restserver.enabled -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    app: {{ template "prometheus.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    component: "{{ .Values.restserver.name }}"
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+{{- include "prometheus-labels" (tuple .Values.global.labels) | indent 4}}
+  name: {{ template "prometheus.restserver.fullname" . }}
+{{- if .Values.global.annotations }}
+  annotations:
+{{- include "prometheus-annotations" (tuple .Values.global.annotations) | indent 4}}
+{{- end }}
+data:
+{{ (tpl (.Files.Glob "configs/*").AsConfig . ) | indent 2 -}}
+{{- if true -}}
+  ca.crt: |
+{{ .Values.restserver.configs.restCACert | indent 4 }}
+  server.key: |
+{{ .Values.restserver.configs.restServerKey | indent 4 }}
+  server.crt: |
+{{ .Values.restserver.configs.restServerCert | indent 4 }}
+{{- end -}}
+{{- end -}}

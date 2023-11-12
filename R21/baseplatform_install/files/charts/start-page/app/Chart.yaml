@@ -1,0 +1,15 @@
+apiVersion: v1
+appVersion: 1.18.0-2.1
+description: CITM nginx server
+engine: gotpl
+icon: https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Nginx_logo.svg/500px-Nginx_logo.svg.png
+keywords:
+- nginx
+- http
+maintainers:
+- email: aa-csf-ps@LIST.NOKIA.COM
+  name: csf
+name: citm-server
+sources:
+- https://confluence.app.alcatel-lucent.com/display/plateng/CITM+-+IP+Traffic+Manager
+version: 1.18.8

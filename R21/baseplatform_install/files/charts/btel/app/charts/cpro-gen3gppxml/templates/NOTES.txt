@@ -1,0 +1,15 @@
+gen3gppxml service is exposed via NodePort service type.
+
+The exposed ports can be obtained by below command:
+$ kubectl get svc |grep {{ template "gen3gppxml.fullname" .  }}
+gen3gppxml      NodePort    10.254.222.31   <none>        22:<Exposed sftp Port>/TCP,8080:<Exposed Restful Port>/TCP    18h
+
+Eg:
+$ kubectl get svc | grep {{ template "gen3gppxml.fullname" .  }}
+gen3gppxml      NodePort    10.254.222.31   <none>        22:30916/TCP,8080:30920/TCP    18h
+Please note: The exposed sftp port is 30916 and The exposed restful port is 30920.
+
+Then, the sftp service and restful service can be accessed via above exposed ports.
+Eg:
+sftp -i YOUR_KEY -P 20916 YOUR_USER@<Any node IP in your BCMT cluster>
+curl http://<Any node IP in your BCMT cluster>:30920/v1/measurement/status

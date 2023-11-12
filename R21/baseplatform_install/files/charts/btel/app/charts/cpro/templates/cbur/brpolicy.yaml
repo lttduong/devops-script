@@ -1,0 +1,42 @@
+{{- if .Values.server.cbur.enabled }}
+apiVersion: "cbur.bcmt.local/v1"
+kind: BrPolicy
+metadata:
+  name: {{ template "prometheus.server.DeploymentOrStsName" . }} #<--must have the same name as deployment/statefulset which you want to backup
+{{- if .Values.global.labels }}
+  labels:
+{{- include "prometheus-labels" (tuple .Values.global.labels) | indent 4}}
+{{- end }}
+{{- if .Values.global.annotations }}
+  annotations:
+{{- include "prometheus-annotations" (tuple .Values.global.annotations) | indent 4}}
+{{- end }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ template "prometheus.name" . }} #<--unique label of pod that identify the pods of deployment and statefulset
+      component: {{ .Values.server.name }}
+      release: {{ .Release.Name }}
+  volumes:
+  - storage-volume   #<---volume name you want to backup. NOTE: not mount path
+  backend:
+    mode: {{ .Values.server.cbur.backendMode }}
+  autoEnableCron: {{ .Values.server.cbur.autoEnableCron | default false }}
+  autoUpdateCron: {{ .Values.server.cbur.autoUpdateCron | default false }}
+  cronSpec: '{{ .Values.server.cbur.cronJob }}'
+{{- if .Values.ha.enabled }}
+  k8sType: statefulset
+  brOption: {{ .Values.server.cbur.brOption }}
+{{- else }}
+  k8sType: deployment
+{{- end }}
+  maxiCopy: {{ .Values.server.cbur.maxCopy }}
+  ignoreFileChanged: true
+  hooks:
+  - name: {{ template "prometheus.server.prometheusContainerName" . }}  #<---container name in the pod where you want to execute hooks.
+    commands:
+      preBackupCmd: ["sh", "-c", "result=`curl http://localhost:9090{{ template "server.routePrefixURL" . }}/api/v1/admin/tsdb/snapshot -X POST |awk -F '\"' '{print $10}'`; for loop in 1 2 3 4 5; do if [ $result = \"error\" ]; then sleep 10; result=`curl http://localhost:9090{{ template "server.routePrefixURL" . }}/api/v1/admin/tsdb/snapshot -X POST |awk -F '\"' '{print $10}'`; else break; fi; done; cp -r /data/snapshots/$result/* /prometheus-backup/; rm -rf /data/snapshots;"]  #<--command will be executed after sidecar insert
+      postBackupCmd: ["sh", "-c", "rm -rf /prometheus-backup/*"]               #<--command will be executed before removing sidecar and after backup(scp)
+      preRestoreCmd: ["sh", "-c", "rm -rf /prometheus/*"]               #<--command will be executed after sidecar insert
+      postRestoreCmd: ["sh", "-c", "cp -r /prometheus-backup/* /prometheus/"] #<-- comand will be executed before removing sidecar and after retore(scp)
+{{- end }}

@@ -1,0 +1,61 @@
+{{if .Values.enable_upgrade_hook}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: "{{ template "schema-registry.name" . }}-sr-postupg-job"
+  labels:
+    heritage: {{ .Release.Service | quote }}
+    release: {{ .Release.Name | quote }}
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+  annotations:
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: {{ .Values.global.seccompAllowedProfileNames }} 
+    seccomp.security.alpha.kubernetes.io/defaultProfileName: {{ .Values.global.seccompDefaultProfileName }}
+    "helm.sh/hook": post-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    "helm.sh/hook-weight": "-5"
+spec:
+  template:
+    metadata:
+      name: "{{ template "schema-registry.name" . }}-sr-postupg-pod"
+      labels:
+        heritage: {{.Release.Service | quote }}
+        release: {{.Release.Name | quote }}
+        chart: "{{.Chart.Name}}-{{.Chart.Version}}"
+      annotations:
+        seccomp.security.alpha.kubernetes.io/allowedProfileNames: {{ .Values.global.seccompAllowedProfileNames }} 
+        seccomp.security.alpha.kubernetes.io/defaultProfileName: {{ .Values.global.seccompDefaultProfileName }}
+    spec:
+      {{- if .Values.global.rbacEnable }}
+      serviceAccountName: {{ template "schema-registry.name" . }}-sradmin
+      {{- end }}
+      {{- if eq .Values.Security.enabled true }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: {{ .Values.Security.runAsUser }}
+        fsGroup: {{ .Values.Security.fsGroup }}
+      {{- end }}
+      restartPolicy: Never
+      containers:
+        - name: ckaf-schema-registry-postupg
+          image: "{{ .Values.global.registry4 }}/{{ .Values.KubectlTool.image.name }}:{{ .Values.KubectlTool.image.tag }}"
+          imagePullPolicy: {{ .Values.KubectlTool.image.pullPolicy }}
+          {{- if eq .Values.Security.enabled true }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            privileged: false
+            capabilities:
+              drop:
+                - all
+          {{- end }}
+          resources:
+{{ toYaml .Values.jobresources | indent 12 }}
+          command:
+          - bash
+          - -c
+          - |
+            # Since previous ckaf schema-registry charts doesn't have pre-rollback.yaml
+            {{- if .Values.global.prepareRollback }}
+            kubectl delete statefulset --cascade=false --namespace {{ .Release.Namespace }} -l app={{ .Chart.Name }},release={{ .Release.Name }}
+            {{- end }}
+{{- end }}
+

@@ -1,0 +1,13 @@
+---
+- name: "Upgrade virtual IPs"
+  shell: >
+    {{ helm }}  upgrade {{ virtualIpName }} {{ chartsPath }}/virtual-ip/app
+    --namespace {{ BP_NAMESPACE }}
+    --install
+    --set virtualIp.enabled={{ VIRTUAL_IP.ENABLED }}
+    --set instanceGroup.interface={{ VIRTUAL_IP.INTERFACE | quote }}
+    {{ vipAddressIPv4 | default('') }}
+    {{ vipAddressIPv6 | default('') }}
+    --wait
+    --timeout 60s
+  when: VIRTUAL_IP.ENABLED

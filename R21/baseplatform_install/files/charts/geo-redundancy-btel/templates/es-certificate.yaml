@@ -1,0 +1,21 @@
+{{- if .Values.global.certManager.used }}
+apiVersion: {{ .Values.global.certManager.api }}
+kind: Certificate
+metadata:
+  name: {{.Chart.Name}}-certificate-client
+  namespace: {{ .Release.Namespace }}
+spec:
+  secretName: {{.Chart.Name}}-tls-client
+  issuerRef:
+    name: {{ .Values.global.certManager.issuerRef.name }}
+    kind: {{ .Values.global.certManager.issuerRef.kind }}
+  duration: {{ .Values.global.certManager.duration }}
+  renewBefore: {{ .Values.global.certManager.renewBefore }}
+  commonName: admin
+  dnsNames:
+    - admin
+  usages:
+    - client auth
+#  organization:
+#    - Nokia
+{{- end }}

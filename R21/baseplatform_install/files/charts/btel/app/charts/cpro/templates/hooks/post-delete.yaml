@@ -1,0 +1,64 @@
+{{- if .Values.ha.enabled -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: "{{ template "prometheus.hooks.postDeleteDepName" . }}"
+  labels:
+    app: {{ template "prometheus.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+{{- include "prometheus-labels" (tuple .Values.global.labels) | indent 4}}
+  annotations:
+{{- include "prometheus-annotations" (tuple .Values.global.annotations) | indent 4}}
+    "helm.sh/hook": post-delete
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": hook-succeeded, hook-failed
+spec:
+  template:
+    metadata:
+      labels:
+        app: {{ template "prometheus.name" . }}
+        chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+        release: "{{ .Release.Name }}"
+        heritage: "{{ .Release.Service }}"
+{{- include "custom-labels" (tuple .Values.custom.pod.labels) | indent 8}}
+      annotations:
+        # TODO FEATURE enable
+        sidecar.istio.io/inject: "false"
+{{- include "custom-annotations" (tuple .Values.custom.pod.annotations) | indent 8}}
+{{- if .Values.rbac.pspUseAppArmor }}
+{{- include "custom-annotations" (tuple .Values.custom.pod.apparmorAnnotations) | indent 8}}
+{{- end }}
+    spec:
+      restartPolicy: Never
+      {{- if or .Values.serviceAccountName .Values.global.serviceAccountName }}
+      serviceAccountName: {{ template "prometheus.serviceAccountName" . }}
+      {{- else if .Values.rbac.enabled }}
+      serviceAccountName: {{ template "prometheus.serviceAccount.fullname" . }}-post-delete
+      {{- else }}
+      serviceAccountName: "default"
+      {{- end }}
+      {{- if .Values.seLinuxOptions.enabled }}
+      securityContext:
+        seLinuxOptions:
+          level: {{ .Values.seLinuxOptions.level }}
+          role: {{ .Values.seLinuxOptions.role }}
+          type: {{ .Values.seLinuxOptions.type }}
+          user: {{ .Values.seLinuxOptions.user }}
+      {{- end }}
+      containers:
+      - name: "{{ template "prometheus.hooks.containerName" . }}" 
+        image: "{{ .Values.global.registry }}/{{ .Values.helmDeleteImage.imageRepo }}:{{ .Values.helmDeleteImage.imageTag }}"
+        imagePullPolicy: "{{ .Values.helmDeleteImage.imagePullPolicy }}"
+        resources:
+{{ toYaml .Values.helmDeleteImage.resources | indent 10 }}
+        command:
+        - sh
+        - -ec
+        - |
+          {{- if not .Values.persistence.reservePvc }}
+          kubectl delete pvc --namespace {{ .Release.Namespace }} -l release={{ .Release.Name }},app={{ template "prometheus.name" . }}
+          {{- end }}
+          kubectl delete secret --namespace {{ .Release.Namespace }} -l release={{ .Release.Name }},app={{ template "prometheus.name" . }}
+{{- end }}

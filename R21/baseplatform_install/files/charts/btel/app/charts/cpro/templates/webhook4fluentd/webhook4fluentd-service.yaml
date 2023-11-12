@@ -1,0 +1,75 @@
+{{- if .Values.webhook4fluentd.enabled -}}
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    prometheus.io/port: "8004"
+{{ toYaml .Values.webhook4fluentd.service.annotationsForScrape | indent 4 }}
+{{- include "prometheus-annotations" (tuple .Values.global.annotations) | indent 4}}
+{{- if .Values.webhook4fluentd.service.annotations}}
+{{ toYaml .Values.webhook4fluentd.service.annotations | indent 4 }}
+{{- end }}
+  labels:
+    app: {{ template "prometheus.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    component: "{{ .Values.webhook4fluentd.name }}"
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+{{- if .Values.webhook4fluentd.service.labels }}
+{{ toYaml .Values.webhook4fluentd.service.labels | indent 4}}
+{{- end }}
+{{- include "prometheus-labels" (tuple .Values.global.labels) | indent 4}}
+  name: {{ template "prometheus.webhook4fluentd.fullname" . }}
+spec:
+{{- if .Values.webhook4fluentd.service.clusterIP }}
+  clusterIP: {{ .Values.webhook4fluentd.service.clusterIP | quote }}
+{{- end }}
+  ports:
+    - name: tcp-http
+      port: {{ .Values.webhook4fluentd.service.servicePort }}
+      protocol: TCP
+      targetPort: tcp-8004
+  selector:
+    app: {{ template "prometheus.name" . }}
+    component: "{{ .Values.webhook4fluentd.name }}"
+    release: {{ .Release.Name }}
+  type: "{{ .Values.webhook4fluentd.service.type }}"
+{{- end }}
+---
+{{- if .Values.webhook4fluentd.enabled -}}
+{{- if .Values.istio.enable -}}
+apiVersion: v1
+kind: Service
+metadata:
+{{- if or .Values.global.annotations .Values.webhook4fluentd.service.annotations }}
+  annotations:
+{{- include "prometheus-annotations" (tuple .Values.global.annotations) | indent 4}}
+{{- if .Values.webhook4fluentd.service.annotations}}
+{{ toYaml .Values.webhook4fluentd.service.annotations | indent 4 }}
+{{- end }}
+{{- end }}
+  labels:
+    app: {{ template "prometheus.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    component: "{{ .Values.webhook4fluentd.name }}"
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+{{- if .Values.webhook4fluentd.service.labels }}
+{{ toYaml .Values.webhook4fluentd.service.labels | indent 4}}
+{{- end }}
+{{- include "prometheus-labels" (tuple .Values.global.labels) | indent 4}}
+  name: {{ template "prometheus.webhook4fluentd.fullname" . }}-scr
+spec:
+  clusterIP: None
+  ports:
+    - name: tcp-http
+      port: 8004
+      protocol: TCP
+      targetPort: tcp-8004
+  selector:
+    app: {{ template "prometheus.name" . }}
+    component: "{{ .Values.webhook4fluentd.name }}"
+    release: {{ .Release.Name }}
+  type: ClusterIP
+{{- end }}
+{{- end }}

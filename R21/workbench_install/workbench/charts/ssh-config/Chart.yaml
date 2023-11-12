@@ -1,0 +1,4 @@
+apiVersion: v1
+description: NetGuard Network Access SSH Config
+name: ssh-config
+version: 1.0.0

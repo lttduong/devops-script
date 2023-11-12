@@ -1,0 +1,20 @@
+{{- if .Values.cbur.enabled }}
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{ .Chart.Name }}-nfs-pv-rw
+  annotations:
+    helm.sh/immutable-resource-policy: ignore
+spec:
+  capacity:
+    storage: 1Mi # doesn't matter - NFS share (having its own size) is mounted
+  accessModes:
+    - ReadWriteOnce
+  nfs:
+    server: {{ .Values.nfsServer.address }}
+    path: {{ .Values.nfsServer.backupsPath }}
+  mountOptions:
+    {{ .Values.nfsServer.mountOptions }}
+  persistentVolumeReclaimPolicy: Delete
+{{- end }}

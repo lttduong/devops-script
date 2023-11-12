@@ -1,0 +1,272 @@
+grafana:
+  replicas: 2
+  SetDatasource:
+    datasource:
+      url: "http://cpro-server-int.<BP_NAMESPACE_PLACEHOLDER>.<DNS_DOMAIN_PLACEHOLDER>:9090"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 1Gi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+
+gen3gppxml:
+  replicaCount: 2
+  antiAffinityMode: "hard"
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - topologyKey: "kubernetes.io/hostname"
+          labelSelector:
+            matchLabels:
+              app: gen3gppxml
+              release: btel
+  configOverride: |+
+    OVERRIDE_prometheus_url = http://cpro-server-int.<BP_NAMESPACE_PLACEHOLDER>.<DNS_DOMAIN_PLACEHOLDER>:9090/api/v1
+
+belk:
+  belk-elasticsearch:
+    elasticsearch_master:
+      resources:
+        requests:
+          cpu: "500m"
+          memory: "2Gi"
+        limits:
+          cpu: "1"
+          memory: "2Gi"
+    elasticsearch_client:
+      resources:
+        requests:
+          cpu: "500m"
+          memory: "2Gi"
+        limits:
+          cpu: "1"
+          memory: "2Gi"
+    esdata:
+      replicas: 2
+      resources:
+        requests:
+          cpu: "500m"
+          memory: "2Gi"
+        limits:
+          cpu: "1"
+          memory: "2Gi"
+    cbur:
+      cbura:
+        resources:
+          limits:
+            cpu: "1"
+            memory: "1Gi"
+          requests:
+            cpu: "500m"
+            memory: "1Gi"
+  belk-fluentd:
+    fluentd:
+      resources:
+        requests:
+          cpu: "400m"
+          memory: "768Mi"
+        limits:
+          cpu: "500m"
+          memory: "768Mi"
+  belk-kibana:
+    kibana:
+      replicas: 2
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: "kubernetes.io/hostname"
+              labelSelector:
+                matchLabels:
+                  role: gui
+                  release: btel
+                  component: elasticsearch
+      resources:
+        requests:
+          cpu: "500m"
+          memory: "2Gi"
+        limits:
+          cpu: "2"
+          memory: "2Gi"
+
+calm:
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - topologyKey: "kubernetes.io/hostname"
+          labelSelector:
+            matchLabels:
+              app: calm
+              release: btel
+  resources:
+    requests:
+      memory: 1024Mi
+      cpu: 250m
+    limits:
+      memory: 1024Mi
+      cpu: 500m
+  kubectl:
+    jobResources:
+      requests:
+        cpu: 200m
+        memory: 500Mi
+      limits:
+        cpu: 1
+        memory: 1Gi
+
+cnot:
+  cnot:
+    replicaCount: 2
+    affinity:
+      podAntiAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          - topologyKey: "kubernetes.io/hostname"
+            labelSelector:
+              matchLabels:
+                app: cnot
+                component: cnot
+                release: btel
+    resources:
+      requests:
+        cpu: "500m"
+        memory: "1Gi"
+      limits:
+        cpu: "1"
+        memory: "1Gi"
+  configmapReload:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        cpu: 10m
+        memory: 32Mi
+
+cpro:
+  configmapReload:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        cpu: 10m
+        memory: 32Mi
+  server:
+    antiAffinityMode: "hard"
+    resources:
+      requests:
+        cpu: 500m
+        memory: 12Gi
+      limits:
+        cpu: 2
+        memory: 12Gi
+  pushgateway:
+    replicaCount: 2
+    antiAffinityMode: "hard"
+    affinity:
+      podAntiAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          - topologyKey: "kubernetes.io/hostname"
+            labelSelector:
+              matchLabels:
+                app: cpro
+                component: pushgateway
+                release: btel
+    resources:
+      requests:
+        cpu: 10m
+        memory: 200Mi
+      limits:
+        cpu: 100m
+        memory: 200Mi
+  kubeStateMetrics:
+    replicaCount: 2
+    affinity:
+      podAntiAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          - topologyKey: "kubernetes.io/hostname"
+            labelSelector:
+              matchLabels:
+                app: cpro
+                component: kube-state-metrics
+                release: btel
+    resources:
+      requests:
+        cpu: 10m
+        memory: 200Mi
+      limits:
+        cpu: 100m
+        memory: 200Mi
+  nodeExporter:
+    resources:
+      limits:
+        cpu: 200m
+        memory: 32Mi
+      requests:
+        cpu: 100m
+        memory: 32Mi
+  restserver:
+    replicaCount: 2
+    antiAffinityMode: "hard"
+    affinity:
+      podAntiAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          - topologyKey: "kubernetes.io/hostname"
+            labelSelector:
+              matchLabels:
+                app: cpro
+                component: restserver
+                release: btel
+    resources:
+      requests:
+        cpu: 100m
+        memory: 512Mi
+      limits:
+        cpu: 1
+        memory: 512Mi
+  alertmanager:
+    antiAffinityMode: "hard"
+    resources:
+      requests:
+        cpu: 10m
+        memory: 1Gi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+
+db_configurator:
+  resources:
+    requests:
+      cpu: "10m"
+      memory: "300Mi"
+    limits:
+      cpu: "200m"
+      memory: "300Mi"
+
+crmq_configurator:
+  resources:
+    requests:
+      cpu: "10m"
+      memory: "300Mi"
+    limits:
+      cpu: "200m"
+      memory: "300Mi"
+
+grafana_configurator:
+  resources:
+    requests:
+      cpu: "200m"
+      memory: "300Mi"
+    limits:
+      cpu: "200m"
+      memory: "300Mi"
+
+cpro_configurator:
+  resources:
+    requests:
+      cpu: "200m"
+      memory: "300Mi"
+    limits:
+      cpu: "200m"
+      memory: "300Mi"

@@ -1,0 +1,29 @@
+httpServer:
+  overrideIngress: |+
+    apiVersion: extensions/v1beta1
+    kind: Ingress
+    metadata:
+      annotations:
+        kubernetes.io/ingress.class: <INGRESS_CLASS_PLACEHOLDER>
+        nginx.ingress.kubernetes.io/ssl-redirect: "true"
+        nginx.ingress.kubernetes.io/limit-rps: "50"
+        nginx.ingress.kubernetes.io/limit-connections: "20"
+        nginx.ingress.kubernetes.io/secure-backends: "true"
+        nginx.ingress.kubernetes.io/configuration-snippet: |
+          access_by_lua_block {
+            local auth = require("keycloak")
+            if not auth.isUserAccessingWhitelistedUrl({ "^/favicon.ico$",
+                                                        "^/start%-page/static/media/",
+                                                        "^/start%-page/static/css/" }) then
+              auth.authenticate()
+            end
+          }
+      name: start-page-citm-server
+    spec:
+      rules:
+      - http:
+          paths:
+          - backend:
+              serviceName: start-page-citm-server
+              servicePort: 8443
+            path: /

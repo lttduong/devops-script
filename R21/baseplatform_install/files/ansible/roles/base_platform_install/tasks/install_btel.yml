@@ -1,0 +1,336 @@
+---
+- name: "Installing BTEL CRMQ configurator"
+  shell:
+    "{{ helm }} delete {{ btelCrmqConfiguratorHelmName }} && sleep 120;
+    {{ helm }} install {{ chartsPath }}/btel/crmq-config
+    --name-template {{ btelCrmqConfiguratorHelmName }}
+    --namespace {{ BP_CONFIG_NAMESPACE }}
+    --values {{ chartsPath }}/values/global-values.yaml
+    {{ btelConfigurationOverride }}
+    {{ btelResourcesOverride }}
+    {{ btelStorageOverride }}
+    --set image.registry={{ bcmtRegistry }}
+    --set config.crmq.users.calm.passwordHash={{ crmq_calm_password_hash.stdout }}
+    --set dns.domain={{ svcDnsDomain }}
+    --timeout {{ wait_timeout }}s
+    --wait"
+  no_log: "{{ no_log }}"
+  retries: "{{ maxInstallStepRetries }}"
+  register: result
+  until: result.rc == 0
+
+- name: "Configure BTEL database"
+  shell: >
+    {{ helm }} delete {{ btelDatabaseConfigHelmName }} && sleep 120;
+    {{ helm }} install {{ chartsPath }}/btel/db-config
+    --name-template {{ btelDatabaseConfigHelmName }}
+    --namespace {{ BP_CONFIG_NAMESPACE }}
+    --values {{ chartsPath }}/values/global-values.yaml
+    {{ btelConfigurationOverride }}
+    {{ btelResourcesOverride }}
+    --set image.registry={{ bcmtRegistry }}
+    --set mariadb.calm_db_password={{ dbCalmPassword }}
+    --set mariadb.grafana_db_password={{ dbGrafanaPassword }}
+    --set cmdbConfiguratorEnabled={{ dbPopulatingEnabled }}
+    --timeout {{ wait_timeout }}s
+    --wait
+  no_log: "{{ no_log }}"
+  retries: "{{ maxInstallStepRetries }}"
+  register: result
+  until: result.rc == 0
+
+- name: "Install BTEL with EMAIL Notification"
+  shell: >
+    {{ helm }} install {{ chartsPath }}/btel/app
+    --name-template {{ btelHelmName }}
+    --namespace {{ BP_NAMESPACE }}
+    --values {{ chartsPath }}/values/global-values.yaml
+    --values {{ chartsPath }}/btel/app/override.yaml
+    {{ btelIpv6Override }}
+    {{ btelResourcesOverride }}
+    {{ btelConfigurationOverride }}
+    {{ btelStorageOverride }}
+    --set bpNamespace={{ BP_NAMESPACE }}
+    --set global.registry={{ bcmtRegistry }}
+    --set global.registry1={{ bcmtRegistry }}
+    --set global.registry2={{ bcmtRegistry }}
+    --set global.registry3={{ bcmtRegistry }}
+    --set global.registry4={{ bcmtRegistry }}
+    --set global.registry5={{ bcmtRegistry }}
+    --set dns.domain={{ svcDnsDomain }}
+    --set belk.belk-elasticsearch.searchguard.base64KeystorePasswd={{ belkElasticsearchKeystore | b64encode }}
+    --set belk.belk-elasticsearch.searchguard.base64TruststorePasswd={{ belkElasticsearchTruststore | b64encode }}
+    --set belk.belk-elasticsearch.persistence.size={{ belkDataStorageSize }}
+    --set belk.belk-elasticsearch.dns.domain={{ svcDnsDomain }}
+    --set belk.belk-curator.curator.indexRetentionDays={{ BELK_DATA_RETENTION_DAYS }}
+    --set belk.belk-fluentd.fluentd.calmMQPasswd={{ crmqCalmPassword }}
+    --set belk.belk-fluentd.dns.domain={{ svcDnsDomain }}
+    --set belk.belk-kibana.kibana.env[0].value="https://elasticsearch.{{ BP_NAMESPACE }}.{{ svcDnsDomain }}:9200"
+    --set belk.belk-kibana.dns.domain={{ svcDnsDomain }}
+    --set grafana.dns.domain={{ svcDnsDomain }}
+    --set cpro.dns.domain={{ svcDnsDomain }}
+    --set cnot.dns.domain={{ svcDnsDomain }}
+    --set calm.dns.domain={{ svcDnsDomain }}
+    --set calm.url="jdbc:mariadb:failover//cmdb-mysql.{{ BP_NAMESPACE }}.{{ svcDnsDomain }}:3306/calm_alma?useSSL=true&enabledSslProtocolSuites=TLSv1.2&trustServerCertificate=true"
+    --set calm.cnot.serverURL="https://cnot.{{ BP_NAMESPACE }}.{{ svcDnsDomain }}:443"
+    --set calm.mq.hostname="crmq-crmq-ext.{{ BP_NAMESPACE }}.{{ svcDnsDomain }}:5671"
+    --set cpro.alertmanagerFiles.alertmanager.yml.receivers[0].webhook_configs[0].url="https://cnot.{{ BP_NAMESPACE }}.{{ svcDnsDomain }}:443/api/cnot/v1/notif"
+    --set cpro.prometheus.yml.scrape_configs[0].targets[0]="fluentd.{{ BP_NAMESPACE }}.{{ svcDnsDomain }}:24224"
+    --set grafana.grafana_ini.database.password={{ dbGrafanaPassword }}
+    --set cpro-grafana.adminPassword={{ dbGrafanaPassword }}
+    --set grafana.adminPassword={{ dbGrafanaPassword }}
+    --set grafana.grafana_ini.database.host="cmdb-mysql.{{ BP_NAMESPACE }}.{{ svcDnsDomain }}:3306"
+    --set grafana.grafana_ini.database.server_cert_name="cmdb-mysql.{{ BP_NAMESPACE }}.{{ svcDnsDomain }}"
+    --set calm.mq.password={{ crmqCalmPasswordEncrypted.stdout }}
+    --set calm.password={{ dbCalmPasswordEncrypted.stdout }}
+    --set calm.notificationTargetsConfiguration[0].notifyName="notify1"
+    --set calm.notificationTargetsConfiguration[0].notifyIP={{ notifyip1 }}
+    --set calm.notificationTargetsConfiguration[0].notifyPort={{ notifyport1 }}
+    --set calm.notificationTargetsConfiguration[0].notifyParams={{ notifyparams }}
+    --set calm.notificationTargetsConfiguration[0].notifyType="trap"
+    --set calm.notificationTargetsConfiguration[0].context="contexta"
+    --set calm.notificationTargetsConfiguration[1].notifyName="notify2"
+    --set calm.notificationTargetsConfiguration[1].notifyIP={{ notifyip2 }}
+    --set calm.notificationTargetsConfiguration[1].notifyPort={{ notifyport2 }}
+    --set calm.notificationTargetsConfiguration[1].notifyParams={{ notifyparams }}
+    --set calm.notificationTargetsConfiguration[1].notifyType="trap"
+    --set calm.notificationTargetsConfiguration[1].context="contexta"
+    --set calm.notificationTargetsConfiguration[2].notifyName="notify3"
+    --set calm.notificationTargetsConfiguration[2].notifyIP={{ notifyip3 }}
+    --set calm.notificationTargetsConfiguration[2].notifyPort={{ notifyport3 }}
+    --set calm.notificationTargetsConfiguration[2].notifyParams={{ notifyparams }}
+    --set calm.notificationTargetsConfiguration[2].notifyType="inform"
+    --set calm.notificationTargetsConfiguration[2].context="admin"
+    --set calm.notificationTargetsConfiguration[3].notifyName="notify4"
+    --set calm.notificationTargetsConfiguration[3].notifyIP={{ notifyip4 }}
+    --set calm.notificationTargetsConfiguration[3].notifyPort={{ notifyport4 }}
+    --set calm.notificationTargetsConfiguration[3].notifyParams={{ notifyparams }}
+    --set calm.notificationTargetsConfiguration[3].notifyType="trap"
+    --set calm.notificationTargetsConfiguration[3].context="contexta"
+    --set calm.notificationTargetsConfiguration[4].notifyName="notify5"
+    --set calm.notificationTargetsConfiguration[4].notifyIP={{ notifyip5 }}
+    --set calm.notificationTargetsConfiguration[4].notifyPort={{ notifyport5 }}
+    --set calm.notificationTargetsConfiguration[4].notifyParams={{ notifyparams }}
+    --set calm.notificationTargetsConfiguration[4].notifyType="trap"
+    --set calm.notificationTargetsConfiguration[4].context="contexta"
+    --set calm.notificationTargetsConfiguration[5].notifyName="notify6"
+    --set calm.notificationTargetsConfiguration[5].notifyIP={{ notifyip6 }}
+    --set calm.notificationTargetsConfiguration[5].notifyPort={{ notifyport6 }}
+    --set calm.notificationTargetsConfiguration[5].notifyParams={{ notifyparams }}
+    --set calm.notificationTargetsConfiguration[5].notifyType="inform"
+    --set calm.notificationTargetsConfiguration[5].context="admin"
+    --set calm.cnot.truststorePassword={{ calmCnotTruststoreEncrypted.stdout }}
+    --set calm.cnot.truststorePasswordCert={{ calmCnotTruststore }}
+    --set calm.snmpNodePort={{ (BP_INITIAL_NODE_PORT + btelCalmSnmpNodePortOffset) | int }}
+    --set calm.restNodePort={{ (BP_INITIAL_NODE_PORT + btelCalmRestNodePortOffset) | int }}
+    --set calm.snmpTrapNodePort={{ (BP_INITIAL_NODE_PORT + btelCalmSnmpTrapNodePortOffset) | int }}
+    --set cnot.cnot-configmap.cnotFiles."app_conf\.yaml".CHANNELS.EMAIL.servers[0].id="{{ EMAIL_SERVER.ID }}"
+    --set cnot.cnot-configmap.cnotFiles."app_conf\.yaml".CHANNELS.EMAIL.servers[0].host="{{ EMAIL_SERVER.HOST }}"
+    --set cnot.cnot-configmap.cnotFiles."app_conf\.yaml".CHANNELS.EMAIL.servers[0].port="{{ EMAIL_SERVER.PORT }}"
+    --set cnot.cnot-configmap.cnotFiles."app_conf\.yaml".CHANNELS.EMAIL.servers[0].auth="{{ EMAIL_SERVER.AUTH }}"
+    --set cnot.cnot-configmap.cnotFiles."app_conf\.yaml".CHANNELS.EMAIL.servers[0].userName="{{ EMAIL_SERVER.USERNAME }}"
+    --set cnot.cnot-configmap.cnotFiles."app_conf\.yaml".CHANNELS.EMAIL.servers[0].password="{{ EMAIL_SERVER.PASSWORD }}"
+    --set cnot.cnot-configmap.cnotFiles."app_conf\.yaml".CHANNELS.EMAIL.servers[0].from="{{ EMAIL_SERVER.FROM }}"
+    --set cnot.cnot-configmap.cnotFiles."app_conf\.yaml".CHANNELS.EMAIL.servers[0].to="{{ EMAIL_SERVER.TO }}"
+    --set cnot.cnot-configmap.cnotFiles."app_conf\.yaml".CHANNELS.EMAIL.servers[0].sendAsHtml="{{ EMAIL_SERVER.SEND_AS_HTML }}"
+    --set cnot.cnot-configmap.cnotFiles."app_conf\.yaml".CHANNELS.EMAIL.servers[0].tls="{{ EMAIL_SERVER.TLS }}"
+    --set cnot.cnot-configmap.cnotFiles."app_conf\.yaml".CHANNELS.EMAIL.servers[0].starttls="{{ EMAIL_SERVER.STARTTLS }}"
+    --set cnot.cnot-configmap.cnotFiles."app_conf\.yaml".CHANNELS.EMAIL.servers[0].trustCert="{{ EMAIL_SERVER.TRUSTCERT }}"
+    --set cnot.cnot-configmap.cnotFiles."app_conf\.yaml".CHANNELS.EMAIL.servers[0].description="{{ EMAIL_SERVER.DESCRIPTION }}"
+    --set cnot.cnot-configmap.cnotFiles."app_conf\.yaml".CHANNELS.EMAIL.default="{{ EMAIL_SERVER.ID }}"
+    --set cnot.cnot-configmap.cnotFiles."app_conf\.yaml".PROFILES[1].channels[0].content[0].transform.from.default="{{ EMAIL_SERVER.FROM }}"
+    --set cnot.cnot-configmap.cnotFiles."app_conf\.yaml".PROFILES[1].channels[0].content[0].transform.sendAsHtml.default="{{ EMAIL_SERVER.SEND_AS_HTML }}"
+    --set cnot.cnot-configmap.cnotFiles."app_conf\.yaml".PROFILES[1].channels[0].content[0].transform.to.default="{{ EMAIL_SERVER.TO }}"
+    --set cnot.service.nodePort={{ (BP_INITIAL_NODE_PORT + btelCnotServiceNodePortOffset) | int }}
+    --set cnot.service.nodePortHTTPS={{ (BP_INITIAL_NODE_PORT + btelCnotServiceHttpsNodePortOffset) | int }}
+    --set belk.belk-elasticsearch.cbur.enabled="{{ CBUR.BTEL.ENABLED | default(false) }}"
+    --set cbur.enabled="{{ CBUR.BTEL.ENABLED | default(false) }}"
+    --set belk.belk-elasticsearch.cbur.autoEnableCron={{ CBUR.BTEL.SCHEDULE.ENABLED }}
+    --set belk.belk-elasticsearch.cbur.autoUpdateCron={{ CBUR.BTEL.SCHEDULE.ENABLED }}
+    --set belk.belk-elasticsearch.cbur.cronJob="{{ CBUR.BTEL.SCHEDULE.CRONJOB | default('0 0 * * *') }}"
+    --set belk.belk-elasticsearch.cbur.maxCopy={{ CBUR.BTEL.COPIES | default(3) }}
+    --set belk.belk-elasticsearch.cbur.backendMode={{ CBUR.BACKEND_MODE }}
+    --set belk.belk-elasticsearch.nfsServer.address={{ CBUR.NFS_SERVER.ADDRESS }}
+    --set belk.belk-elasticsearch.nfsServer.backupsPath="{{ CBUR.NFS_SERVER.BACKUPS_PATH }}/{{ CBUR.BTEL.ELASTIC.BACKUPS_SUBPATH }}"
+    --set belk.belk-elasticsearch.snapshotsCleanupInterval="{{ CBUR.BTEL.ELASTIC.SNAPSHOTS_CLEANUP_INTERVAL_DAYS }}"
+    --set belk.belk-elasticsearch.service.client_nodeport={{ (BP_INITIAL_NODE_PORT + btelBelkEsClientNodePortOffset) | int }}
+    --set belk.belk-elasticsearch.service.master_nodeport={{ (BP_INITIAL_NODE_PORT + btelBelkEsMasterNodePortOffset) | int }}
+    --set belk.belk-elasticsearch.kibana.node_port={{ (BP_INITIAL_NODE_PORT + btelBelkKibanaNodePortOffset) | int }}
+    --set cpro.server.persistentVolume.size={{ cproStorageSize }}
+    --set cpro.server.retention.size={{ cproRetentionSize }}
+    --set cpro.restserver.BCMT.serverURL={{ K8S_MASTER_API_SERVER_URL | quote }}
+    --set cpro-grafana.clusterDomain={{ DNS_DOMAIN }}
+    --set cpro-gen3gppxml.dns.domain={{ svcDnsDomain }}
+    --set belk.belk-kibana.ingress.annotations."kubernetes\.io\/ingress\.class"={{ INGRESS_CLASS }}
+    --set cnot.cnot.ingress.annotations."kubernetes\.io\/ingress\.class"={{ INGRESS_CLASS }}
+    --set grafana.ingress.annotations."kubernetes\.io\/ingress\.class"={{ INGRESS_CLASS }}
+    --set cpro.server.service.nodePort={{ (BP_INITIAL_NODE_PORT + btelCproServerNodePortOffset) | int }}
+    --set cpro.restserver.service.nodePort={{ (BP_INITIAL_NODE_PORT + btelCproRestserverNodePortOffset) | int }}
+    --set cpro.pushgateway.service.nodePort={{ (BP_INITIAL_NODE_PORT + btelCproPushgatewayNodePortOffset) | int }}
+    --set cpro.alertmanager.service.nodePort={{ (BP_INITIAL_NODE_PORT + btelCproAlertmanagerNodePortOffset) | int }}
+    --set cpro.nodeExporter.service.podHostPort={{ NODE_EXPORTER_HOST_PORT | default (((BP_INITIAL_NODE_PORT + btelCproNodeExporterHostPortOffset) | int), true) }}
+    --set cpro.nodeExporter.service.podContainerPort={{ NODE_EXPORTER_HOST_PORT | default (((BP_INITIAL_NODE_PORT + btelCproNodeExporterHostPortOffset) | int), true) }}
+    --set cpro.nodeExporter.extraArgs."web\.listen-address"=":{{ NODE_EXPORTER_HOST_PORT | default (((BP_INITIAL_NODE_PORT + btelCproNodeExporterHostPortOffset) | int), true) }}"
+    --set cpro-gen3gppxml.service.sftpNodePort={{ (BP_INITIAL_NODE_PORT + btelCproGen3gppXmlSftpNodePortOffset) | int }}
+    --set cpro-gen3gppxml.service.restHttpNodePort={{ (BP_INITIAL_NODE_PORT + btelCproGen3gppXmlHttpNodePortOffset) | int }}
+    --set cpro-gen3gppxml.service.restHttpsNodePort={{ (BP_INITIAL_NODE_PORT + btelCproGen3gppXmlHttpsNodePortOffset) | int }}
+    {{ btelGeoPassiveSettings | default('') }}
+    {{ btelGeoSettings | default('') }}
+    --wait
+    --timeout 1500s
+  when: emailenabled|bool
+  no_log: "{{ no_log }}"
+
+- name: "Install BTEL without EMAIL Notification"
+  shell: >
+    {{ helm }} install {{ chartsPath }}/btel/app
+    --name-template {{ btelHelmName }}
+    --namespace {{ BP_NAMESPACE }}
+    --values {{ chartsPath }}/values/global-values.yaml
+    --values {{ chartsPath }}/btel/app/override.yaml
+    --values {{ chartsPath }}/btel/app/cnot-no-email-override.yaml
+    {{ btelIpv6Override }}
+    {{ btelResourcesOverride }}
+    {{ btelConfigurationOverride }}
+    {{ btelStorageOverride }}
+    --set bpNamespace={{ BP_NAMESPACE }}
+    --set global.registry={{ bcmtRegistry }}
+    --set global.registry1={{ bcmtRegistry }}
+    --set global.registry2={{ bcmtRegistry }}
+    --set global.registry3={{ bcmtRegistry }}
+    --set global.registry4={{ bcmtRegistry }}
+    --set global.registry5={{ bcmtRegistry }}
+    --set dns.domain={{ svcDnsDomain }}
+    --set belk.belk-elasticsearch.searchguard.base64KeystorePasswd={{ belkElasticsearchKeystore | b64encode }}
+    --set belk.belk-elasticsearch.searchguard.base64TruststorePasswd={{ belkElasticsearchTruststore | b64encode }}
+    --set belk.belk-elasticsearch.persistence.size={{ belkDataStorageSize }}
+    --set belk.belk-elasticsearch.dns.domain={{ svcDnsDomain }}
+    --set belk.belk-curator.curator.indexRetentionDays={{ BELK_DATA_RETENTION_DAYS }}
+    --set belk.belk-fluentd.fluentd.calmMQPasswd={{ crmqCalmPassword }}
+    --set belk.belk-fluentd.dns.domain={{ svcDnsDomain }}
+    --set belk.belk-kibana.kibana.env[0].value="https://elasticsearch.{{ BP_NAMESPACE }}.{{ svcDnsDomain }}:9200"
+    --set belk.belk-kibana.dns.domain={{ svcDnsDomain }}
+    --set grafana.dns.domain={{ svcDnsDomain }}
+    --set cpro.dns.domain={{ svcDnsDomain }}
+    --set cnot.dns.domain={{ svcDnsDomain }}
+    --set calm.dns.domain={{ svcDnsDomain }}
+    --set calm.url="jdbc:mariadb:failover//cmdb-mysql.{{ BP_NAMESPACE }}.{{ svcDnsDomain }}:3306/calm_alma?useSSL=true&enabledSslProtocolSuites=TLSv1.2&trustServerCertificate=true"
+    --set calm.cnot.serverURL="https://cnot.{{ BP_NAMESPACE }}.{{ svcDnsDomain }}:443"
+    --set calm.mq.hostname="crmq-crmq-ext.{{ BP_NAMESPACE }}.{{ svcDnsDomain }}:5671"
+    --set cpro.alertmanagerFiles.alertmanager.yml.receivers[0].webhook_configs[0].url="https://cnot.{{ BP_NAMESPACE }}.{{ svcDnsDomain }}:443/api/cnot/v1/notif"
+    --set cpro.prometheus.yml.scrape_configs[0].targets[0]="fluentd.{{ BP_NAMESPACE }}.{{ svcDnsDomain }}:24224"
+    --set grafana.grafana_ini.database.password={{ dbGrafanaPassword }}
+    --set cpro-grafana.adminPassword={{ dbGrafanaPassword }}
+    --set grafana.adminPassword={{ dbGrafanaPassword }}
+    --set grafana.grafana_ini.database.host="cmdb-mysql.{{ BP_NAMESPACE }}.{{ svcDnsDomain }}:3306"
+    --set grafana.grafana_ini.database.server_cert_name="cmdb-mysql.{{ BP_NAMESPACE }}.{{ svcDnsDomain }}"
+    --set calm.mq.password={{ crmqCalmPasswordEncrypted.stdout }}
+    --set calm.password={{ dbCalmPasswordEncrypted.stdout }}
+    --set calm.notificationTargetsConfiguration[0].notifyName="notify1"
+    --set calm.notificationTargetsConfiguration[0].notifyIP={{ notifyip1 }}
+    --set calm.notificationTargetsConfiguration[0].notifyPort={{ notifyport1 }}
+    --set calm.notificationTargetsConfiguration[0].notifyParams={{ notifyparams }}
+    --set calm.notificationTargetsConfiguration[0].notifyType="trap"
+    --set calm.notificationTargetsConfiguration[0].context="contexta"
+    --set calm.notificationTargetsConfiguration[1].notifyName="notify2"
+    --set calm.notificationTargetsConfiguration[1].notifyIP={{ notifyip2 }}
+    --set calm.notificationTargetsConfiguration[1].notifyPort={{ notifyport2 }}
+    --set calm.notificationTargetsConfiguration[1].notifyParams={{ notifyparams }}
+    --set calm.notificationTargetsConfiguration[1].notifyType="trap"
+    --set calm.notificationTargetsConfiguration[1].context="contexta"
+    --set calm.notificationTargetsConfiguration[2].notifyName="notify3"
+    --set calm.notificationTargetsConfiguration[2].notifyIP={{ notifyip3 }}
+    --set calm.notificationTargetsConfiguration[2].notifyPort={{ notifyport3 }}
+    --set calm.notificationTargetsConfiguration[2].notifyParams={{ notifyparams }}
+    --set calm.notificationTargetsConfiguration[2].notifyType="inform"
+    --set calm.notificationTargetsConfiguration[2].context="admin"
+    --set calm.notificationTargetsConfiguration[3].notifyName="notify4"
+    --set calm.notificationTargetsConfiguration[3].notifyIP={{ notifyip4 }}
+    --set calm.notificationTargetsConfiguration[3].notifyPort={{ notifyport4 }}
+    --set calm.notificationTargetsConfiguration[3].notifyParams={{ notifyparams }}
+    --set calm.notificationTargetsConfiguration[3].notifyType="trap"
+    --set calm.notificationTargetsConfiguration[3].context="contexta"
+    --set calm.notificationTargetsConfiguration[4].notifyName="notify5"
+    --set calm.notificationTargetsConfiguration[4].notifyIP={{ notifyip5 }}
+    --set calm.notificationTargetsConfiguration[4].notifyPort={{ notifyport5 }}
+    --set calm.notificationTargetsConfiguration[4].notifyParams={{ notifyparams }}
+    --set calm.notificationTargetsConfiguration[4].notifyType="trap"
+    --set calm.notificationTargetsConfiguration[4].context="contexta"
+    --set calm.notificationTargetsConfiguration[5].notifyName="notify6"
+    --set calm.notificationTargetsConfiguration[5].notifyIP={{ notifyip6 }}
+    --set calm.notificationTargetsConfiguration[5].notifyPort={{ notifyport6 }}
+    --set calm.notificationTargetsConfiguration[5].notifyParams={{ notifyparams }}
+    --set calm.notificationTargetsConfiguration[5].notifyType="inform"
+    --set calm.notificationTargetsConfiguration[5].context="admin"
+    --set calm.cnot.truststorePassword={{ calmCnotTruststoreEncrypted.stdout }}
+    --set calm.cnot.truststorePasswordCert={{ calmCnotTruststore }}
+    --set calm.snmpNodePort={{ (BP_INITIAL_NODE_PORT + btelCalmSnmpNodePortOffset) | int }}
+    --set calm.restNodePort={{ (BP_INITIAL_NODE_PORT + btelCalmRestNodePortOffset) | int }}
+    --set calm.snmpTrapNodePort={{ (BP_INITIAL_NODE_PORT + btelCalmSnmpTrapNodePortOffset) | int }}
+    --set belk.belk-elasticsearch.cbur.enabled="{{ CBUR.BTEL.ENABLED | default(false) }}"
+    --set cbur.enabled="{{ CBUR.BTEL.ENABLED | default(false) }}"
+    --set belk.belk-elasticsearch.cbur.cronJob="{{ CBUR.BTEL.SCHEDULE.CRONJOB | default('0 0 * * *') }}"
+    --set belk.belk-elasticsearch.cbur.maxCopy={{ CBUR.BTEL.COPIES | default(3) }}
+    --set belk.belk-elasticsearch.cbur.autoEnableCron={{ CBUR.BTEL.SCHEDULE.ENABLED }}
+    --set belk.belk-elasticsearch.cbur.autoUpdateCron={{ CBUR.BTEL.SCHEDULE.ENABLED }}
+    --set belk.belk-elasticsearch.cbur.backendMode={{ CBUR.BACKEND_MODE }}
+    --set belk.belk-elasticsearch.nfsServer.address={{ CBUR.NFS_SERVER.ADDRESS }}
+    --set belk.belk-elasticsearch.nfsServer.backupsPath="{{ CBUR.NFS_SERVER.BACKUPS_PATH }}/{{ CBUR.BTEL.ELASTIC.BACKUPS_SUBPATH }}"
+    --set belk.belk-elasticsearch.snapshotsCleanupInterval="{{ CBUR.BTEL.ELASTIC.SNAPSHOTS_CLEANUP_INTERVAL_DAYS }}"
+    --set belk.belk-elasticsearch.service.client_nodeport={{ (BP_INITIAL_NODE_PORT + btelBelkEsClientNodePortOffset) | int }}
+    --set belk.belk-elasticsearch.service.master_nodeport={{ (BP_INITIAL_NODE_PORT + btelBelkEsMasterNodePortOffset) | int }}
+    --set belk.belk-elasticsearch.kibana.node_port={{ (BP_INITIAL_NODE_PORT + btelBelkKibanaNodePortOffset) | int }}
+    --set cnot.service.nodePort={{ (BP_INITIAL_NODE_PORT + btelCnotServiceNodePortOffset) | int }}
+    --set cnot.service.nodePortHTTPS={{ (BP_INITIAL_NODE_PORT + btelCnotServiceHttpsNodePortOffset) | int }}
+    --set cpro.server.persistentVolume.size={{ cproStorageSize }}
+    --set cpro.server.retention.size={{ cproRetentionSize }}
+    --set cpro.restserver.BCMT.serverURL={{ K8S_MASTER_API_SERVER_URL | quote }}
+    --set cpro-grafana.clusterDomain={{ DNS_DOMAIN }}
+    --set cpro-gen3gppxml.dns.domain={{ svcDnsDomain }}
+    --set belk.belk-kibana.ingress.annotations."kubernetes\.io\/ingress\.class"={{ INGRESS_CLASS }}
+    --set cnot.cnot.ingress.annotations."kubernetes\.io\/ingress\.class"={{ INGRESS_CLASS }}
+    --set grafana.ingress.annotations."kubernetes\.io\/ingress\.class"={{ INGRESS_CLASS }}
+    --set cpro.server.service.nodePort={{ (BP_INITIAL_NODE_PORT + btelCproServerNodePortOffset) | int }}
+    --set cpro.restserver.service.nodePort={{ (BP_INITIAL_NODE_PORT + btelCproRestserverNodePortOffset) | int }}
+    --set cpro.pushgateway.service.nodePort={{ (BP_INITIAL_NODE_PORT + btelCproPushgatewayNodePortOffset) | int }}
+    --set cpro.alertmanager.service.nodePort={{ (BP_INITIAL_NODE_PORT + btelCproAlertmanagerNodePortOffset) | int }}
+    --set cpro.nodeExporter.service.podHostPort={{ (BP_INITIAL_NODE_PORT + btelCproNodeExporterHostPortOffset) | int }}
+    --set cpro.nodeExporter.service.podContainerPort={{ (BP_INITIAL_NODE_PORT + btelCproNodeExporterHostPortOffset) | int }}
+    --set cpro.nodeExporter.extraArgs."web\.listen-address"=":{{ (BP_INITIAL_NODE_PORT + btelCproNodeExporterHostPortOffset) | int }}"
+    --set cpro-gen3gppxml.service.sftpNodePort={{ (BP_INITIAL_NODE_PORT + btelCproGen3gppXmlSftpNodePortOffset) | int }}
+    --set cpro-gen3gppxml.service.restHttpNodePort={{ (BP_INITIAL_NODE_PORT + btelCproGen3gppXmlHttpNodePortOffset) | int }}
+    --set cpro-gen3gppxml.service.restHttpsNodePort={{ (BP_INITIAL_NODE_PORT + btelCproGen3gppXmlHttpsNodePortOffset) | int }}
+    {{ btelGeoPassiveSettings | default('') }}
+    {{ btelGeoSettings | default('') }}
+    --wait
+    --timeout 1500s
+  when: not emailenabled|bool
+  no_log: "{{ no_log }}"
+
+- name: "Install Grafana Config"
+  shell: >
+    {{ helm }} install {{ chartsPath }}/btel/grafana-config/
+    --name-template {{ btelGrafanaConfiguratorHelmName }}
+    --namespace {{ BP_NAMESPACE }}
+    --values {{ chartsPath }}/values/global-values.yaml
+    {{ btelResourcesOverride }}
+    --set bpNamespace={{ BP_NAMESPACE }}
+    --set image.registry={{ bcmtRegistry }}
+    --set image.tag={{ bp_version }}
+    --set dns.domain={{ svcDnsDomain }}
+    {{ grafanaConfigGeoPassiveSettings | default('') }}
+    --timeout {{ wait_timeout }}s --wait
+  no_log: "{{ no_log }}"
+
+- name: "Install CPRO Config"
+  shell: >
+    {{ helm }} install {{ chartsPath }}/btel/cpro-config/
+    --name-template {{ cproGrafanaConfiguratorHelmName }}
+    --namespace {{ BP_NAMESPACE }}
+    --values {{ chartsPath }}/values/global-values.yaml
+    {{ btelResourcesOverride }}
+    --set bpNamespace={{ BP_NAMESPACE }}
+    --set image.registry={{ bcmtRegistry }}
+    --set image.tag={{ bp_version }}
+    --timeout {{ wait_timeout }}s --wait
+  no_log: "{{ no_log }}"

@@ -1,0 +1,29 @@
+{{- if .Values.istio.enabled }}
+{{- $has_security_api := .Capabilities.APIVersions.Has "security.istio.io/v1beta1" }}
+{{- if $has_security_api }}
+apiVersion: "security.istio.io/v1beta1"
+kind: "PeerAuthentication"
+{{- else }}
+apiVersion: "authentication.istio.io/v1alpha1"
+kind: "Policy"
+{{- end }}
+metadata:
+  labels:
+    app: {{ template "alarm.name" . }}
+    chart: {{ .Chart.Name }}
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+    version: {{ .Chart.Version }}
+  name: {{ template "alarm.fullname" . }}-mtls-authn
+  namespace: {{ .Release.Namespace }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ template "alarm.fullname" . }}
+  mtls:
+{{- if .Values.istio.permissive }}
+    mode: PERMISSIVE
+{{- else }}
+    mode: STRICT
+{{- end }}
+{{- end }}

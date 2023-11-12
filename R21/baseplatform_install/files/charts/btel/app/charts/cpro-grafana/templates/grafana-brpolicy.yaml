@@ -1,0 +1,46 @@
+{{- if .Values.cbur.enabled }}
+apiVersion: "cbur.bcmt.local/v1"
+kind: BrPolicy
+metadata:
+  name: {{ template "grafana.stsName" . }} #<--must have the same name as deployment/statefulset which you want to backup
+spec:
+  selector:
+    matchLabels:
+      app: {{ template "grafana.name" . }}  #<--unique label of pod that identify the pods of deployment and statefulset
+  volumes:
+{{- if or (.Values.cmdb.enabled) (.Values.cmdb.need_deployed) }}
+  - appdata   #<---volume name you want to backup. NOTE: not mount path
+{{- else }}
+  - storage   #<---volume name you want to backup. NOTE: not mount path
+{{- end}}
+  backend:
+    mode: {{ .Values.cbur.backendMode }}           #<---not other mode allowed/supported now
+  autoEnableCron: {{ .Values.cbur.autoEnableCron | default false }}
+  autoUpdateCron: {{ .Values.cbur.autoUpdateCron | default false }}
+  cronSpec: '{{ .Values.cbur.cronJob }}'  #<---cronjob frequency, here means very 5 minutes of every day
+  maxiCopy: {{ .Values.cbur.maxCopy }}               #<---the maximum copy you want to saved. 
+  hooks:
+{{- if or (.Values.cmdb.enabled) (.Values.cmdb.need_deployed) }}
+  - name: {{ template "grafana.grafanaMdbtool" . }}  #<---container name in the pod where you want to execute hooks.
+    commands:
+    {{- if .Values.cmdb.need_deployed }}
+      preBackupCmd: ["sh", "-c", "/usr/bin/grafana_backup.sh {{ template "grafana.cmdb.fullname" $ }} {{ .Values.dbName }} {{ .Values.dbUser }} {{ .Values.dbPassword }} "]  #<--command will be executed after sidecar insert
+      postBackupCmd: []               #<--command will be executed before removing sidecar and after backup(scp)
+      preRestoreCmd: []               #<--command will be executed after sidecar insert
+      postRestoreCmd: ["sh", "-c", "/usr/bin/grafana_restore.sh {{ template "grafana.cmdb.fullname" $ }} {{ .Values.dbName }} {{ .Values.dbUser }} {{ .Values.dbPassword }} "] #<-- comand will be executed before removing sidecar and after retore(scp)
+
+    {{- else }}
+      preBackupCmd: ["sh", "-c", "/usr/bin/grafana_backup.sh {{ .Values.dbIP }} {{ .Values.dbName }} {{ .Values.dbUser }} {{ .Values.dbPassword }} "]  #<--command will be executed after sidecar insert
+      postBackupCmd: []               #<--command will be executed before removing sidecar and after backup(scp)
+      preRestoreCmd: []               #<--command will be executed after sidecar insert
+      postRestoreCmd: ["sh", "-c", "/usr/bin/grafana_restore.sh {{ .Values.dbIP }} {{ .Values.dbName }} {{ .Values.dbUser }} {{ .Values.dbPassword }} "] #<-- comand will be executed before removing sidecar and after retore(scp)
+    {{- end }}
+{{- else }}
+  - name: {{ template "grafana.grafanaContainer" . }}  #<---container name in the pod where you want to execute hooks.
+    commands:
+      preBackupCmd: []  #<--command will be executed after sidecar insert
+      postBackupCmd: []               #<--command will be executed before removing sidecar and after backup(scp)
+      preRestoreCmd: []               #<--command will be executed after sidecar insert
+      postRestoreCmd: ["sh", "-c", "kill -15 1"] #<-- comand will be executed before removing sidecar and after retore(scp)
+{{- end}}
+{{- end}}

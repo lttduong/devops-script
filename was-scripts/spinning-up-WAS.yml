@@ -1,0 +1,9 @@
+---
+- import_playbook: was-r21-script/create_vm-node.yml
+- import_playbook: was-r21-script/install-k8s-cluster.yml
+- import_playbook: was-r21-script/install-baseplatform.yml
+- import_playbook: was-r21-script/install-was.yml
+- import_playbook: was-r21-script/install-workbench.yml
+- import_playbook: was-r21-script/getinfo-was.yml
+- import_playbook: was-r21-script/dpa-install/install-dpa.yml
+

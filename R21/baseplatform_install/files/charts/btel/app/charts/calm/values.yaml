@@ -1,0 +1,811 @@
+## Docker image registry
+global:
+  registry: csf-docker-delivered.repo.lab.pl.alcatel-lucent.com
+  ## Prefix for all Pod/Service/StatefulSet/Job
+  podNamePrefix:
+  ## Prefix for all containers
+  containerNamePrefix:
+
+## Docker image name and tag
+image:
+  imageRepo: calm/alma
+  ## Please quote the tag if it's numerical. E.g.: imageTag: "20180423053507"
+  imageTag: 9c82d092
+  imagePullPolicy: IfNotPresent
+
+## Does your cluster have rbac enabled? Assume true by default
+rbac:
+  enabled: true
+
+## ServiceType of the CALM REST service.
+## Allowed values: NodePort or ClusterIP.
+## Empty value means NodePort.
+restServiceType: NodePort
+
+## ServiceType of the CALM SNMP service.
+## Allowed values: NodePort or ClusterIP.
+## Empty value means NodePort.
+snmpServiceType: NodePort
+
+## NBI SNMP listening port for SNMP walk, GET and SET interface.
+## Transport is UDP
+listeningPort: 1161
+
+## SBI SNMP listening port for SNMP TRAP interface.
+## Transport is UDP.
+snmpTrapPort: 1162
+
+## NBI REST listening port
+restPort: 8182
+
+## Node port, the range of valid ports is 30000-32767. If undefined or set to null, ports are generated randomly.
+# snmpNodePort: 31161
+# snmpTrapNodePort: 31162
+# restNodePort: 30182
+
+## calm pods replicas. Should be set to 1, scaling is not supported.
+servers: 1
+
+## Log level setting, this parameter accepts "TRACE","DEBUG","INFO","WARN" or "ERROR", its value is "ERROR" by default
+logLevel: INFO
+
+## Enable persistence using Persistent Volume Claims
+## ref: http://kubernetes.io/docs/user-guide/persistent-volumes/
+## Upgrade is not allowed for this part.
+persistence:
+  enabled: true
+  accessMode: ReadWriteOnce
+  size: 3Gi
+  backupSize: 3Gi
+
+  ## Persistent Volume StorageClassName
+  ## Set`"-"` to disable dynamic provisioning.
+  ## Let undefined or set to `null` to choose the default provisioner. `gp2` on AWS, `standard` on GKE, AWS and OpenStack.
+  ## If defined, storageClassName: <storageClass>
+  ## If set to "-", storageClassName: "", which disables dynamic provisioning
+  ## If undefined (the default) or set to null, no storageClassName spec is
+  ##   set, choosing the default provisioner.  (gp2 on AWS, standard on
+  ##   GKE, AWS & OpenStack)
+  ## storageClass: "-"
+
+  ## Set pvc_auto_delete to true if you want the persistent volume to also get deleted on deletion of the Helm release.
+  ## This will delete all the previous data stored in the persistent volume.
+  pvc_auto_delete: false
+
+## Configure resource requests and limits
+## ref: http://kubernetes.io/docs/user-guide/compute-resources/
+resources:
+  requests:
+    memory: 256Mi
+    cpu: 250m
+  limits:
+    memory: 1024Mi
+    cpu: 500m
+
+## Node labels and tolerations for pod assignment
+## ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#nodeselector
+## ref: https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+############################
+## ALMA LCM Related Settings#
+#############################
+lcm:
+  scale_hooks: noupgradehooks
+  scale_timeout: 240
+  heal_flags: "--recreate-pods"
+  heal_timeout: 300
+
+
+backuprestore:
+  enabled: false
+  ## Refer to: https://confluence.app.alcatel-lucent.com/display/plateng/CBUR+-+Containerized+Backup+and+Recovery+Guide#CBUR-ContainerizedBackupandRecoveryGuide-crd_brpolicyBrPolicy
+  backendMode: "local"
+  cronJob: "*/10 * * * *"
+  brOption: 0
+  maxCopy: 5
+  pre_defined_sidecar:
+    enabled: true
+    imageRepo: cbur/cbura
+    imageTag: 1.0.3-1665
+    imagePullPolicy: IfNotPresent
+
+####################
+## Storage Settings#
+####################
+
+## Selects the persistence layer: jpa or etcd. Supported jpa implementation is MariaDB.
+storage: jpa
+
+## MariaDB Configurations
+driver: org.mariadb.jdbc.Driver
+## Only need to replace the IP address
+##url: jdbc:mariadb:failover//127.0.0.1:3306/calm_alma?socketTimeout=10000&sessionVariables=idle_transaction_timeout=30
+##url: jdbc:mariadb:failover//127.0.0.1:3306/calm_alma?socketTimeout=10000&useSSL=true&enabledSslProtocolSuites=TLSv1,TLSv1.1,TLSv1.2&trustServerCertificate=true
+##url: jdbc:mariadb:failover//127.0.0.1:3306/calm_alma?socketTimeout=10000&useSSL=true&keyStore=/tmp/mariadb.keystore&keyStorePassword=kspass&enabledSslProtocolSuites=TLSv1,TLSv1.1,TLSv1.2&serverSslCert=/etc/alma/mariadbServerCert.pem&disableSslHostnameVerification=true
+url:
+#MariaDB database user
+user: alma_dbuser
+## Passphrase for password. Example: mypassphrase
+passphrase:
+## Encrypted password using fpm-password tool. Example: U2FsdGVkX183WC8sB+xuoqDtewFZjha+YyR70TUbv5Q=
+password:
+##: MariaDB client private key. Example:
+##mariadbClientKey:|+
+##  -----BEGIN RSA PRIVATE KEY-----
+##  MIIEpQIBAAKCAQEA01FXQ7ItSD5zsKZ/Hw1aIwGeuf6PhI79CtaHcU8RrKAd7zBD
+##  oqc8p89dWOIfsn1E/lVlG1zvFfpgNgtPzeNnzJVLvIZJAzAm0jJtXaxYDnKiLrR9
+##  hzNeJXuLgp6FYjaXllY2VRVuX+3XX6IGle5olazlte/k+kHBUuOLlUbei8HqVCRF
+##  fp+UWkWz85u+QrQlz/EmfB/O8uZ4LJmO6yBDyB123gRyVmi/7c9jIyVclz9+f2uu
+##  3jo0Eg5NMuRKkHv8Hh8v9Nx0FrIaz/yr3MX2wqzVuVbEQXYbvXkdzvjyzeswNDEP
+##  bO1ER5efTQlIIpAqIe5Iz0phyT7tbh1OM7EiDQIDAQABAoIBAGBDuswk/AngIVXE
+##  0z4zF+/Aii1SsNCDTvTD+9l7WqLYIirXQshzBOexSGX4RNZLyMVP44pOkL/jWjbk
+##  ekthn+SL0n+kcNhZ9CVnQXkdzNNwFz/Niy2vEeFjYY90ZXDzS6T5yzCBXdGniKiR
+##  KAzfGZettstl6Fq037vB2tF7AmCJdrrVNP4uM6QPt/sHNsjyOe7espDK71wQJYfO
+##  NiIo/WGqw5MTD0AFWdtX91EU4mgUzIVM67UDpCsq6PcRXSIaMlSTu8UlVpk4z2Wy
+##  S4PGoQr3F8HyRXnZc+8rmKnhFYOPoH60OSp0WbeS68BKHmOXhlLVE4bIJqZyfwoD
+##  H17Ae8UCgYEA+BbxsxHlX0/QqkGcyiJ57cDgvBMnvJ+ZVQ+dI6+e9fLFuupN/Cbn
+##  7x4FOH7a+RkfTvuBQ6GAbCiIViYsO5s05VYmHjyq17+YEWShlos3x8kGCKPzs4NC
+##  brDt3dZc6waHGNgicAWw3SwI/oO9RVMDKg6mLy2TyE2Js/EL7q6RyksCgYEA2g4+
+##  G0ZctZd3YOCSi1c517zPN8fEedB9HdTiBrc4jz6l9+iCNnc3rII5Sj972AHOjG5E
+##  6JEU1byDfFyoqAolV/Fc4p6JgR58zeolJWd9C0gpPAPeUv/O32ukaxS+2WRyBlgq
+##  pWq9FT6w7KVEThUnKr2Hyl4e/mc65rQKFM8djgcCgYEA4qYLgF4sICxJ5RF2TVC7
+##  9dKNPiV92xwvt/9Av1Z1shpuPHpMbr2YjOLvQBLcuFAUQ1MQYBoOukE5dQMAzB/a
+##  bl6LCnrAVcSrB9DYszFS74meoowuW2Tibz/iwBVT5D+dcrwakh8Q2q6dNPBkHQ5e
+##  yLCDcHyCE6+Ky0K/dPo1JQsCgYEAvwI65Sl9jJRhvjr6I5UE1jZOTk5vjUVUVA1m
+##  8PsOUGxQdhj19z/3ROXNyXxSv6TVia4OLqrn1VKM2yNPmeNJUv/anajCSpiqOrYg
+##  U+OTZY6QkEHTPmFWld9051gE1elm+KfCs6QMfc+sq58ZdkyRQp9Dk8Fe5PsIXY7Y
+##  ReInwYECgYEA235JYikuSCBTjZpPfIrRge1MKMN+PaEzVsdGj++Gcx2ut8xU8Pio
+##  UikLtRWq+yuskL68zT8WgAlzwbYcwMrmiU96YUdGhKx5OSBiktrTvni21hV7eqXK
+##  dz8cjtcvl6JdGlWjW3swf7DUsC80YpDgLmKv0ibg8c61e45NLJSCBPQ=
+##  -----END RSA PRIVATE KEY-----
+mariadbClientKey:
+
+##: MariaDB client certificate. Example:
+##mariadbClientCert: |+
+##  -----BEGIN CERTIFICATE-----
+##  MIIC7jCCAdagAwIBAgIBAjANBgkqhkiG9w0BAQsFADATMREwDwYDVQQDDAhNeVRl
+##  c3RDQTAeFw0xODAzMjIxMDA4MTFaFw0xOTAzMjIxMDA4MTFaMDExHjAcBgNVBAMM
+##  FXl1bWwtdGVzdC5sb2NhbGRvbWFpbjEPMA0GA1UECgwGY2xpZW50MIIBIjANBgkq
+##  hkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA01FXQ7ItSD5zsKZ/Hw1aIwGeuf6PhI79
+##  CtaHcU8RrKAd7zBDoqc8p89dWOIfsn1E/lVlG1zvFfpgNgtPzeNnzJVLvIZJAzAm
+##  0jJtXaxYDnKiLrR9hzNeJXuLgp6FYjaXllY2VRVuX+3XX6IGle5olazlte/k+kHB
+##  UuOLlUbei8HqVCRFfp+UWkWz85u+QrQlz/EmfB/O8uZ4LJmO6yBDyB123gRyVmi/
+##  7c9jIyVclz9+f2uu3jo0Eg5NMuRKkHv8Hh8v9Nx0FrIaz/yr3MX2wqzVuVbEQXYb
+##  vXkdzvjyzeswNDEPbO1ER5efTQlIIpAqIe5Iz0phyT7tbh1OM7EiDQIDAQABoy8w
+##  LTAJBgNVHRMEAjAAMAsGA1UdDwQEAwIFoDATBgNVHSUEDDAKBggrBgEFBQcDAjAN
+##  BgkqhkiG9w0BAQsFAAOCAQEAEQM+e+8peUh49cdpKCxsGKShkcSw8DOPWbTb26Z2
+##  6jS+gE2XhWvvP2qk6i/A0SLvFtpPC2sf+cilA9ZonrH08jQAy/mw0spzG41lQ7Ir
+##  nE9jklhKrb8azrorNXMsYI7D7wKhGX4oL8aq7UND2A0cxQhYRvIg9pn/DIFiSAY4
+##  O4AyB2JqwBJRj7Wvgymtfqc1QVhuQD+iAUGcfBMZQctbpiQqZKi4wyzj6AnEn+pI
+##  3fGCSzLXVZlN2m4aXbhzRZd4mok1YcTa1yalxJymMoguakpzVGNO1UXyPQIXxeQH
+##  kJdafMTyYWPXygCdsaSHeggbr6oTpwd395bsA7lcE6d6xw==
+##  -----END CERTIFICATE-----
+mariadbClientCert:
+
+##: MariaDB server certificate. Example:
+##mariadbServerCert: |+
+##  -----BEGIN CERTIFICATE-----
+##  MIIC7jCCAdagAwIBAgIBATANBgkqhkiG9w0BAQsFADATMREwDwYDVQQDDAhNeVRl
+##  c3RDQTAeFw0xODAzMjIxMDA2MjlaFw0xOTAzMjIxMDA2MjlaMDExHjAcBgNVBAMM
+##  FXl1bWwtdGVzdC5sb2NhbGRvbWFpbjEPMA0GA1UECgwGc2VydmVyMIIBIjANBgkq
+##  hkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1/rzylTcz2zSC2764zAthjrtgiV3jd8G
+##  4LwpuXVVnv30ZUnXPdbk7KPlujrEBxbuxxtia/9hpYUTj5JtQk32sj2wPh5CmZOd
+##  FgstDqtz/oSpCWS31itef+szuKFzNzjNA7VSN/f1e7DQE8fCUT4iVyIQZuDlS6kb
+##  MjonNMgdy7RfXmavsGeUt3Kwzptx1VwIDHeUTi97ENrB+bn6MG2orjhAvQLatIFK
+##  GtJdt4oU8UvJ9eGBEwqcgxLeJz8F6Hs9RSYE3P+6s8KNi21hedI6gd6oS5u0zqGd
+##  B/XoCtadPde2uMv9/NkvU9sLvK0EATw2wnwp1dsmq3g/CWMiAapXJQIDAQABoy8w
+##  LTAJBgNVHRMEAjAAMAsGA1UdDwQEAwIFoDATBgNVHSUEDDAKBggrBgEFBQcDATAN
+##  BgkqhkiG9w0BAQsFAAOCAQEAKEK+NEJw3AyrDaeScnvccyBUXiEMG6eMkHXpMB0W
+##  PhQ7+MapQINL19HrVD3ZI9BDvP9Ky5+/z/7HrLB0ctVpDozKiGpUHPySf8qqlmdM
+##  qWNpvEI4Ye0yklWYMitHwP5CJDbF7jRIyotAb7II70HoDRsRJT9V3sDyTyYEX4rz
+##  6Mkxeds1t2WMau3WEevFTUNEgH087nCWIEN66iF1O6AnABRYdY2S2QxMBQE8NJhm
+##  +7cxmlNTBFmxCrUxsdIzQxUG1NjWHKgL5j81HOMHNHPE6fCT7OaDJKtJ9C5mW0Uv
+##  Q0UOKsIFlo/dfiRdVURaucPmtX/4zv6o3jRvBbUMxpSMTQ==
+##  -----END CERTIFICATE-----
+mariadbServerCert:
+
+## Etcd Configurations
+## Etcd endpoint: http://<IP:PORT>
+endPoint:
+##  Etcd system name, the root key of CALM specific data.
+systemName: calm
+
+##########################
+## Message Queue Settings#
+##########################
+
+## Message Queue Type (rabbitmq or kafka)
+messageQueueType: rabbitmq
+
+## Kafka MQ Configurations
+kafka:
+  ## The zookeeper server lists, separated by comma.
+  ## zookeeperServerUrls: 127.0.0.1:2181
+  zookeeperServerUrls:
+  ## The kafka topic name which the producer sends to.
+  topic: alma
+  ## The comma separated list of Kafka brokers.
+  ## Use the following format: <FQDN:Port> or <IP:Port>
+  ## Example: 127.0.0.1:9092
+  bootstrapServers:
+  enabledSSL: false
+  ## passphrase for the encrypted passwords.
+  ## Examle: 1234abcd
+  passphrase:
+  ## Encrypted password for keyStore using fpm-password tool.
+  ## Example: U2FsdGVkX1+UNn8nwyHwLxtZt8yEmsyIsoPWcWFmrj8=
+  keystorePassword:
+  ## Encrypted password for trustStore using fpm-password tool.
+  ## Example: U2FsdGVkX1+UNn8nwyHwLxtZt8yEmsyIsoPWcWFmrj8=
+  truststorePassword:
+
+  ## base64 encoded keyStore. Example:
+  ##  base64Keystore: |+
+  ##    /u3+7QAAAAIAAAACAAAAAgAGY2Fyb290AAABZoYn85YABVguNTA5AAADfzCCA3swggJjoAMCAQIC
+  ##    CQDXByqQwcsj6zANBgkqhkiG9w0BAQsFADBUMQswCQYDVQQGEwJDTjEQMA4GA1UECAwHQmVpamlu
+  ##    ZzEQMA4GA1UEBwwHQmVpamluZzESMBAGA1UECgwJTXlDb21wYW55MQ0wCwYDVQQDDARZdW1sMB4X
+  ##    DTE4MTAxODA3NTA1NloXDTE5MTAxODA3NTA1NlowVDELMAkGA1UEBhMCQ04xEDAOBgNVBAgMB0Jl
+  ##    aWppbmcxEDAOBgNVBAcMB0JlaWppbmcxEjAQBgNVBAoMCU15Q29tcGFueTENMAsGA1UEAwwEWXVt
+  ##    bDCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBANu7LmJkjxV53dwjfUxMHRxB66BehFoU
+  ##    6dShKfjQ4jC6qLNix2AWv47kVtKhpLZg1KHyjYBC2oHVnF/fPLbcOFZktdAzZWAtuwx8X1bxqfbS
+  ##    1ylh75zDMe6uc1GKuvns9HEfbXqf6UKAfdTZOy3O7M9dWmD1w00YXVyYvpAiEwyNIEz/Hxxo4wnG
+  ##    sdRK6XbUcKp+LF5Mq74IuZzgJMw3NjSnfO/i8ewnHHuVJH75FIE/CoEDz9ulaU3wmS0qqXbS0+hU
+  ##    lQK5yzfGVI7gOjhir58LhEKduK8Fb+fNmbVC8SfdF3/aCJ0XDgsurXRgL1iCfGntwQv6u5xjdsc1
+  ##    WCy3JncCAwEAAaNQME4wHQYDVR0OBBYEFIyIW44LifVXfi0iBNUJ/BaiCLLYMB8GA1UdIwQYMBaA
+  ##    FIyIW44LifVXfi0iBNUJ/BaiCLLYMAwGA1UdEwQFMAMBAf8wDQYJKoZIhvcNAQELBQADggEBADWP
+  ##    uL8nAcRdjjbktXG+6caY/3Df6cYBcz4wuahnF+UCIoIvK43wqHKg8AWG/2+eJE/LfYet0yBRfEe0
+  ##    juyztZi3orfJFVe/vNWg1dL+z8UKEbkUeSV4WfIxFWCLb0yBK+5Ts7D55g363CUv7JcdZWjgcF7s
+  ##    dIRIla2FQGeBR5eRrVg0PZ+ceQJwzVQoPXG13pDMFoG+u6vwrQjPHUXohT6YRD/I+mGAZDMJx8aN
+  ##    HmxfSGFx9MZZH6AkIsupq+WKdatkt9We6HeA/96YVNKzppSoL33QuIaOK2T/W1iqPm36LlpE1Kf3
+  ##    LbwTjcCWV/1RJzO8ZtvP58nY5iWij24TwMQAAAABAAl5dW1sLXRlc3QAAAFmhif0PwAABQAwggT8
+  ##    MA4GCisGAQQBKgIRAQEFAASCBOi3ZVpXhollpJVgm11t7e92gPJ9gopjhKSo4kupRco6odPblb2w
+  ##    /JapfUp8757GXVAdLzj/ZN22DqIMYaW4/exx9pvXVUlfglXtQi2yBYyT9TR2/w+o5wwAEvsr3lOB
+  ##    iHX00MBOC8eS8E2y2GB6Pxfw6mUM0rtEvmiKc9UQ4mBYyG4OjO+coK468eRRffDuIDILaR4TtN9M
+  ##    RY6f1nhj2qLBEqfuYJVp2umK7qOCgF/UNsIe/rd60OjQ2xaGlM4Fl5IHujcVC+J3PvwlUfBWTFBQ
+  ##    rOdRJv6ByQ6D6BfIwwWgeWms86EUjnb9qovkUZOQCHFJ5NVuDBoVhGbuicYzOqHBDR+v3gpXNSXg
+  ##    LTXtumSJgVkdZBVj5XqzlktbYLQEtkzKOf9O3yrIv9P4Iiv9laRMLSutHcCVOD1oPhpMcA2tviqK
+  ##    5pUp09CGjhI88Bqd6Dxa7UH6+SYKTOy7kX3eFflq86ywS+pTnK4ueWZROXQIEW3tK0ng9ZriCo10
+  ##    +lRmuq0P0SO2xuWe3WLmdcuQx8Xf9nUaqIK5NIAoqOvCKiVTj66XJrQxZfj67IDrnqnGxvCrWlv7
+  ##    Uokjk9hRQMlEURdEtOre/YYK2sLTjfMpx26WcPtSvXn+7+GUWwjI8rew3TBM9RWxb0Q0SuBUKDAr
+  ##    Wo6MXVvHpZ7EbCY9cHmFlqd06LECEMk7ivlQJyQMdWYxagS2LA5mUMArarTw6p4pXfKzWEsMnUi9
+  ##    hfkC7xFUxkbsEDuTfld5y9sqaVZuI/Bc+NHLZkZsLs/krUDQbVvGRiIykVUkK6pwA0+MdesZKYTv
+  ##    jhr2GYXQGKV+T3x85ezVRFHBceB9NAf+WxFL5jm3P0wTv1icn/KDV3gOaFA+3Mnfz49+9xDfwIhJ
+  ##    hrlXR+scH8EoaKkmSXzWIIg5C24v4EbIreVbhJkDuFozKYAtEp/YtMnOLouopzS7Fc2x4TbwW6Wa
+  ##    9FnOc2GKeSC2ANX67czyZnfhX82tDzJof6lf2YsMcth3bW3hak3SKSLXHxG4ZqgnQJwTnlAudtGN
+  ##    CnAjvB2p7cSv8UOF7vq9CPboST3OezktU/TunJy3XxF3Bwnkk2RCEKmf2O95yiuhHev1xs8tlMnK
+  ##    zUkc0YOzxbXd00Wt9wLySlELsnO8UQn+p3uFI/K8N9mdMsUR2Dp6kVJrfQVH2xTN9Pgxr4kpw6jS
+  ##    FSb8TMQ7AgS14yRlpZFKWWNS+kqzXvMlJZ2hfrX9XsACpPLUMXurkFRuRLQzhq8E2KEkVC6oFTpN
+  ##    xaPg2PoSlfOdvRnfOttGJn3yGIJOAf71PfNe5JEHTqsCoq7JtM2hQZ10wu23451fudT6gefUhiaJ
+  ##    FCcD1R0IfzEA4JtlKoO5x+Mo4JMnklVTMTPTQpX1ZYVC0uHZepq0K/H92siCF5GFxjuoSaCz3Tig
+  ##    4aH/sZ2K4Uar1pxCfbN8Rzv47Eut3NUHRc0zTXmWvbpf5E5nm6X0IAAaeE7/POmO41fVbZTz+ajv
+  ##    fKPyRvfWxk+qPVpboz0Lv7vj5fajqfgz9ZgY0/ZQFQRv7qOVSbfk4A77VHT5e+0kqLlyikXTTItc
+  ##    qQQkthMVp8OQ4B78A+S1148m7wbZNOZ4AwyfjWzGFiU84dDLyeZ40LQNi94Mjs3kksacvsnnNRiB
+  ##    EE5YieTx/byK0Hjh2voz/+H/tBhkVgAAAAIABVguNTA5AAADOTCCAzUwggIdAgkApcFG53lVRQMw
+  ##    DQYJKoZIhvcNAQELBQAwVDELMAkGA1UEBhMCQ04xEDAOBgNVBAgMB0JlaWppbmcxEDAOBgNVBAcM
+  ##    B0JlaWppbmcxEjAQBgNVBAoMCU15Q29tcGFueTENMAsGA1UEAwwEWXVtbDAeFw0xODEwMTgwNzUw
+  ##    NTdaFw0xOTEwMTgwNzUwNTdaMGUxCzAJBgNVBAYTAkNOMRAwDgYDVQQIEwdCZWlqaW5nMRAwDgYD
+  ##    VQQHEwdCZWlqaW5nMRIwEAYDVQQKEwlNeUNvbXBhbnkxDzANBgNVBAsTBk15RGVwdDENMAsGA1UE
+  ##    AxMEWXVtbDCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAKAnTElG+Z6jqFTpnmryeZKj
+  ##    DU+be4nQwQBwXWUVMZUoI6O10xitdfIRf1PqXt8kQkW5SdMFWf2jJlTSbrcEC185LtKQXLYML8ry
+  ##    cdekmIUtdL4ML3sn5XKH5zm1cF0+yKG5EiHPY/ny82rdowEBMyH/aQVFH/WxgDkJcu8D6g80RLFK
+  ##    C9Kh+5dCoKDzp+MF6JEHgnRlfObI4phpKaMRO7k7iBxNNk0i4ePuVampmkIWqbgtzfpiDk8hkble
+  ##    FG/A5P25NGGG+y5X3JFjii9CiAo758VYjs62LPNUL95J8NJC49Tx6amjbmc24Tnn17BvDrH9wNt7
+  ##    2qs9uQxK/CBUBI8CAwEAATANBgkqhkiG9w0BAQsFAAOCAQEAsyIDEDCFmm1WunvbVP1/1slQ694T
+  ##    eZfOqThB40qqkS/1txV7ZkmzoSzNLufjJhuWoh9kOcJ8b1G1NlFYxnrwDgCoNuC39jGSZTbL8IGo
+  ##    aLx2s51atxU1zazxfhbrNtJFFMZIixbOXSRgchxbnr/IguBI9qTC7JhDvNL1TSWUg6ZcTHyRGzWr
+  ##    3E9lBzo1MTaNC32q6lJZszRqplYFX4G5aUIc3eMSbp7SW6CZZAB4et+bey0FINWaSPrmCkJbQd1Z
+  ##    KbFLNaGi4bCJAckHDYI07sm0jABYA3LWrRAYA99uH25xpeYKRYhLAYcW8PO0uRklzioZr8sBy7I2
+  ##    7OF+lAaWRAAFWC41MDkAAAN/MIIDezCCAmOgAwIBAgIJANcHKpDByyPrMA0GCSqGSIb3DQEBCwUA
+  ##    MFQxCzAJBgNVBAYTAkNOMRAwDgYDVQQIDAdCZWlqaW5nMRAwDgYDVQQHDAdCZWlqaW5nMRIwEAYD
+  ##    VQQKDAlNeUNvbXBhbnkxDTALBgNVBAMMBFl1bWwwHhcNMTgxMDE4MDc1MDU2WhcNMTkxMDE4MDc1
+  ##    MDU2WjBUMQswCQYDVQQGEwJDTjEQMA4GA1UECAwHQmVpamluZzEQMA4GA1UEBwwHQmVpamluZzES
+  ##    MBAGA1UECgwJTXlDb21wYW55MQ0wCwYDVQQDDARZdW1sMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8A
+  ##    MIIBCgKCAQEA27suYmSPFXnd3CN9TEwdHEHroF6EWhTp1KEp+NDiMLqos2LHYBa/juRW0qGktmDU
+  ##    ofKNgELagdWcX988ttw4VmS10DNlYC27DHxfVvGp9tLXKWHvnMMx7q5zUYq6+ez0cR9tep/pQoB9
+  ##    1Nk7Lc7sz11aYPXDTRhdXJi+kCITDI0gTP8fHGjjCcax1ErpdtRwqn4sXkyrvgi5nOAkzDc2NKd8
+  ##    7+Lx7Ccce5UkfvkUgT8KgQPP26VpTfCZLSqpdtLT6FSVArnLN8ZUjuA6OGKvnwuEQp24rwVv582Z
+  ##    tULxJ90Xf9oInRcOCy6tdGAvWIJ8ae3BC/q7nGN2xzVYLLcmdwIDAQABo1AwTjAdBgNVHQ4EFgQU
+  ##    jIhbjguJ9Vd+LSIE1Qn8FqIIstgwHwYDVR0jBBgwFoAUjIhbjguJ9Vd+LSIE1Qn8FqIIstgwDAYD
+  ##    VR0TBAUwAwEB/zANBgkqhkiG9w0BAQsFAAOCAQEANY+4vycBxF2ONuS1cb7pxpj/cN/pxgFzPjC5
+  ##    qGcX5QIigi8rjfCocqDwBYb/b54kT8t9h63TIFF8R7SO7LO1mLeit8kVV7+81aDV0v7PxQoRuRR5
+  ##    JXhZ8jEVYItvTIEr7lOzsPnmDfrcJS/slx1laOBwXux0hEiVrYVAZ4FHl5GtWDQ9n5x5AnDNVCg9
+  ##    cbXekMwWgb67q/CtCM8dReiFPphEP8j6YYBkMwnHxo0ebF9IYXH0xlkfoCQiy6mr5Yp1q2S31Z7o
+  ##    d4D/3phU0rOmlKgvfdC4ho4rZP9bWKo+bfouWkTUp/ctvBONwJZX/VEnM7xm28/nydjmJaKPbhPA
+  ##    xDTRDbKIT+w1WvneSlc2fb1ihbEx
+
+  base64Keystore:
+  ## base64 encoded keyStore. Example:
+  ##  base64Truststore: |+
+  ##   /u3+7QAAAAIAAAABAAAAAgAGY2Fyb290AAABZoYn8iMABVguNTA5AAADfzCCA3swggJjoAMCAQIC
+  ##   CQDXByqQwcsj6zANBgkqhkiG9w0BAQsFADBUMQswCQYDVQQGEwJDTjEQMA4GA1UECAwHQmVpamlu
+  ##   ZzEQMA4GA1UEBwwHQmVpamluZzESMBAGA1UECgwJTXlDb21wYW55MQ0wCwYDVQQDDARZdW1sMB4X
+  ##   DTE4MTAxODA3NTA1NloXDTE5MTAxODA3NTA1NlowVDELMAkGA1UEBhMCQ04xEDAOBgNVBAgMB0Jl
+  ##   aWppbmcxEDAOBgNVBAcMB0JlaWppbmcxEjAQBgNVBAoMCU15Q29tcGFueTENMAsGA1UEAwwEWXVt
+  ##   bDCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBANu7LmJkjxV53dwjfUxMHRxB66BehFoU
+  ##   6dShKfjQ4jC6qLNix2AWv47kVtKhpLZg1KHyjYBC2oHVnF/fPLbcOFZktdAzZWAtuwx8X1bxqfbS
+  ##   1ylh75zDMe6uc1GKuvns9HEfbXqf6UKAfdTZOy3O7M9dWmD1w00YXVyYvpAiEwyNIEz/Hxxo4wnG
+  ##   sdRK6XbUcKp+LF5Mq74IuZzgJMw3NjSnfO/i8ewnHHuVJH75FIE/CoEDz9ulaU3wmS0qqXbS0+hU
+  ##   lQK5yzfGVI7gOjhir58LhEKduK8Fb+fNmbVC8SfdF3/aCJ0XDgsurXRgL1iCfGntwQv6u5xjdsc1
+  ##   WCy3JncCAwEAAaNQME4wHQYDVR0OBBYEFIyIW44LifVXfi0iBNUJ/BaiCLLYMB8GA1UdIwQYMBaA
+  ##   FIyIW44LifVXfi0iBNUJ/BaiCLLYMAwGA1UdEwQFMAMBAf8wDQYJKoZIhvcNAQELBQADggEBADWP
+  ##   uL8nAcRdjjbktXG+6caY/3Df6cYBcz4wuahnF+UCIoIvK43wqHKg8AWG/2+eJE/LfYet0yBRfEe0
+  ##   juyztZi3orfJFVe/vNWg1dL+z8UKEbkUeSV4WfIxFWCLb0yBK+5Ts7D55g363CUv7JcdZWjgcF7s
+  ##   dIRIla2FQGeBR5eRrVg0PZ+ceQJwzVQoPXG13pDMFoG+u6vwrQjPHUXohT6YRD/I+mGAZDMJx8aN
+  ##   HmxfSGFx9MZZH6AkIsupq+WKdatkt9We6HeA/96YVNKzppSoL33QuIaOK2T/W1iqPm36LlpE1Kf3
+  ##   LbwTjcCWV/1RJzO8ZtvP58nY5iWij24TwMQIMKtLgLKAqYoAfi4TzC8TMI2AeA==
+  base64Truststore:
+
+## RabbitMQ Configurations
+mq:
+  username: alma_mquser
+  ## The passphrase for the password.
+  ## Example: mypassphrase
+  passphrase:
+  ## The encrypted password using fpm-password tool. Example: U2FsdGVkX1/bTESXuu0ktuHaXfeX376bt1Eocz4Kwlo=
+  password:
+  ## The address of the RabbitMQ service.
+  ## Use the following format: <FQDN:Port> or <IP:Port>.
+  ## Example: 127.0.0.1:5672
+  hostname:
+  ## The virtual host.
+  vhost: /
+  ## Exchange name
+  exchangeName: cfw
+  ## Routing key
+  routingKey: event
+  ## Queue name
+  queueName: alma 
+  enabledSSL: false
+  encryptProtocol: TLSv1.2
+
+  ## The private key of the client Example:
+  ##  clientKey: |+
+  ##    -----BEGIN RSA PRIVATE KEY-----
+  ##    MIIEpQIBAAKCAQEA01FXQ7ItSD5zsKZ/Hw1aIwGeuf6PhI79CtaHcU8RrKAd7zBD
+  ##    oqc8p89dWOIfsn1E/lVlG1zvFfpgNgtPzeNnzJVLvIZJAzAm0jJtXaxYDnKiLrR9
+  ##    hzNeJXuLgp6FYjaXllY2VRVuX+3XX6IGle5olazlte/k+kHBUuOLlUbei8HqVCRF
+  ##    fp+UWkWz85u+QrQlz/EmfB/O8uZ4LJmO6yBDyB123gRyVmi/7c9jIyVclz9+f2uu
+  ##    3jo0Eg5NMuRKkHv8Hh8v9Nx0FrIaz/yr3MX2wqzVuVbEQXYbvXkdzvjyzeswNDEP
+  ##    bO1ER5efTQlIIpAqIe5Iz0phyT7tbh1OM7EiDQIDAQABAoIBAGBDuswk/AngIVXE
+  ##    0z4zF+/Aii1SsNCDTvTD+9l7WqLYIirXQshzBOexSGX4RNZLyMVP44pOkL/jWjbk
+  ##    ekthn+SL0n+kcNhZ9CVnQXkdzNNwFz/Niy2vEeFjYY90ZXDzS6T5yzCBXdGniKiR
+  ##    KAzfGZettstl6Fq037vB2tF7AmCJdrrVNP4uM6QPt/sHNsjyOe7espDK71wQJYfO
+  ##    NiIo/WGqw5MTD0AFWdtX91EU4mgUzIVM67UDpCsq6PcRXSIaMlSTu8UlVpk4z2Wy
+  ##    S4PGoQr3F8HyRXnZc+8rmKnhFYOPoH60OSp0WbeS68BKHmOXhlLVE4bIJqZyfwoD
+  ##    H17Ae8UCgYEA+BbxsxHlX0/QqkGcyiJ57cDgvBMnvJ+ZVQ+dI6+e9fLFuupN/Cbn
+  ##    7x4FOH7a+RkfTvuBQ6GAbCiIViYsO5s05VYmHjyq17+YEWShlos3x8kGCKPzs4NC
+  ##    brDt3dZc6waHGNgicAWw3SwI/oO9RVMDKg6mLy2TyE2Js/EL7q6RyksCgYEA2g4+
+  ##    G0ZctZd3YOCSi1c517zPN8fEedB9HdTiBrc4jz6l9+iCNnc3rII5Sj972AHOjG5E
+  ##    6JEU1byDfFyoqAolV/Fc4p6JgR58zeolJWd9C0gpPAPeUv/O32ukaxS+2WRyBlgq
+  ##    pWq9FT6w7KVEThUnKr2Hyl4e/mc65rQKFM8djgcCgYEA4qYLgF4sICxJ5RF2TVC7
+  ##    9dKNPiV92xwvt/9Av1Z1shpuPHpMbr2YjOLvQBLcuFAUQ1MQYBoOukE5dQMAzB/a
+  ##    bl6LCnrAVcSrB9DYszFS74meoowuW2Tibz/iwBVT5D+dcrwakh8Q2q6dNPBkHQ5e
+  ##    yLCDcHyCE6+Ky0K/dPo1JQsCgYEAvwI65Sl9jJRhvjr6I5UE1jZOTk5vjUVUVA1m
+  ##    8PsOUGxQdhj19z/3ROXNyXxSv6TVia4OLqrn1VKM2yNPmeNJUv/anajCSpiqOrYg
+  ##    U+OTZY6QkEHTPmFWld9051gE1elm+KfCs6QMfc+sq58ZdkyRQp9Dk8Fe5PsIXY7Y
+  ##    ReInwYECgYEA235JYikuSCBTjZpPfIrRge1MKMN+PaEzVsdGj++Gcx2ut8xU8Pio
+  ##    UikLtRWq+yuskL68zT8WgAlzwbYcwMrmiU96YUdGhKx5OSBiktrTvni21hV7eqXK
+  ##    dz8cjtcvl6JdGlWjW3swf7DUsC80YpDgLmKv0ibg8c61e45NLJSCBPQ=
+  ##    -----END RSA PRIVATE KEY-----
+  clientKey:
+
+  ## The client certificate. Example:
+  ##   clientCert: |+
+  ##     -----BEGIN CERTIFICATE-----
+  ##     MIIC7jCCAdagAwIBAgIBAjANBgkqhkiG9w0BAQsFADATMREwDwYDVQQDDAhNeVRl
+  ##     c3RDQTAeFw0xODAzMjIxMDA4MTFaFw0xOTAzMjIxMDA4MTFaMDExHjAcBgNVBAMM
+  ##     FXl1bWwtdGVzdC5sb2NhbGRvbWFpbjEPMA0GA1UECgwGY2xpZW50MIIBIjANBgkq
+  ##     hkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA01FXQ7ItSD5zsKZ/Hw1aIwGeuf6PhI79
+  ##     CtaHcU8RrKAd7zBDoqc8p89dWOIfsn1E/lVlG1zvFfpgNgtPzeNnzJVLvIZJAzAm
+  ##     0jJtXaxYDnKiLrR9hzNeJXuLgp6FYjaXllY2VRVuX+3XX6IGle5olazlte/k+kHB
+  ##     UuOLlUbei8HqVCRFfp+UWkWz85u+QrQlz/EmfB/O8uZ4LJmO6yBDyB123gRyVmi/
+  ##     7c9jIyVclz9+f2uu3jo0Eg5NMuRKkHv8Hh8v9Nx0FrIaz/yr3MX2wqzVuVbEQXYb
+  ##     vXkdzvjyzeswNDEPbO1ER5efTQlIIpAqIe5Iz0phyT7tbh1OM7EiDQIDAQABoy8w
+  ##     LTAJBgNVHRMEAjAAMAsGA1UdDwQEAwIFoDATBgNVHSUEDDAKBggrBgEFBQcDAjAN
+  ##     BgkqhkiG9w0BAQsFAAOCAQEAEQM+e+8peUh49cdpKCxsGKShkcSw8DOPWbTb26Z2
+  ##     6jS+gE2XhWvvP2qk6i/A0SLvFtpPC2sf+cilA9ZonrH08jQAy/mw0spzG41lQ7Ir
+  ##     nE9jklhKrb8azrorNXMsYI7D7wKhGX4oL8aq7UND2A0cxQhYRvIg9pn/DIFiSAY4
+  ##     O4AyB2JqwBJRj7Wvgymtfqc1QVhuQD+iAUGcfBMZQctbpiQqZKi4wyzj6AnEn+pI
+  ##     3fGCSzLXVZlN2m4aXbhzRZd4mok1YcTa1yalxJymMoguakpzVGNO1UXyPQIXxeQH
+  ##     kJdafMTyYWPXygCdsaSHeggbr6oTpwd395bsA7lcE6d6xw==
+  ##     -----END CERTIFICATE-----
+  clientCert:
+
+  #The server certificate. Example:
+  ##  serverCert: |+
+  ##    -----BEGIN CERTIFICATE-----
+  ##    MIIC7jCCAdagAwIBAgIBATANBgkqhkiG9w0BAQsFADATMREwDwYDVQQDDAhNeVRl
+  ##    c3RDQTAeFw0xODAzMjIxMDA2MjlaFw0xOTAzMjIxMDA2MjlaMDExHjAcBgNVBAMM
+  ##    FXl1bWwtdGVzdC5sb2NhbGRvbWFpbjEPMA0GA1UECgwGc2VydmVyMIIBIjANBgkq
+  ##    hkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1/rzylTcz2zSC2764zAthjrtgiV3jd8G
+  ##    4LwpuXVVnv30ZUnXPdbk7KPlujrEBxbuxxtia/9hpYUTj5JtQk32sj2wPh5CmZOd
+  ##    FgstDqtz/oSpCWS31itef+szuKFzNzjNA7VSN/f1e7DQE8fCUT4iVyIQZuDlS6kb
+  ##    MjonNMgdy7RfXmavsGeUt3Kwzptx1VwIDHeUTi97ENrB+bn6MG2orjhAvQLatIFK
+  ##    GtJdt4oU8UvJ9eGBEwqcgxLeJz8F6Hs9RSYE3P+6s8KNi21hedI6gd6oS5u0zqGd
+  ##    B/XoCtadPde2uMv9/NkvU9sLvK0EATw2wnwp1dsmq3g/CWMiAapXJQIDAQABoy8w
+  ##    LTAJBgNVHRMEAjAAMAsGA1UdDwQEAwIFoDATBgNVHSUEDDAKBggrBgEFBQcDATAN
+  ##    BgkqhkiG9w0BAQsFAAOCAQEAKEK+NEJw3AyrDaeScnvccyBUXiEMG6eMkHXpMB0W
+  ##    PhQ7+MapQINL19HrVD3ZI9BDvP9Ky5+/z/7HrLB0ctVpDozKiGpUHPySf8qqlmdM
+  ##    qWNpvEI4Ye0yklWYMitHwP5CJDbF7jRIyotAb7II70HoDRsRJT9V3sDyTyYEX4rz
+  ##    6Mkxeds1t2WMau3WEevFTUNEgH087nCWIEN66iF1O6AnABRYdY2S2QxMBQE8NJhm
+  ##    +7cxmlNTBFmxCrUxsdIzQxUG1NjWHKgL5j81HOMHNHPE6fCT7OaDJKtJ9C5mW0Uv
+  ##    Q0UOKsIFlo/dfiRdVURaucPmtX/4zv6o3jRvBbUMxpSMTQ==
+  ##    -----END CERTIFICATE-----
+  serverCert:
+
+###########################
+## Common Feature Settings#
+###########################
+
+
+## AlarmAdapterClasses enable NBI and SBI interfaces of CALM service.
+## Mandatory prefix: `com.nokia.csf.calm.adapter.`, separator: `;`.<br>
+## NBI - any of: `CveaAdapter`, `CnotAdapter`, `SnmpNorthboundAdapter` (NetAct adapter), `NetActAlarmAdapter` (legacy NetAct adapter).<br>
+## SBI - one of: `QueueBasedAlarmAdapter`, `SnmpSouthboundAdapter`.
+alarmAdapterClasses: com.nokia.csf.calm.adapter.QueueBasedAlarmAdapter;com.nokia.csf.calm.adapter.SnmpNorthboundAdapter
+
+## Automatically acknowledge alarms that are cleared.
+autoAcknowledgeClearedAlarms: true
+
+## The maxiumum number of active alarms in CALM database.
+## If limit reached, CALM will drop new alarm instances.
+maxActiveAlarmCount: 1024
+
+## The maximum number of events in alarm history table.
+## If limit is reached, CALM will drop new alarm history events.
+maxNumberOfEvents: 10240
+
+# The number of transaction retries in case of failure.
+transactionRetryCount: 10
+
+## The number of threads of CALM process. Range [1,256].
+maxThreads: 20
+
+## The number of snmp4j threads of CALM process. Should be set smaller than maxThreads.
+maxSnmp4jThreads: 3
+
+## Configures high-availability mode of the CALM service.
+## This feature is experimental, should not be used in production:
+## the value should be false and CALM pods should not be scaled.
+ha: false
+
+## Configures KeyCloak authentication.
+KeycloakAuthentication: false
+
+## Keycloak Authorization Server URL.
+## Example `https://<FQDN:Port>/auth`
+## Requires KeycloakAuthentication: true
+KeycloakAuthServerUrl: https://<keycloack-server-ip>:<keycloack-server-port>/auth
+
+## Keycloak token validation URI.
+## Example `/realms/<realm-name>/protocol/openid-connect/userinfo`
+## Requires KeycloakAuthentication: true
+KeycloakValidationUri: /realms/<realm-name>/protocol/openid-connect/userinfo
+
+## `False`: authenticate the token with Keycloak;
+## `True`: use token for authorization, multi-tenancy roles are checked. See multiContextEnabled.
+tokenValidationViaKeycloak: false
+
+## Configures multi-tenancy feature in CALM.
+multiContextEnabled: false
+
+## Super user name created in KeyCloak for CALM service. Applicable if multiContextEnabled is true.
+superUserName:
+## Super user encrypted password using fpm-password tool.tool. Applicable if multiContextEnabled is true.
+superUserPassword:
+## Super user passphrase. Applicable if multiContextEnabled is true.
+superUserPassphrase:
+
+###################################
+## Northbound OSS Related Settings#
+###################################
+
+## List of snmpv3 users.
+## authProtocol (MD5 or SHA)
+## privProtocol (DES or AES)
+## passPhrase for authPassword and privPassword. Encrypt passwords with fpm-password tool.
+## context used for CALM multi-tenancy.
+## Example:
+##snmpv3UserConfiguration:
+##  - userName: test1
+##    authProtocol: MD5
+##    authPassword: U2FsdGVkX1+0gy24BhfY4s8Pu1z9Jsk817UOA6+3/rE=
+##    privProtocol: DES
+##    privPassword: U2FsdGVkX1+0gy24BhfY4s8Pu1z9Jsk817UOA6+3/rE=
+##    passPhrase: mypassphrase
+##    context: contexta
+snmpv3UserConfiguration:
+
+## List of snmpv2c users.
+## Example:
+##snmpv2cUserConfiguration:
+##  - securityName: sec1
+##    communityName: test11
+##    context: contexta
+snmpv2cUserConfiguration:
+
+## Group configuration. List of SNMPv2 or SNMPv3 groups.
+## username (securityName for SNMPv2c and userName for SNMPv3),
+## securityModel (SNMPv2c, or USM for SNMPv3)
+## Example:
+##groupConfiguration:
+##  - groupName: v3group1
+##    securityModel: USM
+##    userName: test1
+groupConfiguration:
+
+## List view names. Each view name is associated to one OID.
+## viewName: tags the oid.
+## oid: object identifier managed by CALM.
+## Example:
+##viewConfiguration:
+##  - viewName: Nokia
+##    oid: 1.3.6.1.4.1.94
+##    context: contexta
+viewConfiguration:
+
+## List of access configurations.
+## Each group is configured with access for specified view (oid).
+## securityModel (SNMPv2c, or USM for SNMPv3)
+## securityLevel (noAuthNoPriv, authNoPriv, authPriv) Set noAuthNoPriv for SNMPv2.
+## Example:
+##accessConfiguration:
+##  - groupName: v3group1
+##    securityModel: USM
+##    securityLevel: authPriv
+##    readView: Nokia
+##    writeView: Nokia
+##    notifyView: Nokia
+##    context: contexta
+accessConfiguration:
+
+## List of notification targets.
+## Each notification target binds to a user via notification parameters.
+## Example:
+##notificationTargetsConfiguration:
+##  - notifyName: notify6
+##    notifyIP: 127.0.0.1
+##    notifyPort: 162
+##    notifyParams: v3Params1
+##    notifyType: trap
+##    context: contexta
+notificationTargetsConfiguration:
+
+## List of notification parameters.
+## Each notification parameter can bind to multiple notification targets.
+## Example:
+##  - notifyParamsName: v3Params1
+##    notifyUser: test1
+##    notifySecurityModel: USM
+##    notifySecurityLevel: authPriv
+##    context: contexta
+notificationParametersConfiguration:
+
+## System object ID
+sysObjectID: 1.3.6.1.4.1.94
+
+## Allows differentiating CALM agents for an SNMP manager (e.g. NetAct).
+## Two of the RFC3411 engineID formats are supported.
+## 1. String: max 27 characters. Encoded to engineId from ianaNumber (4 octets), 4 (1 octet), this string (max 27 octets)
+## 2. Hexadecimal string: 0x<engineID>. CALM passes this value without encoding it.
+##Example: CALMDefaultEngineID
+##Example: 0x80006f2a0443414c4d44656661756c74456e67696e654944
+engineId: CALMDefaultEngineID
+
+## The IANA number
+ianaNumber: 28458
+
+## Heart beat interval (in second) towards NetAct.
+## No value or 0 disables heartbeat.
+heartBeatInterval: 0
+
+## NokiaEnhancedSnmpSolutionSuiteAlarmIrp  or NokiaEmsMib,
+## default value is NokiaEnhancedSnmpSolutionSuiteAlarmIrp
+snmpMib: NokiaEnhancedSnmpSolutionSuiteAlarmIrp
+
+#########################
+## CVEA Adapter Settings#
+#########################
+
+# Add "com.nokia.csf.calm.adapter.CveaAdapter" to parameter "alarmAdapterClasses" to enable the CVEA Adapter.
+
+# CSF VES (CVEA) adapter version: v7 or v5 (deprecated)
+cveaAgentVersion: v7
+
+## CVEA agent host list. List separator: `,`,  host format is <FQDN:Port>or <IP:Port>.
+## Example: IP1:Port1,IP2:Port2
+## Example: 127.0.0.1:9991
+cveaAgentHosts:
+## The maximum number of retries to contact a CVEA agent host (0-60)
+cveaMaxRetries: 3
+# The default value for MOC_Name, which will be used if the MOC_Name was not defined in the SBI alarm event.
+unifiedLogging:
+  MocName: ""
+
+
+#########################
+## CNOT Adapter Settings#
+#########################
+
+## Add "com.nokia.cam.alma.adapter.cnot.CnotAdapter" to parameter "alarmAdapterClasses" to enable Cnot Adapter.
+
+cnot:
+  ## CNOT server,  URL, format: `<FQDN:Port>or <IP:Port>`.
+  ## Example: serverURL: 127.0.0.1:80
+  serverURL:
+  ## The maximum number of retries to contact the CNOT server ((0-60)
+  ## The default and proposed value is 3.
+  maxRetries: 3
+  ## Enable SSL connection to the CNOT server.
+  enabledSSL: false
+  ## passphrase for the truststorePassword.
+  ## Example: passphrase: 123
+  passphrase:
+  ## truststore password encrypted with passphrase using fpm-password tool.
+  ## Example: truststorePassword: U2FsdGVkX1/UUuEvaXgKlezzLkQ2bOUoGenreyH5RFQ=
+  truststorePassword:
+  ## Base64 encoded truststore. Example:
+  ##  base64Truststore: |+
+  ##    /u3+7QAAAAIAAAACAAAAAgALc2VydmVyLWNub3QAAAFpBEzR7QAFWC41MDkAAAK0MIICsDCCAZgC
+  ##    CQDT5eS9RqrGvDANBgkqhkiG9w0BAQsFADAOMQwwCgYDVQQDDANDU0YwHhcNMTkwMTI1MDM1MjU2
+  ##    WhcNMjExMDIxMDM1MjU2WjAmMSQwIgYDVQQDDBsqLmRlZmF1bHQuc3ZjLmNsdXN0ZXIubG9jYWww
+  ##    ggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQCbtbTyGi/hpUWWF4AGI21ZrgIamQMef/BC
+  ##    FHzibje3JxSLmPkSEte0MRN2JP395+DexR/DdJbYFqsIFXo20qNLYwvkzhhlLapbeOWX+OgVUPyw
+  ##    pwu43kThuVd8eC5V7I8xyLTbuHVpayribvulblVPQ6up74dCdt5vC7JGlYOph/yHMFrqNvBqpYX6
+  ##    cTUTW9DFP3zMccvIyj+eXGlvXnBS538wPlG6Hv1mTS4fLpQcMWWt0d4Qplxa1f/DEuQvo/fTUPPQ
+  ##    0Rp9K1ueRdAPRxhur3e/opY+gA7gw1g//YcNHMgFwA74Mbxem0Dff6vGNFIImEsgfinp9UdLZvzm
+  ##    E8ydAgMBAAEwDQYJKoZIhvcNAQELBQADggEBAI6CsynY8IKancy9vuNuzmVu5RAt6+QYyQMWZgTD
+  ##    TByZt5n9qha/Skh+K/MbBzsVQD1RTITyrG+2h8boOohveTbUJqEGcr6qI8LBmr312xNfMeyw+u5n
+  ##    EnAtb0ThyuCILWkLfCHcg3rPwE0WYeBh32iyX1aN+kgQ1S2MeyrsUiZgwlmC2uphgabmD0jutI/1
+  ##    1f8GvMwcJqiE19Ceggt8RAdcYeqFS38ECSg5TMssDO4ib7E6CKKqWeJ70096LAlZnvAZZQy3R7hI
+  ##    isrlLA5dvWZ3Eso4fPU5FJqTkJp+Fc6OTF0FzKQYvOyq25pVVg94jfZm/eZe464urex67Dzf8FoA
+  ##    AAACAAZjYXJvb3QAAAFmhifyIwAFWC41MDkAAAN/MIIDezCCAmOgAwIBAgIJANcHKpDByyPrMA0G
+  ##    CSqGSIb3DQEBCwUAMFQxCzAJBgNVBAYTAkNOMRAwDgYDVQQIDAdCZWlqaW5nMRAwDgYDVQQHDAdC
+  ##    ZWlqaW5nMRIwEAYDVQQKDAlNeUNvbXBhbnkxDTALBgNVBAMMBFl1bWwwHhcNMTgxMDE4MDc1MDU2
+  ##    WhcNMTkxMDE4MDc1MDU2WjBUMQswCQYDVQQGEwJDTjEQMA4GA1UECAwHQmVpamluZzEQMA4GA1UE
+  ##    BwwHQmVpamluZzESMBAGA1UECgwJTXlDb21wYW55MQ0wCwYDVQQDDARZdW1sMIIBIjANBgkqhkiG
+  ##    9w0BAQEFAAOCAQ8AMIIBCgKCAQEA27suYmSPFXnd3CN9TEwdHEHroF6EWhTp1KEp+NDiMLqos2LH
+  ##    YBa/juRW0qGktmDUofKNgELagdWcX988ttw4VmS10DNlYC27DHxfVvGp9tLXKWHvnMMx7q5zUYq6
+  ##    +ez0cR9tep/pQoB91Nk7Lc7sz11aYPXDTRhdXJi+kCITDI0gTP8fHGjjCcax1ErpdtRwqn4sXkyr
+  ##    vgi5nOAkzDc2NKd87+Lx7Ccce5UkfvkUgT8KgQPP26VpTfCZLSqpdtLT6FSVArnLN8ZUjuA6OGKv
+  ##    nwuEQp24rwVv582ZtULxJ90Xf9oInRcOCy6tdGAvWIJ8ae3BC/q7nGN2xzVYLLcmdwIDAQABo1Aw
+  ##    TjAdBgNVHQ4EFgQUjIhbjguJ9Vd+LSIE1Qn8FqIIstgwHwYDVR0jBBgwFoAUjIhbjguJ9Vd+LSIE
+  ##    1Qn8FqIIstgwDAYDVR0TBAUwAwEB/zANBgkqhkiG9w0BAQsFAAOCAQEANY+4vycBxF2ONuS1cb7p
+  ##    xpj/cN/pxgFzPjC5qGcX5QIigi8rjfCocqDwBYb/b54kT8t9h63TIFF8R7SO7LO1mLeit8kVV7+8
+  ##    1aDV0v7PxQoRuRR5JXhZ8jEVYItvTIEr7lOzsPnmDfrcJS/slx1laOBwXux0hEiVrYVAZ4FHl5Gt
+  ##    WDQ9n5x5AnDNVCg9cbXekMwWgb67q/CtCM8dReiFPphEP8j6YYBkMwnHxo0ebF9IYXH0xlkfoCQi
+  ##    y6mr5Yp1q2S31Z7od4D/3phU0rOmlKgvfdC4ho4rZP9bWKo+bfouWkTUp/ctvBONwJZX/VEnM7xm
+  ##    28/nydjmJaKPbhPAxHF8+wWMwPA/hnVCVYL64LgfFDwV
+  base64Truststore:
+
+#############################
+## Advanced Feature Settings#
+#############################
+
+## 1. Alarm severity overwritten                                                     
+##    a. User can define one or multiple severity overwritten rules.                 
+##    b. Each rule is consist of:                                                    
+##       - alarm_id: MANDATORY, mapped to alarm.id field in CLOG API                 
+##       - moc_id: OPTIONAL, mapped to extension.MOC_ID field in CLOG API            
+##       - rule: MANDATORY, the format is {<old severity1>:<new severity1>,...}      
+##               if all severity values will be overwritten by a new severity,            
+##               provision like {all:major}.                                         
+##               valid severity values are:                                          
+##               "critical", "major", "minor", "warning", "indeterminate" and "all". 
+##    c. Multi-tenancy is not supported for this feature!!!                          
+## 2. Alarm auto-retirement                                                          
+## 3. Alarm de-duplication
+##    a. deduplicationEnabled, this parameter accepts "true" or "false". If not defined or set null, it is "false" by default.
+##    b. Multi-tenancy is supported for this feature.
+## NOTE:                                                                             
+## 1. The "enterprise" field is case sensitive.                                      
+
+#enterprisesAdvanceConfs:
+#  - enterprise:
+#    deduplicationEnabled: false
+#    severityOverwrittenRules:
+#      - alarm_id: 1
+#        moc_id: 1
+#        rule: {critical: major, major: minor}
+#      - alarm_id: 2
+#        moc_id: 2
+#        rule: {critical: minor, major: minor}
+#    transientAlarmsTimeToLiveRules:
+#      specificProblemLevel:
+#         - alarmId: 100001
+#           ttl: 15
+#         - alarmId: 100002
+#           ttl: 20
+#      severityLevel:
+#        critical: 14
+#        major: 13
+#     systemLevel: 5
+#    brevityControlRules:
+#      - groupId: 1
+#        target:
+#          alarm_id: 650039
+#          moc_id: 1
+#        upperThreshold: 4
+#        lowerThreshold: 2
+#        thresholdPeriod: 30
+#      - groupId: 2
+#        target:
+#          alarm_id: 2
+#          moc_id: 2
+#        upperThreshold: 100
+#        lowerThreshold: 50
+#        thresholdPeriod: 10
+
+######################################################
+## Istio settings                                    #
+######################################################
+
+
+istio:
+  ## Enable feature. When disabled, other istio settings are ignored.
+  enabled: false
+  ## Controls auto inject of the sidecar container
+  inject: true
+  ## In permissive mode istio gateway will not configure mTLS, services can be reached through NodePort or ClusterIP.
+  permissive: false
+  ## Enable Container Networking Interface (CNI). If disabled, PodSecurityPolicy is created with `NET_ADMIN`, `NET_RAW` capabilities, unless a ServiceAccount was provided with matching capabilities.
+  cni_enabled: false
+  ingress:
+    ## Indicates that Istio Gateway and VirtualService objects will be created by Helm. [More information] (https://istio.io/v1.5/docs/reference/config/networking/gateway/#Server)
+    enabled: true
+    ## Host exposed by the gateway. A host is specified as a DNS name. It must have DNS binding to this host in order to resolve it and access CALM service.
+    host: "*"
+    ## Port on which the gateway proxy should listen for incoming connections.
+    port: 80
+    ## Selects istio gateway controller in the target cluster.
+    selector: {istio: ingressgateway}
+    ## Root of the URI on which CALM service will be accessible.
+    uriRoot: calm
+    ## Leave it empty to create the Gateway object. Otherwise specify an existing Gateway object; `host`, `port`, `selector`, `tls.*` will be ignored.
+    gatewayName:
+    tls:
+      ## Indicates secure gateway interface creation for inbound traffic.
+      enabled: true
+      ## Port on which the gateway proxy should listen for incoming secure connections
+      port: 443
+      tlsOptions:
+        ## See [TLSOptions](https://istio.io/v1.5/docs/reference/config/networking/gateway/#Server-TLSOptions)
+        mode: SIMPLE
+        ## See [TLSOptions](https://istio.io/v1.5/docs/reference/config/networking/gateway/#Server-TLSOptions)
+        credentialName: calm-credential
+
+######################################################
+## Configurable fixes                                #
+######################################################
+
+## `true`: alarm create time is UTC.
+## `false`reverts back to the old behavior: UTC - localTimeZone;
+## `false` may result in correct UTC time on external CALM interfaces for alarms logged in local time: UTC + localTimeZone.
+fixAlarmCreateTimeIsUTC: true
+
+######################################################
+## Additional tools and images                       #
+######################################################
+
+## Transient image and resources used for pvc_auto_delete configuration property.
+## The pod is created during Helm release deletion and clears all persistent volume claims.
+kubectl:
+  image:
+    ## Image used for kubectl command execution.
+    repo: tools/kubectl
+    ## Image tag.
+    tag: v1.17.5-nano 
+  jobResources:
+    requests:
+     cpu: 200m
+     memory: 500Mi
+    limits:
+     cpu: 1
+     memory: 1Gi
+
+## Configure how the transient pods created for pvc_auto_delete and helm tests are deleted.
+helmDeleteHooks: "before-hook-creation,hook-succeeded"
+

@@ -1,0 +1,36 @@
+{{- $releaseName := .Release.Name -}}
+{{- $servicePort := .Values.ui.httpsPort -}}
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  annotations:
+    kubernetes.io/ingress.class: {{ .Values.global.ingressClass | quote }}
+    nginx.ingress.kubernetes.io/proxy-body-size: {{ .Values.ui.ingress.maxBodySize }}
+    nginx.ingress.kubernetes.io/limit-connections: {{ .Values.ui.ingress.limitConnections | quote }}
+    nginx.ingress.kubernetes.io/proxy-read-timeout: {{ .Values.ui.ingress.proxyReadTimeout | quote }}
+    nginx.ingress.kubernetes.io/limit-rps: {{ .Values.ui.ingress.limitRps | quote }}
+    nginx.ingress.kubernetes.io/secure-backends: {{ .Values.ui.ingress.useHttps | quote }}
+    nginx.ingress.kubernetes.io/use-regex: {{ .Values.ui.ingress.useRegex | quote }}
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      access_by_lua_block {
+        require("keycloak").authenticate()
+      }
+  labels:
+    app: {{ template "name" . }}
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+    provider: "csf-paas"
+  name: {{ printf "%s.%s.%.0f" .Release.Namespace $releaseName $servicePort }}-ui
+spec:
+  rules:
+  - http:
+      paths:
+      - backend:
+          serviceName: {{ template "fullname" . }}-ui
+          servicePort: {{ printf "%.0f" $servicePort }}
+        path: {{ .Values.ui.ingress.path }}
+status:
+  loadBalancer:
+    ingress:
+    - {}

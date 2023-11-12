@@ -1,0 +1,87 @@
+---
+- name: Running few task to install nfmt 21.12
+  hosts: restore_nfmt_vm
+  become: yes
+  
+  tasks:
+    - name: Copy deployFirewall_NFMT.bash  file to depot folder
+      copy:
+        src: deployFirewall_NFMT.bash
+        dest: /DEPOT        
+
+    - name: Get privated IP 
+      shell: hostname -I | awk '{print$1}'
+      register: privateIP
+
+    - name: Changing private IP in /etc/host
+      replace:
+        path: /etc/hosts
+        regexp: '(^172.20.4.10)'
+        replace: "{{ privateIP.stdout }}"
+
+    - name: Restart network service to apply the changes in interface cardnic
+      lineinfile:
+        path: /etc/sysconfig/network-scripts/ifcfg-eth0
+        state: present
+        line: "{{ item }}"
+      with_items:
+      - 'NAME=eth0'
+      - "IPADDR={{privateIP.stdout}}"
+      - 'PREFIX=24'
+      - 'GATEWAY=172.20.4.1'
+
+    - name: Reload NetworkManager after adding configuration
+      shell: |
+        systemctl daemon-reload
+        systemctl restart NetworkManager
+
+    - name: Setting on ALL bench VMs the fs.inotify.max_user_watches=20000
+      shell: |
+        sudo sysctl -w fs.inotify.max_user_watches=20000
+
+    - name: Installing MNC setup rpm to /nfmt
+      shell: |
+         rpm -ivh --prefix=/nfmt /DEPOT/mnc-setup-21.12.0-215.noarch.rpm
+      ignore_errors: yes
+      
+    - name: Generate the config file for nfmt
+      shell: |
+         /nfmt/setup/install.sh depot=/DEPOT size=S config=auto -generateConfig
+      ignore_errors: yes
+
+    - name: Copy license file to setup folder
+      copy:
+        src: /DEPOT/license.dat
+        dest: /nfmt/config/license/
+        remote_src: yes
+
+    - name: Running  the nfmt installation command
+      shell:
+         /nfmt/setup/install.sh depot=/DEPOT size=S -verbose -unattended -S
+      ignore_errors: yes
+
+    - name: Pause 10 minutes till all processed comtainer is ready
+      pause:
+        minutes: 10
+
+    - name: Running command to check login with admin
+      shell: |
+        sudo ./CheckNFMTStatus.py "{{privateIP.stdout}}" admin Devops1.!
+      args:
+        chdir: /DEPOT
+      ignore_errors: yes
+
+    - name: Run script to whitelist the needed IPs for component
+      shell: |
+        sudo ./deployFirewall_NFMT.bash
+      args:
+        chdir: /DEPOT
+
+    - name: Change file ownership, group and permissions
+      file:
+        path: /nfmt/config/bench/
+        owner: NFMT_Admin
+        group: NFMT_Admin
+
+        
+

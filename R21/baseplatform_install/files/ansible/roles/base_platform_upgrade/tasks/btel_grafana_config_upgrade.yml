@@ -1,0 +1,14 @@
+---
+- name: "Upgrade Grafana config"
+  shell: >
+    {{ helm }}  upgrade {{ btelGrafanaConfiguratorHelmName }} {{ chartsPath }}/btel/grafana-config/
+    --namespace {{ BP_NAMESPACE }}
+    --reuse-values
+    --values {{ chartsPath }}/values/upgrade-global-values.yaml
+    {{ btelResourcesOverride }}
+    --set bpNamespace={{ BP_NAMESPACE }}
+    --set dns.domain={{ svcDnsDomain }}
+    --install
+    --wait
+    --timeout {{ wait_timeout }}s
+  no_log: "{{ no_log }}"

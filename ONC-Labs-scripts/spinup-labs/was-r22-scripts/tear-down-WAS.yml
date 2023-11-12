@@ -1,0 +1,2 @@
+---
+ - import_playbook: was-r22-script/cleanup_vm-node.yml

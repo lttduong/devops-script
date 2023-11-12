@@ -1,0 +1,9 @@
+---
+- name: "Upgrading ssh-config"
+  shell: >
+    {{ helmPath }} upgrade {{ sshConfigHelmName }} {{ chartsPath }}/ssh-config
+    --reuse-values
+    --values {{ chartsPath }}/values/global-values.yaml
+    --values {{ chartsPath }}/ssh-config/values.yaml
+    --wait
+    --timeout 1000s

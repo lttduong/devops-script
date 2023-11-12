@@ -1,0 +1,15 @@
+config:
+  ckey:
+    realm: netguard
+    redirectUris: "\"*\""
+    adminPassword: admin
+    basePlatformSso:
+      secret: 'overridden during installation by runtime variable value'
+    ssoSessionIdleTimeout: 600
+    ssoSessionMaxLifespan: 86400
+    accessTokenLifespan: 300
+    csfPushEventListenerEnabled: false
+    quickLoginCheckMillis: 1000
+    loginSecurityBanner: "You are about to access a private system. This system is for the use of authorized users only. All connections are logged. Any unauthorized access or access attempts may be punished to the fullest extent possible under the applicable local legislation."
+    clientSecret:
+    clientId: netguard-admin

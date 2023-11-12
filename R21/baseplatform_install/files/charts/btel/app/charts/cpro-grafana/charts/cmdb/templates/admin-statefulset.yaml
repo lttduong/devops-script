@@ -1,0 +1,171 @@
+{{- if ne (.Values.cluster_type) "simplex" }}
+{{- $pre_stop_timeout := default 120 .Values.admin.terminationGracePeriodSeconds }}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ template "cmdb.pod-prefix" . }}-admin
+  labels:
+    {{- include "cmdb-admin.labels" . | indent 4 }}
+    
+spec:
+  serviceName: {{ template "cmdb.fullname" . }}
+  replicas: 1
+  updateStrategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      {{- include "cmdb-admin.labels" . | indent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "cmdb-admin.labels" . | indent 8 }}
+        type: admin
+        admin-daemon: "yes"
+      {{- if .Values.istio.enabled }}
+      annotations:
+        sidecar.istio.io/inject: "true"
+      {{- end }}
+    spec:
+      {{- include "cmdb-admin.secctx" . | nindent 6 }}
+      {{- include "cmdb.sa" . | nindent 6 }}
+      terminationGracePeriodSeconds: {{ $pre_stop_timeout }}
+
+      containers:
+      - name: {{ template "cmdb.container-prefix" . }}admin
+        {{- include "cmdb-admin.image" . | indent 8 }}
+        args: [ "daemon" ]
+        lifecycle:
+          preStop:
+            exec:
+              command:
+              - bash
+              - "-c"
+              - |
+                . /chart/cluster.env
+                export CLUSTER_SIZE
+                /usr/local/admin/orchestrator.py --send --command=pre_stop --preempt=yes --timeout={{ $pre_stop_timeout }}
+        ports:
+        - containerPort: 6379
+          name: tcp-redisio
+        env:
+        - name: CLUSTER_TYPE
+          value: "{{ .Values.cluster_type }}"
+        - name: CLUSTER_NAME
+          value: "{{ .Values.cluster_name | default .Release.Name | trunc 32 }}"
+        {{- if .Values.admin.configAnnotation }}
+        - name: RUN_UPDATECFG
+          value: "no"
+        {{- end }}
+        {{- if .Values.admin.autoHeal.enabled }}
+        - name: AUTO_HEAL_PAUSE
+          value: {{ .Values.admin.autoHeal.pauseDelay | quote }}
+        {{- end }}
+        - name: REBUILD_ENABLED
+          value: {{ .Values.admin.rebuildSlave.enabled | quote }}
+        {{- if .Values.admin.rebuildSlave.enabled }}
+        - name: REBUILD_PREFER_DONOR
+          value: {{ .Values.admin.rebuildSlave.preferredDonor | quote }}
+        - name: REBUILD_ALLOW_MASTER_DONOR
+          value: {{ .Values.admin.rebuildSlave.allowMasterDonor | quote }}
+        - name: REBUILD_TIMEOUT
+          value: {{ .Values.admin.rebuildSlave.timeout | quote }}
+        - name: REBUILD_THREADS
+          value: {{ .Values.admin.rebuildSlave.parallel | quote }}
+        - name: REBUILD_MEMORY
+          value: {{ .Values.admin.rebuildSlave.useMemory | quote }}
+        {{- end }}
+        - name: RBAC_ENABLED
+          value: {{ .Values.rbac_enabled | quote }}
+        - name: TERM_GRACE_PERIOD
+          value: "{{ $pre_stop_timeout }}"
+        - name: ADMIN_DB_AUTH
+          valueFrom:
+            secretKeyRef:
+              name: {{ template "cmdb.fullname" . }}-admin-secrets
+              key: redis-password
+        {{- include "cmdb-k8s.env" . | nindent 8 }}
+
+        volumeMounts:
+        - name: cluster-cm
+          mountPath: /chart
+        - name: event-cm
+          mountPath: /event
+        {{- if and (.Values.admin.persistence) (.Values.admin.persistence.enabled) }}
+        - name: datadir
+          mountPath: /admin
+        {{- end }}
+        livenessProbe:
+          exec:
+            command:
+            - bash
+            - "-c"
+            - |
+              /usr/local/admin/orchestrator.py --probe=liveness --timeout=5
+          initialDelaySeconds: 300
+          periodSeconds: 10
+          timeoutSeconds: 6
+          failureThreshold: 6
+        readinessProbe:
+          exec:
+            command:
+            - bash
+            - "-c"
+            - |
+              /usr/local/admin/orchestrator.py --probe=readiness --timeout=5
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 6
+          failureThreshold: 3
+        resources:
+{{ toYaml .Values.admin.resources | indent 10 }}
+
+      volumes:
+      - name: cluster-cm
+        configMap:
+          name: {{ template "cmdb.fullname" . }}-mariadb-cluster
+      - name: event-cm
+        configMap:
+          name: {{ template "cmdb.fullname" . }}-admin-event
+
+    {{- if .Values.admin.tolerations }}
+      tolerations:
+{{ toYaml .Values.admin.tolerations | indent 8 }}
+    {{- end }}
+    {{- if .Values.admin.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.admin.nodeSelector | indent 8 }}
+    {{- end }}
+      affinity:
+      {{- if .Values.admin.nodeAffinity.enabled }}
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: {{ .Values.admin.nodeAffinity.key }}
+                operator: In
+                values:
+                - {{ quote .Values.admin.nodeAffinity.value }}
+      {{- end }}
+
+  {{- if and (.Values.admin.persistence) (.Values.admin.persistence.enabled) }}
+  volumeClaimTemplates:
+    - metadata:
+        annotations:
+          "helm.sh/resource-policy": {{ default "delete" .Values.admin.persistence.resourcePolicy }}   
+        name: datadir
+        labels:
+          {{- include "cmdb-admin.labels" . | indent 10 }}
+      spec:
+        accessModes:
+          - {{ .Values.admin.persistence.accessMode | quote }}
+        resources:
+          requests:
+            storage: {{ .Values.admin.persistence.size | quote }}
+      {{- if .Values.compaas }}
+        storageClassName: "{{ .Values.compaas.storageClass }}"
+      {{- else if .Values.admin.persistence.storageClass }}
+        storageClassName: {{ .Values.admin.persistence.storageClass }}
+      {{- end }}
+  {{- end }}
+{{- end }}

@@ -1,0 +1,4 @@
+apiVersion: v1
+description: CKEY database and user configurator
+name: ckey-db-config
+version: 1.0.0

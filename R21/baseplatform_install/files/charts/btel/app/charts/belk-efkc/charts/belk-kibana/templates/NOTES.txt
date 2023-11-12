@@ -1,0 +1,3 @@
+Kibana chart creates following pods in the Release namespace of the chart.
+kubectl get pods --namespace {{ .Release.Namespace }} -l role=gui,release={{ .Release.Name }}
+

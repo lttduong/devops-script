@@ -1,0 +1,9 @@
+---
+- name: "Clean copied files on installation node"
+  file:
+    state: absent
+    path: "{{ temporaryAppFilesDirectory }}"
+
+- name: "Installation successful"
+  debug:
+    msg: "Installation successful! Enjoy your experience."

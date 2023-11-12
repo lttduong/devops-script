@@ -1,0 +1,86 @@
+- hosts: kubernetes_master_nodes
+  become: yes
+  
+  vars_files:
+    - env_variables
+  
+  tasks:
+    - name: untain master node
+      shell: kubectl taint node {{edge_node}} node-role.kubernetes.io/master:NoSchedule-
+      ignore_errors: yes
+
+    - name: Create a directory if it does not exist
+      file:
+        path: $HOME/WB
+        state: directory
+        mode: '0755' 
+
+    - name: copy workbench config file
+      copy:
+        src: workbench-packages/workbench_config_vars.tpl
+        dest: $HOME/WB
+
+    - name: copy workbench config values.tpl file
+      copy:
+        src: workbench-packages/workbench_values.tpl
+        dest: $HOME/WB
+
+    - name: copy workbench package 
+      copy:
+        src: workbench-packages/workbench.tgz
+        dest: $HOME/WB
+
+    - name: Copy ncmtpl binary execute file to master host
+      copy:
+        src: bp-packages/ncmtpl
+        dest: $HOME/WB
+        mode: a+x
+
+    - name: Copy nbp config file to master host
+      copy:
+        src: bp-packages/bp_config_vars.tpl
+        dest: $HOME/WB
+
+    - name: Copy workbench script file to master host
+      copy:
+        src: was-packages/helm-install.sh
+        dest: $HOME/WB
+        mode: a+x
+
+    - name: Copy secret script file to master host
+      copy:
+        src: workbench-packages/secrets2configvars.sh
+        dest: $HOME/WB
+        mode: a+x
+
+    - name: Remove waswb pods if any with workbench app
+      shell: kubectl get po -n netguard-base | grep  nwaswb | awk '{print $1}' | xargs -l kubectl delete po -n netguard-base
+      ignore_errors: yes
+
+    - name: Remove waswb secret if any woekbench app 
+      shell: kubectl get secret -n netguard-base | grep  waswb | awk '{print $1}' | xargs -l kubectl delete secret -n netguard-base
+      ignore_errors: yes
+
+    - name: Remove waswb configmap if any workbench app
+      shell: kubectl get cm -n netguard-base | grep  waswb | awk '{print $1}' | xargs -l kubectl delete cm -n netguard-base
+      ignore_errors: yes
+
+    - name: Retrieve the secret of the framework secret of WAS
+      shell: ./secrets2configvars.sh --product=framework --namespace=netguard-base --prefix=nwas- --secrets-file=netguard-framework-secret.env get-secrets
+      args:
+        chdir: $HOME/WB
+
+    - name: Apply the secret after retrieve the framwork secret of WAS
+      shell: ./secrets2configvars.sh --product=framework --secrets-file=netguard-framework-secret.env --config-vars=workbench_config_vars.tpl update-config-vars
+      args:
+        chdir: $HOME/WB
+        
+    - name: Generate the workbench_values.yml to workbench_values.yml
+      shell: ./ncmtpl -d bp_config_vars.tpl -d workbench_config_vars.tpl workbench_values.tpl -o workbench_values.yml
+      args:
+        chdir: $HOME/WB
+
+    - name: install workbench
+      shell:  ./helm-install.sh --action=install --appli-name=workbench --config-values=workbench_values.yml
+      args:
+        chdir: $HOME/WB

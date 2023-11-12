@@ -1,0 +1,17 @@
+## Start of custom modification of original chart
+{{- if .Values.ckey.persistence.backup.createPv }}
+kind: PersistentVolume
+apiVersion: v1
+metadata:
+ name: backup-ckey
+spec:
+  storageClassName: {{ .Values.cbur.backupStorage.class }}
+  capacity:
+    storage: {{ .Values.cbur.backupStorage.size }}
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: "Recycle"
+  hostPath:
+    path: {{ .Values.volumes.path.ckeyBackup }}
+{{- end }}
+## End of custom modification of original chart

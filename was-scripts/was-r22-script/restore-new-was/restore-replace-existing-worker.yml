@@ -1,0 +1,45 @@
+---
+- name: Recovery Existing Worker VM
+  hosts: localhost
+  connection: local
+  collections:
+    - azure.azcollection
+
+  vars_files:
+    - env_variables
+
+  tasks:
+    - name: Restore the disk from your recovery point
+      shell: sudo az backup restore restore-disks --resource-group "{{ resource_group }}" --vault-name "{{ wasVaultName }}" --container-name "{{ workerName }}" --item-name "{{ workerName }}" --storage-account "{{ wasStorageName }}" --rp-name "{{ workerRecoveryPoint }}" --target-resource-group "{{ resourceGroup  }}" --query name
+      register: backupjob
+
+    - name: Pause for 2 minutes for restore disk
+      pause:
+        minutes: 2
+
+    - name: Disable backup of VM
+      shell: sudo az backup protection disable --resource-group "{{ resource_group }}" --vault-name "{{ wasVaultName }}" --container-name "{{ workerName }}" --item-name "{{ workerName }}" --backup-management-type AzureIaaSVM -y
+
+    - name: Get new Id disk
+      shell: sudo az disk list -g "{{ resourceGroup }}" --query '[?managedBy==`null`].[id]' -o tsv | grep -i "{{ workerName }}"
+      register: newiddisk
+
+    - name: Get old Id fisk
+      shell: sudo az vm show -d -g "{{ resourceGroup }}" -n "{{ workerName }}" --query "storageProfile.osDisk.managedDisk.id" | awk -F '[/]' '{print $9}' | sed 's/"//'
+      register: oldiddisk
+
+    - name: Stop Worker VM
+      shell: sudo az vm stop -n "{{ workerName }}" -g "{{ resourceGroup }}"
+
+    - name: Swap disk for worker vm
+      shell: sudo az vm update -g "{{ resourceGroup }}" -n "{{ workerName }}" --os-disk {{ newiddisk.stdout }}
+
+    - name: Start Worker VM
+      shell: sudo az vm start -n "{{ workerName }}" -g "{{ resourceGroup }}"
+
+    - name: Remove Os Disk
+      azure_rm_manageddisk:
+        name: "{{ oldiddisk.stdout }}"
+        location: "{{ location }}"
+        resource_group: "{{ resourceGroup }}"
+        state: absent

@@ -1,0 +1,10 @@
+---
+- name: "Upgrading OS CA certificate secret in BP namespaces"
+  shell: >
+    {{ helm }}  upgrade {{ caCertHelmName }}-{{ item }} {{ chartsPath }}/ca-cert/app
+    --namespace {{ item }}
+    --reuse-values
+    --values {{ chartsPath }}/values/upgrade-global-values.yaml
+  with_items:
+    - "{{ BP_NAMESPACE }}"
+    - "{{ BP_CONFIG_NAMESPACE }}"

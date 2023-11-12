@@ -1,0 +1,109 @@
+{{- if gt (int .Values.maxscale.count) 0 }}
+#
+# Verify maxscale sanity
+#
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ template "cmdb.fullname" . }}-verify-maxscale-sanity
+  labels:
+    {{- include "cmdb-test.labels" . | indent 4 }}
+  annotations:
+    "helm.sh/hook": test-success
+    "helm.sh/hook-weight": "1"
+    {{- if .Values.istio.enabled }}
+    sidecar.istio.io/inject: "true"
+    {{- end }}
+spec:
+  restartPolicy: Never
+  {{- include "cmdb.sa" . | nindent 2 }}
+  containers:
+  - name: test
+    {{- include "cmdb-admin.image" . | indent 4 }}
+    resources:
+      requests:
+        memory: 64Mi
+        cpu: 100m
+      limits:
+        memory: 64Mi
+        cpu: 100m
+    command:
+    - bash
+    - "-c"
+    - |
+      . /chart/cluster.env
+      . /usr/lib/admin/functions
+      wait_istio_proxy
+      for id in $(seq 0 $((MAXSCALE_SIZE-1))); do
+          kubectl exec -n ${K8S_NAMESPACE} ${K8S_PREFIX}-maxscale-${id} -- maxscale_adm --check-sanity || {
+              kill_istio_proxy
+              exit 1
+      }
+      done
+      kill_istio_proxy
+      exit 0
+    env:
+    {{- include "cmdb-k8s.env" . | nindent 4 }}
+    volumeMounts:
+    - name: cluster-cm
+      mountPath: /chart
+  volumes:
+  - name: cluster-cm
+    configMap:
+      name: {{ template "cmdb.fullname" . }}-mariadb-cluster
+
+#
+#  Verify MaxScale recognizes a Master
+#
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ template "cmdb.fullname" . }}-maxscale-verify-master
+  labels:
+    {{- include "cmdb-test.labels" . | indent 4 }}
+  annotations:
+    "helm.sh/hook": test-success
+    "helm.sh/hook-weight": "0"
+    {{- if .Values.istio.enabled }}
+    sidecar.istio.io/inject: "true"
+    {{- end }}
+spec:
+  restartPolicy: Never
+  {{- include "cmdb.sa" . | nindent 2 }}
+  containers:
+  - name: test
+    {{- include "cmdb-admin.image" . | indent 4 }}
+    resources:
+      requests:
+        memory: 64Mi
+        cpu: 100m
+      limits:
+        memory: 64Mi
+        cpu: 100m
+    command:
+    - bash
+    - "-c"
+    - |
+      . /chart/cluster.env
+      . /usr/lib/admin/functions
+      wait_istio_proxy
+      for id in $(seq 0 $((MAXSCALE_SIZE-1))); do
+          kubectl exec -n ${K8S_NAMESPACE} ${K8S_PREFIX}-maxscale-${id} -- maxscale_adm --get-master || {
+              kill_istio_proxy
+              exit 1
+      }
+      done
+      kill_istio_proxy
+      exit 0
+    env:
+    {{- include "cmdb-k8s.env" . | nindent 4 }}
+    volumeMounts:
+    - name: cluster-cm
+      mountPath: /chart
+  volumes:
+  - name: cluster-cm
+    configMap:
+      name: {{ template "cmdb.fullname" . }}-mariadb-cluster
+{{- end }}

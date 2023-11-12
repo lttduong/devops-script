@@ -1,0 +1,36 @@
+replicaCount: 2
+
+resources:
+  requests:
+    memory: 2Gi
+    cpu: 150m
+  limits:
+    memory: 2Gi
+    cpu: 2
+
+db_configurator:
+  resources:
+    requests:
+      cpu: "10m"
+      memory: "50Mi"
+    limits:
+      cpu: "200m"
+      memory: "300Mi"
+
+crmq_configurator:
+  resources:
+    requests:
+      cpu: "10m"
+      memory: "50Mi"
+    limits:
+      cpu: "200m"
+      memory: "300Mi"
+
+ckey_configurator:
+  resources:
+    requests:
+      cpu: "10m"
+      memory: "50Mi"
+    limits:
+      cpu: "200m"
+      memory: "300Mi"

@@ -1,0 +1,14 @@
+---
+- name: "Set namespace in CRMQ in chart override file"
+  replace:
+    dest: "{{ crmqOverrideFile.stat.path }}"
+    regexp: '<BP_NAMESPACE_PLACEHOLDER>'
+    replace: "{{ BP_NAMESPACE }}"
+  when: crmqOverrideFile.stat.exists
+
+- name: "Set DNS domain in chart override file"
+  replace:
+    dest: "{{ crmqOverrideFile.stat.path }}"
+    regexp: '<DNS_DOMAIN_PLACEHOLDER>'
+    replace: "{{ svcDnsDomain }}"
+  when: crmqOverrideFile.stat.exists

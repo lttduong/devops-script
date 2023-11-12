@@ -1,0 +1,48 @@
+---
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    app: {{ template "alarm.name" . }}
+    chart: {{ .Chart.Name }}
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+    version: {{ .Chart.Version }}
+  name: {{ template "alarm.fullname" . }}-configs-configmap
+data:
+{{ (tpl (.Files.Glob "configs/*").AsConfig . ) | indent 2 }}
+  MQClientKey.pem: |
+{{ .Values.mq.clientKey | default "client-default-key" | indent 4 }}
+  MQClientCert.pem: |
+{{ .Values.mq.clientCert | default "client-default-cert" | indent 4 }}
+  MQServerCert.pem: |
+{{ .Values.mq.serverCert | default "server-default-cert" | indent 4 }}
+  mariadbClientKey.pem: |
+{{ .Values.mariadbClientKey | default "client-default-key" | indent 4 }}
+  mariadbClientCert.pem: |
+{{ .Values.mariadbClientCert | default "client-default-cert" | indent 4 }}
+  mariadbServerCert.pem: |
+{{ .Values.mariadbServerCert | default "server-default-cert" | indent 4 }}
+binaryData:
+  kafka.keystore: |-
+{{ .Values.kafka.base64Keystore | default "ZGVmYXVsdA==" | replace "\n" "" | indent 4 }}
+  kafka.truststore: |-
+{{ .Values.kafka.base64Truststore | default "ZGVmYXVsdA==" | replace "\n" "" | indent 4 }}
+  cnot.truststore: |-
+{{ .Values.cnot.base64Truststore | default "ZGVmYXVsdA==" | replace "\n" "" | indent 4 }}
+
+---
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    app: {{ template "alarm.name" . }}
+    chart: {{ .Chart.Name }}
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+    version: {{ .Chart.Version }}
+  name: {{ template "alarm.fullname" . }}-nidds-configmap
+data:
+{{ (.Files.Glob "NIDDs/*.xml").AsConfig | indent 2 }}

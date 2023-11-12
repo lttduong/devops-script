@@ -1,0 +1,26 @@
+{{- if and .Values.virtualIp.enabled .Values.instanceGroup.ipv4Address }}
+apiVersion: ncm.nokia.com/v1alpha1
+kind: VirtualIPInstanceGroup
+metadata:
+  labels:
+  sharinggroup: {{ .Values.instanceGroup.sharinggroup }}
+  controller-tools.k8s.io: "1.0"
+  name: {{ .Values.instanceGroup.name }}-ipv4
+spec:
+  nodeSelector:
+{{ toYaml .Values.instanceGroup.nodeSelector | indent 4 }}
+  unicast: {{ .Values.instanceGroup.unicast }}
+  virtualIPInstanceTemplate:
+    trackingTargets:
+      {{- range $targets := .Values.targets }}
+      - {{ $targets.name }}
+      {{- end }}
+    sourceNetworkAddressTranslation: {{ .Values.instanceGroup.sourceNetworkAddressTranslation }}
+    primaryInterface: {{ .Values.instanceGroup.interface }}
+    virtualRouterID: {{ .Values.instanceGroup.ipv4VirtualRouterID }}
+    virtualIPAddresses:
+      - address: {{ .Values.instanceGroup.ipv4Address }}
+        interface: {{ .Values.instanceGroup.interface }}
+    preempt: {{ .Values.instanceGroup.preempt }}
+    virtualIPClass: {{ .Values.ipClass.name }}
+{{- end }}

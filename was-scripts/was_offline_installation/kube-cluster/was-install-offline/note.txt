@@ -1,0 +1,179 @@
+1/install python 3.6 on all hosts
+yum install rh-python36
+scl enable rh-python36 bash
+
+systemctl enable docker.service
+
+2/disable firewall
+service firewalld stop
+
+USE DS12_v2 VM (4 CPU, 28 GB RAM)
+
+CONFIGURE var/lib directory so that docker and kubelet have enough storage
+extend /var directory
+find the device:
+df -h /var/lib
+lvextend /dev/mapper/rootvg-varlv -L +22G
+xfs_growfs /dev/mapper/rootvg-varlv
+
+# extend on /tmp
+lvextend /dev/mapper/rootvg-tmplv -L +30G
+xfs_growfs /dev/mapper/rootvg-tmplv
+
+For master node
+
+
+
+
+
+172.17.0.4,172.17.0.5,172.17.0.6,172.17.0.7,172.17.0.8,172.17.0.9
+
+104.40.233.138 172.17.0.10
+168.63.6.78 172.17.0.11
+
+worker1 ansible_host=40.68.187.41 ansible_user=azureuser
+worker2 ansible_host=40.115.33.136 ansible_user=azureuser
+worker3 ansible_host=13.73.142.17 ansible_user=azureuser
+worker4 ansible_host=40.115.42.20 ansible_user=azureuser
+worker5 ansible_host=13.81.245.157 ansible_user=azureuser
+
+FOR AZURE VM ONLY
+mount --rbind /mnt/docker /var/lib/docker && mount --rbind /mnt/kubelet /var/lib/kubelet
+mkdir /mnt/docker && mkdir /mnt/kubelet && mkdir /var/lib/docker && mkdir /var/lib/kubelet &&  mount --rbind /mnt/docker /var/lib/docker && mount --rbind /mnt/kubelet /var/lib/kubelet
+chmod -R 777 /mnt/kubelet
+setfacl -R -d -m o::rwx /mnt/kubelet
+chmod -R 777 /mnt/docker
+setfacl -R -d -m o::rwx /mnt/docker
+
+kubeadm join 172.18.0.4:6443 --token 79foef.75sz400usdmpyn4u \
+        --discovery-token-ca-cert-hash sha256:16c60ae74bd4741852cb86501c6190e62c75eb4b5c35411d480b826a9f17e57a
+
+
+
+copy config.json to all nodes (Docker config - for wasr21 repo) - install.yml
+
+reset k8s
+ kubeadm reset
+$ systemctl stop kubelet
+$ systemctl stop docker
+$ rm -rf /var/lib/cni/
+$ rm -rf /var/lib/kubelet/*
+$ rm -rf /etc/cni/
+$ ifconfig cni0 down
+$ ifconfig flannel.1 down
+$ ifconfig docker0 down
+you may need to manually umount filesystems from /var/lib/kubelet before calling rm on that dir) After doing that I started docker and kubelet back again and restarted the kubeadm process
+
+label is_edge=true for worker node
+
+
+helm init -i wasr21containerregistry.azurecr.io/smc/gcr.io/kubernetes-helm/tiller:v2.16.9 --service-account tiller --skip-refresh
+
+helm3 install cert-manager --namespace ncms ./cert-manager --set webhook.hostNetwork=true --set webhook.securePort=11250 --set installCRDs=true --set global.registry=wasr21containerregistry.azurecr.io --wait --debug
+
+helm install --name cert-manager --namespace ncms ./cert-manager --set webhook.hostNetwork=true --set webhook.securePort=11250 --set installCRDs=true --set global.registry=wasr21containerregistry.azurecr.io --wait --debug
+
+
+openssl req -x509 -new -nodes -key ca.key -subj "/CN=NCS" -days 3650 -reqexts v3_req -extensions v3_ca -out ca.crt
+
+kubectl create secret tls ca-key-pair --cert=ca.crt --key=ca.key -n ncms
+kubectl create -f bcmt_ca_issuer.yaml
+
+helm install --name ncs-operator --namespace ncms --set global.registry=wasr21containerregistry.azurecr.io --set tolerations[0].operator=Exists,tolerations[0].effect=NoExecute ncs-operators-1.0.0.tgz
+
+helm install --name ncm-system-tune --namespace ncms ncm-system-tune-1.0.9.tgz
+
+helm install --name app-api ncm-app-1.13.1.tgz -f ncm-app-values.yaml --namespace ncms
+
+***************if fail when install issuer, restart all nodes**********************
+
+copy ncs-linux-cli-20.12.0.tgz to AKS node
+tar zxvf ncs-linux-cli-20.12.0.tgz && ln -s ncs_linux ncm
+
+
+11/ Setup NCM CLI
+
+kubectl get svc -n ncms
+turn off firewall
+{"endpoint":"https://svc ip:8443","token":"WdPoqcsA#28"}
+
+12/ Add nameserver
+echo "nameserver 8.8.8.8" >> /etc/resolv.conf
+
+kubectl exec -it app-api-ncms-app-bfffcd5cc-wmxf8 -n ncms
+helm init --client-only --stable-repo-url https://charts.helm.sh/stable
+
+
+
+13/ check disk
+lsblk -o NAME,HCTL,SIZE,MOUNTPOINT | grep -i "sd"
+sudo parted /dev/sdc --script mklabel gpt mkpart xfspart xfs 0% 100%
+sudo mkfs.xfs /dev/sdc1
+sudo partprobe /dev/sdc1
+mount /dev/sdc1 /opt
+https://docs.microsoft.com/en-us/azure/virtual-machines/linux/attach-disk-portal
+
+
+https://www.howtoforge.com/nfs-server-and-client-on-centos-7
+
+
+create export dir
+
+chmod -R 777 /opt/netguard-data
+setfacl -R -d -m o::rwx /var/netguard-data
+echo '/var/netguard-data *(rw,insecure,async,no_subtree_check,no_root_squash)' > /etc/exports
+
+systemctl enable rpcbind && systemctl enable nfs-server && systemctl enable nfs-lock && systemctl enable nfs-idmap && systemctl start rpcbind && systemctl start nfs-server && systemctl start nfs-lock && systemctl start nfs-idmap
+
+systemctl restart nfs-server
+
+14/
+deploy NFS Subdir External Provisioner to your cluster
+helm repo add nfs-subdir-external-provisioner https://kubernetes-sigs.github.io/nfs-subdir-external-provisioner/
+helm install --name nfs-subdir-external-provisioner nfs-subdir-external-provisioner/nfs-subdir-external-provisioner --set nfs.server=172.17.0.4 --set nfs.path=/var/netguard-data/
+kubectl patch storageclass nfs-client -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+
+
+=====================================================================
+BP install
+create configmap for bp config yml and kube config
+15/ Revise kube config for cluster endpoint
+server: https://10.96.0.1:443
+
+16/ Revise bp_config file for cluster endpoint (https://kubernetes.default.svc.cluster.local:443)
+
+install nfs-utils for all nodes
+
+
+====chmod 777 -R netguard-data/ when install master config for CKEY===========> check this later
+chmod -R g+s <directory>
+
+This sets the group ID for the directory. Then, you can set your group to rwx by default with this command:
+
+setfacl -d -m g::rwx /<directory>
+
+Finally, to set all other users with the same permissions of rwx (which is a less secure setting):
+
+setfacl -R -d -m o::rwx /<directory>
+
+After running those commands, check permissions with
+
+ls -al /<directory>
+
+set umask 022 in /etc/profile for all nodes
+
+
+==========================
+install WAS
+
+update server statefulset with dnspolicy
+
+
+set storage for docker and kubelet in AzureVM
+mkdir /mnt/lib/
+mount --rbind /mnt/lib/ /var/lib/
+
+
+at port forwarding
+iptables -A PREROUTING -t nat -i eth0 -p tcp --dport 443 -j REDIRECT --to-port 30443
+https://ivoberger.com/posts/port-forwarding-with-iptables/

@@ -1,0 +1,46 @@
+{{- if and .Values.alertmanager.enabled .Values.alertmanager.ingress.enabled -}}
+{{- $releaseName := .Release.Name -}}
+{{- $serviceName := include "prometheus.alertmanager.fullname" . }}
+{{- $servicePort := .Values.alertmanager.service.servicePort -}}
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+{{- if or .Values.global.annotations .Values.alertmanager.ingress.annotations }}
+  annotations:
+{{- include "prometheus-annotations" (tuple .Values.global.annotations) | indent 4}}
+{{- with .Values.alertmanager.ingress.annotations }}
+{{ toYaml . | indent 4 }}
+{{- end }}
+{{- end }}
+  labels:
+    app: {{ template "prometheus.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    component: "{{ .Values.alertmanager.name }}"
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+{{- include "prometheus-labels" (tuple .Values.global.labels) | indent 4}}
+{{- range $key, $value := .Values.alertmanager.ingress.extraLabels }}
+    {{ $key }}: {{ $value }}
+{{- end }}
+  name: {{ template "prometheus.alertmanager.fullname" . }}
+spec:
+  rules:
+  {{- range .Values.alertmanager.ingress.hosts }}
+    {{- $url := splitList "/" . }}
+    - host: {{ first $url }}
+      http:
+        paths:
+          - path: /{{ rest $url | join "/" }}
+            backend:
+{{- if $.Values.ha.enabled }}
+              serviceName: {{ $serviceName }}-ext
+{{- else }}
+              serviceName: {{ $serviceName }}
+{{- end }}
+              servicePort: {{ $servicePort }}
+  {{- end -}}
+{{- if .Values.alertmanager.ingress.tls }}
+  tls:
+{{ toYaml .Values.alertmanager.ingress.tls | indent 4 }}
+  {{- end -}}
+{{- end -}}

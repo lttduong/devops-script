@@ -1,0 +1,47 @@
+{{- if and .Values.rbac.enabled .Values.restrictedToNamespace .Values.alertmanager.enabled }}
+{{- if not .Values.deployOnComPaaS }}
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: Role
+metadata:
+  labels:
+    app: {{ template "prometheus.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    component: "{{ .Values.alertmanager.name }}"
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+{{- include "prometheus-labels" (tuple .Values.global.labels) | indent 4}}
+  name: {{ template "prometheus.alertmanager.fullname" . }}-role
+  namespace: "{{.Release.Namespace}}"
+{{- if .Values.global.annotations }}
+  annotations:
+{{- include "prometheus-annotations" (tuple .Values.global.annotations) | indent 4}}
+{{- end }}
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - services
+      - endpoints
+      - pods
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+    verbs:
+      - get
+  {{- if and (.Values.istio.enable) (not .Values.istio.cni_enable) }}
+  - apiGroups:
+      - extensions
+    resourceNames:
+      - {{ template "prometheus.alertmanager.fullname" . }}-psp
+    resources:
+      - podsecuritypolicies
+    verbs:
+      - use
+  {{- end }}
+{{- end }}
+{{- end }}

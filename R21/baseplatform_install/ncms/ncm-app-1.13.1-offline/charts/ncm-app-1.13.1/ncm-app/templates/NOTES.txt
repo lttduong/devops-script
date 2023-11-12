@@ -1,0 +1,20 @@
+{{- if .Release.IsUpgrade }}
+You are upgrading ncm-app chart. Please pay attention:
+
+ncm-app provides 2 ways to change server certificate.
+1. Using certManager 
+2. User provided secret. Users can provide a secret through certSecretName parameter, which includes ca.crt, tls.key and tls.crt for server certificate
+
+WARNING: if you used before keystore.enabled=true or keystore.enabled=true,keystore.certManager.enabled=true for changing server certificate, please change to one of the 3 new ways.
+
+{{- end }}
+
+{{- if .Release.IsInstall }}
+You are installing ncm-app chart with release name: {{ .Release.Name }}
+
+To learn more about this release, try:
+
+  $ helm status {{ .Release.Name }}
+
+{{- end }}
+

@@ -1,0 +1,32 @@
+{{- if or (and (eq .Values.global.istio.enabled false) (eq .Values.global.istio.createDrForClients true)) (and (eq .Values.global.istio.overrideMtls.enabled true) (eq .Values.global.istio.enabled true)) }}
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: {{ template "zookeeper.name" . }}-headless-zkdestrule
+  namespace: {{ .Release.Namespace }}
+spec:
+  host: {{ template "zookeeper.name" . }}-headless.{{ .Release.Namespace }}.svc{{ .Values.global.domainName }}
+  trafficPolicy:
+    tls:
+      {{- if or (eq .Values.global.istio.overrideMtls.mode "DISABLE") (and (eq .Values.global.istio.enabled false) (eq .Values.global.istio.createDrForClients true)) }}
+      mode: DISABLE
+      {{- else }}
+      mode: ISTIO_MUTUAL
+      {{- end }}
+---
+
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: {{ template "zookeeper.name" . }}-zkdestrule
+  namespace: {{.Release.Namespace}}
+spec:
+  host: {{ template "zookeeper.name" . }}.{{ .Release.Namespace }}.svc{{ .Values.global.domainName }}
+  trafficPolicy:
+    tls:
+      {{- if or (eq .Values.global.istio.overrideMtls.mode "DISABLE") (and (eq .Values.global.istio.enabled false) (eq .Values.global.istio.createDrForClients true)) }}
+      mode: DISABLE
+      {{- else }}
+      mode: ISTIO_MUTUAL
+      {{- end }}
+{{- end }}

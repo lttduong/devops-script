@@ -1,0 +1,24 @@
+{{- if and (.Values.istio.enabled) (not .Values.istio.gateway.existing_gw_name ) }}
+apiVersion: networking.istio.io/v1alpha3
+kind: Gateway
+metadata:
+  name: {{ template "kibana.fullname" . }}-ing-gw
+  namespace: {{ .Release.Namespace }}
+spec:
+  selector:
+{{ toYaml .Values.istio.gateway.selector | indent 5 }}
+  servers:
+  - port:
+      number: {{ .Values.istio.gateway.port.number }}
+      name: {{ .Values.istio.gateway.port.name }}
+      protocol: {{ .Values.istio.gateway.port.protocol }}
+    hosts:
+    {{- range .Values.istio.gateway.hosts }}
+    - "{{ . }}"
+    {{- end }}
+    {{- if .Values.istio.gateway.tls }}
+    tls:
+{{ toYaml .Values.istio.gateway.tls | indent 7 }}
+    {{- end }}
+{{- end }}
+

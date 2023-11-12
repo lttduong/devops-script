@@ -1,0 +1,27 @@
+### Start of custom modification of original chart
+#{{- if .Values.cbur.enabled }}
+#kind: PersistentVolumeClaim
+#apiVersion: v1
+#metadata:
+#  name: {{ template "elasticsearch.fullname" . }}-pvc
+#spec:
+#  storageClassName: {{.Values.backup_restore.storageClassName}}
+#  accessModes:
+#    - ReadWriteMany
+#  resources:
+#    requests:
+#      storage: {{.Values.backup_restore.size}}
+#---
+#kind: PersistentVolumeClaim
+#apiVersion: v1
+#metadata:
+#  name: {{ template "elasticsearch.fullname" . }}-cbur-tmp-pvc
+#spec:
+#  storageClassName: {{.Values.backup_restore.storageClassName}}
+#  accessModes:
+#    - ReadWriteMany
+#  resources:
+#    requests:
+#      storage: {{.Values.cbur.cbura.tmp_size}}
+#{{- end}}
+## End of custom modification of original chart

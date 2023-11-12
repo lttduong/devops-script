@@ -1,0 +1,1 @@
+docker run -v $PWD:/tmp csf-docker-delivered.repo.lab.pl.alcatel-lucent.com/helm:v2.9.1-01 template /tmp | grep image: | cut -d\" -f2 | uniq | sed 's/.repo.lab.pl.alcatel-lucent.com//g' | tr ':' '/' | xargs -I U curl -I -f -Lks https://repo.lab.pl.alcatel-lucent.com/U || echo "[KO] images not reachable"

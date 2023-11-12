@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    app: {{ template "cnot.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    component: "{{ .Values.cnot.name }}"
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+  name: {{ template "cnot.fullname" . }}-wildfly-hook
+data:
+  wildfly_hook.cli: |
+    embed-server --server-config=${server.config}
+    /subsystem=logging/root-logger=ROOT:write-attribute(name="level", value="INFO")
+    /subsystem=logging/pattern-formatter=COLOR-PATTERN:write-attribute(name=pattern, value="%s%n")
+    /subsystem=undertow/server=default-server/host=default-host/setting=access-log:add(pattern="%h %l %u %t \"%r\" %s %b \"%{i,Referer}\" \"%{i,User-Agent}\" \"%{i,COOKIE}\" \"%{o,SET-COOKIE}\" %S \"%I\" %T",use-server-log="true")
+    /subsystem=logging/root-logger=ROOT:remove-handler(name="FILE")
+    /subsystem=logging/periodic-rotating-file-handler=FILE:remove
+    /subsystem=logging/size-rotating-file-handler=FILE:add(file={path=server.log,relative-to="jboss.server.log.dir"})
+    /subsystem=logging/size-rotating-file-handler=FILE:write-attribute(name=rotate-size, value={{ template "wildfly.logFileSize" . }})
+    /subsystem=logging/size-rotating-file-handler=FILE:write-attribute(name=max-backup-index, value={{ template "wildfly.numOfLogFiles" . }})
+    {{ if eq .Values.wildfly.authByKeycloak.enabled true -}}
+    /subsystem=keycloak/secure-deployment=notif-server.war:add(realm={{ .Values.wildfly.authByKeycloak.notifServer.realm }}, auth-server-url={{ .Values.wildfly.authByKeycloak.notifServer.authServerUrl }}, ssl-required={{ .Values.wildfly.authByKeycloak.notifServer.sslRequired }}, resource={{ .Values.wildfly.authByKeycloak.notifServer.resource }}, public-client={{ .Values.wildfly.authByKeycloak.notifServer.publicClient }})
+    {{ if eq .Values.wildfly.authByKeycloak.notifServer.publicClient false -}}
+    /subsystem=keycloak/secure-deployment=notif-server.war/credential=secret:add(value={{ .Values.wildfly.authByKeycloak.notifServer.credential.secret }})
+    {{- end -}}
+    {{- end -}}

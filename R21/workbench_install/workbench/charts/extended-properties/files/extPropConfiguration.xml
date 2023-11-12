@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<extPropConfiguration xmlns="com/nakina/oss/server/local/objectmodel/entity/extprop/config"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="com/nakina/oss/server/local/objectmodel/entity/extprop/config extPropConfig.xsd">
+
+    <extendedClasses>
+    <!-- 
+       <extendedClass extclassname="com.nakina.oss.server.local.objectmodel.usermgmt.mo.UserMO" tablename="IGNORED" sequencename="IGNORED">
+          <attribute name="Department" type="string" column="DEPARTMENT" index="DEPARTMENT_IDX" length="500"/>
+       </extendedClass>
+     -->
+    </extendedClasses>
+
+</extPropConfiguration>

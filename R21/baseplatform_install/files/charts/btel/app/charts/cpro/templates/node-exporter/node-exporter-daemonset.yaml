@@ -1,0 +1,137 @@
+{{- if .Values.nodeExporter.enabled -}}
+apiVersion: {{ template "prometheus.apiVersionExtensionsV1Beta1orV1" . }}
+kind: DaemonSet
+metadata:
+  labels:
+    app: {{ template "prometheus.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    component: "{{ .Values.nodeExporter.name }}"
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+{{- include "prometheus-labels" (tuple .Values.global.labels) | indent 4}}
+  name: {{ template "prometheus.nodeExporter.daemonSetName" . }}
+{{- if .Values.global.annotations }}
+  annotations:
+{{- include "prometheus-annotations" (tuple .Values.global.annotations) | indent 4}}
+{{- end }}
+spec:
+  {{- if .Values.nodeExporter.updateStrategy }}
+  updateStrategy:
+{{ toYaml .Values.nodeExporter.updateStrategy | indent 4 }}
+  {{- end }}
+  {{- if semverCompare ">=1.16.0-0" .Capabilities.KubeVersion.GitVersion }}
+  selector:
+   matchLabels:
+    app: {{ template "prometheus.name" . }}
+    component: "{{ .Values.nodeExporter.name }}"
+    release: {{ .Release.Name }}
+  {{- end }}
+  template:
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "false"
+    {{- if .Values.nodeExporter.podAnnotations }}
+{{ toYaml .Values.nodeExporter.podAnnotations | indent 8 }}
+    {{- end }}
+{{- include "custom-annotations" (tuple .Values.custom.pod.annotations) | indent 8}}
+{{- if .Values.rbac.pspUseAppArmor }}
+{{- include "custom-annotations" (tuple .Values.custom.pod.apparmorAnnotations) | indent 8}}
+{{- end }}
+      labels:
+        app: {{ template "prometheus.name" . }}
+        component: "{{ .Values.nodeExporter.name }}"
+        release: {{ .Release.Name }}
+        {{- include "custom-labels" (tuple .Values.custom.pod.labels) | indent 8}}
+{{- if .Values.nodeExporter.pod.labels }}
+{{ toYaml .Values.nodeExporter.pod.labels | indent 8 }}
+{{- end }}
+    spec:
+      serviceAccountName: {{ template "prometheus.exporters.serviceAccountName" . }}
+      {{- if .Values.seLinuxOptions.enabled }}
+      securityContext:
+        seLinuxOptions:
+          level: {{ .Values.seLinuxOptions.level }}
+          role: {{ .Values.seLinuxOptions.role }}
+          type: {{ .Values.seLinuxOptions.type }}
+          user: {{ .Values.seLinuxOptions.user }}
+      {{- end }}
+      containers:
+        - name: {{ template "prometheus.nodeExporter.ContainerName" . }}
+          image: "{{ .Values.global.registry1 }}/{{ .Values.nodeExporter.image.imageRepo }}:{{ .Values.nodeExporter.image.imageTag }}"
+          imagePullPolicy: "{{ .Values.nodeExporter.image.imagePullPolicy }}"
+          {{- if .Values.nodeExporter.nodeExporterContainerSecurityContext }}
+          securityContext:
+{{ toYaml .Values.nodeExporter.nodeExporterContainerSecurityContext | indent 12 }}
+          {{- end }}
+          args:
+            - --path.procfs=/host/proc
+            - --path.sysfs=/host/sys
+            - --path.rootfs=/host/root
+          {{- range $key, $value := .Values.nodeExporter.extraArgs }}
+          {{- if $value }}
+            - --{{ $key }}={{ $value }}
+          {{- else }}
+            - --{{ $key }}
+          {{- end }}
+          {{- end }}
+          ports:
+            - name: tcp-metrics
+              containerPort: {{ .Values.nodeExporter.service.podContainerPort }}
+              hostPort: {{ .Values.nodeExporter.service.podHostPort }}
+          resources:
+{{ toYaml .Values.nodeExporter.resources | indent 12 }}
+          volumeMounts:
+            - name: proc
+              mountPath: /host/proc
+              readOnly:  true
+              mountPropagation: HostToContainer 
+            - name: sys
+              mountPath: /host/sys
+              readOnly: true
+              mountPropagation: HostToContainer 
+            - name: root
+              mountPath: /host/root
+              readOnly: true
+              mountPropagation: HostToContainer 
+          {{- range .Values.nodeExporter.extraHostPathMounts }}
+            - name: {{ .name }}
+              mountPath: {{ .mountPath }}
+              readOnly: {{ .readOnly }}
+          {{- end }}
+          {{- range .Values.nodeExporter.extraConfigmapMounts }}
+            - name: {{ .name }}
+              mountPath: {{ .mountPath }}
+              readOnly: {{ .readOnly }}
+          {{- end }}
+      hostNetwork: true
+      hostPID: true
+    {{- if .Values.nodeExporter.tolerations }}
+      tolerations:
+{{ toYaml .Values.nodeExporter.tolerations | indent 8 }}
+    {{- end }}
+    {{- if .Values.nodeExporter.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.nodeExporter.nodeSelector | indent 8 }}
+    {{- end }}
+      volumes:
+        - name: proc
+          hostPath:
+            path: /proc
+        - name: sys
+          hostPath:
+            path: /sys
+        - name: root
+          hostPath:
+            path: /
+      {{- range .Values.nodeExporter.extraHostPathMounts }}
+        - name: {{ .name }}
+          hostPath:
+            path: {{ .hostPath }}
+      {{- end }}
+      {{- range .Values.nodeExporter.extraConfigmapMounts }}
+        - name: {{ .name }}
+          configMap:
+            name: {{ .configMap }}
+      {{- end }}
+
+{{- end -}}

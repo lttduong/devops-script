@@ -1,0 +1,45 @@
+{{- include "kibana.istio.initIstio" . }}
+{{- if .Values.istio.enabled }}
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: {{ template "kibana.fullname" . }}-istio-virtual-svc
+  namespace: {{ .Release.Namespace }}
+spec:
+  hosts:
+  {{- range .Values.istio.virtual_svc.hosts }}
+    - "{{ . }}"
+  {{- end }}
+  gateways:
+  {{- if .Values.istio.gateway.existing_gw_name }}
+  - {{ .Values.istio.gateway.existing_gw_name }}
+  {{- else }}
+  - {{ template "kibana.fullname" . }}-ing-gw
+  {{- end }}
+  http:
+  - match:
+    - uri:
+       prefix: {{ .Values.kibanabaseurl.url }}
+    route:
+    - destination:
+        {{- if .Values.service.name }}
+        host: {{ .Values.service.name }}
+        {{- else }}
+        host: {{ template "kibana.fullname" . }}
+        {{- end }}
+        port:
+          number: {{ .Values.kibana.port }}
+---
+{{- if eq $.istioVersion 1.4 -}}
+apiVersion: "networking.istio.io/v1alpha3"
+kind: "DestinationRule"
+metadata:
+  name: {{ template "kibana.fullname" . }}
+spec:
+  host: {{ default (printf "%s" (include "kibana.fullname" .)) .Values.service.name }}.{{ .Release.Namespace }}.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+{{- end }}
+{{- end }}
+

@@ -1,0 +1,45 @@
+# Common variables
+resourceGroup: open-wavehub-dev
+vaultName: WavesuiteBackupVaultWE
+newRG: "{{ lookup('env', 'rg') }}"
+location: "{{ lookup('env', 'region') }}"
+ssh_key: "{{ lookup('env', 'ssh_key') }}"
+vpnProfile: "{{ lookup('env', 'vpnProfile') }}"
+rootProfile: "{{ lookup('env', 'rootProfile') }}"
+nfmtIp: "{{ lookup('env', 'nfmtIp') }}"
+nfmtUsername: "{{ lookup('env', 'nfmtUsername') }}"
+nfmtPassword: "{{ lookup('env', 'nfmtPassword') }}"
+dpaProfile: "{{ lookup('env', 'dpaProfile') }}"
+wasUsername: "{{ lookup('env', 'wasUsername') }}"
+
+## All variables of Master
+masterVaultName: "{{ lookup('env', 'masterVaultName') }}"
+masterContainerName: "{{ lookup('env', 'masterContainerName') }}"
+masterStorageName: "{{ lookup('env', 'masterStorageName') }}"
+masterPolicyVault: "{{ lookup('env', 'masterPolicyVault') }}"
+masterRecoveryPoint: "{{ lookup('env', 'masterRecoveryPoint') }}"
+masterName: "{{ lookup('env', 'masterName') }}"
+master_public_ip_address: "{{ lookup('env', 'master_public_ip_address') }}"
+master_private_ip_address: "{{ lookup('env', 'master_private_ip_address') }}"
+
+## All variables of Worker
+workerVaultName: "{{ lookup('env', 'workerVaultName') }}"
+workerContainerName: "{{ lookup('env', 'workerContainerName') }}"
+workerStorageName: "{{ lookup('env', 'workerStorageName') }}"
+workerPolicyVault: "{{ lookup('env', 'workerPolicyVault') }}"
+workerRecoveryPoint: "{{ lookup('env', 'workerRecoveryPoint') }}"
+workerName: "{{ lookup('env', 'workerName') }}"
+worker_public_ip_address: "{{ lookup('env', 'worker_public_ip_address') }}"
+worker_private_ip_address: "{{ lookup('env', 'worker_private_ip_address') }}"
+
+## All variables of DPA
+dpaVaultName: "{{ lookup('env', 'dpaVaultName') }}"
+dpaContainerName: "{{ lookup('env', 'dpaContainerName') }}"
+dpaStorageName: "{{ lookup('env', 'dpaStorageName') }}"
+dpaPolicyVault: "{{ lookup('env', 'dpaPolicyVault') }}"
+dpaRecoveryPoint: "{{ lookup('env', 'dpaRecoveryPoint') }}"
+dpaName: "{{ lookup('env', 'dpaName') }}"
+dpa_public_ip_address: "{{ lookup('env', 'dpa_public_ip_address') }}"
+dpa_private_ip_address: "{{ lookup('env', 'dpa_private_ip_address') }}"
+dpa_profile_name: "{{ lookup('env', 'dpa_profile_name') }}"
+

@@ -1,0 +1,241 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "zookeeper.name" . }}-dynamic-config
+  annotations:
+    "helm.sh/hook": pre-rollback
+    "helm.sh/hook-weight": "-1"
+    "helm.sh/hook-delete-policy": before-hook-creation
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: {{ .Values.global.seccompAllowedProfileNames }}
+    seccomp.security.alpha.kubernetes.io/defaultProfileName: {{ .Values.global.seccompDefaultProfileName }}
+  labels:
+    app: {{ .Chart.Name }}
+    release: {{ .Release.Name }}
+data:
+ dynamicfileorg.cfg.dynamic: |-
+   {{- $replicas := .Values.servers | int }}
+   {{- $root := . }}
+   {{- range $replica := until $replicas }}
+    {{- $serverid := add $replica 1 }}
+    server.{{ $serverid }}={{ template "zookeeper.name" $root }}-{{ $replica }}.{{ template "zookeeper.name" $root }}-headless.{{ $root.Release.Namespace }}.svc{{ $root.Values.global.domainName }}:{{ $root.Values.serverPort }}:{{ $root.Values.leaderElectionPort }};0.0.0.0:2181
+   {{- end }}
+---
+{{if .Values.enableRollback}}
+{{- if (and ( .Values.global.rbacEnable) (not .Values.global.serviceAccountName) ) }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ template "zookeeper.name" . }}-zk-prerbk-admin
+  namespace: "{{.Release.Namespace}}"
+  labels:
+    app: {{ .Chart.Name }}
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+  annotations:
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: {{ .Values.global.seccompAllowedProfileNames }}
+    seccomp.security.alpha.kubernetes.io/defaultProfileName: {{ .Values.global.seccompDefaultProfileName }}
+    "helm.sh/hook": pre-rollback
+    "helm.sh/hook-weight": "-8"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded,hook-failed
+{{- end }}
+---
+{{- if (and ( .Values.global.rbacEnable) (not .Values.global.serviceAccountName) ) }}
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ template "zookeeper.name" . }}-zk-prerbk-rolebind
+  namespace: "{{.Release.Namespace}}"
+  labels:
+    app: {{ .Chart.Name }}
+  annotations:
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: {{ .Values.global.seccompAllowedProfileNames }}
+    seccomp.security.alpha.kubernetes.io/defaultProfileName: {{ .Values.global.seccompDefaultProfileName }}
+    "helm.sh/hook": pre-rollback
+    "helm.sh/hook-weight": "-6"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded,hook-failed
+subjects:
+- kind: ServiceAccount
+  name: {{ template "zookeeper.name" . }}-zk-prerbk-admin
+  namespace: "{{.Release.Namespace}}"
+roleRef:
+  kind: ClusterRole
+  name: cluster-admin
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "zookeeper.name" . }}-zk-prerbk-job
+  labels:
+    app: {{ .Chart.Name }}
+    release: {{ .Release.Name | quote }}
+    heritage: {{ .Release.Service | quote }}
+  annotations:
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: {{ .Values.global.seccompAllowedProfileNames }} 
+    seccomp.security.alpha.kubernetes.io/defaultProfileName: {{ .Values.global.seccompDefaultProfileName }}
+    "helm.sh/hook": pre-rollback
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    "helm.sh/hook-weight": "-5"
+spec:
+  template:
+    metadata:
+      labels:
+        app: {{ .Chart.Name }}
+      annotations:
+        sidecar.istio.io/inject: "false"
+    spec:
+      {{- if .Values.global.rbacEnable }}
+      {{- if not .Values.global.serviceAccountName }}
+      serviceAccountName: {{ template "zookeeper.name" . }}-zk-prerbk-admin
+      {{- else -}}
+      serviceAccountName: {{ template "zkserviceAccount.name" . }}
+      {{- end }}
+      {{- end }}
+      {{- if eq .Values.security.enabled true }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: {{ .Values.security.runAsUser }}
+        fsGroup: {{ .Values.security.fsGroup }}
+      {{- end }}
+      restartPolicy: Never
+      containers:
+      - name: ckaf-zookeeper-zk-prerbk
+        image: "{{ .Values.global.registry3}}/{{ .Values.kubectlImage }}:{{ .Values.kubectlTag }}"
+        imagePullPolicy: IfNotPresent
+        {{- if eq .Values.security.enabled true }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          privileged: false
+          capabilities:
+            drop:
+              - all
+        {{- end }}
+        resources:
+{{ toYaml .Values.jobResources | indent 10 }}
+        command:
+        - bash
+        - -c
+        - |
+          {{- if .Values.global.forceUpgrade }}
+          kubectl delete statefulset --cascade=false --namespace {{ .Release.Namespace }} -l app={{ .Chart.Name }},release={{ .Release.Name }}
+          {{- end }}
+{{- end }}
+---
+# scale feature support via upgrade hooks.
+# Config map which holds the number of replicas before any scale operation.
+# This config map is created and used by pre/post upgrade/rollback jobs to determine 
+# the scale in/out direction when the user chooses to use the feature of scale via upgrade
+{{ if .Values.global.enable_scale_via_upgrade }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "zookeeper.name" . }}-replicas
+  annotations:
+    "helm.sh/hook": pre-rollback
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: {{ .Values.global.seccompAllowedProfileNames }}
+    seccomp.security.alpha.kubernetes.io/defaultProfileName: {{ .Values.global.seccompDefaultProfileName }}
+  labels:
+    app: {{ .Chart.Name }}
+    release: {{ .Release.Name }}
+data:
+  replicas: {{ .Values.servers | quote }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "zookeeper.name" . }}-zk-prerollback-scale-job
+  labels:
+    app: {{ .Chart.Name }}
+    release: {{ .Release.Name | quote }}
+    heritage: {{ .Release.Service | quote }}
+  annotations:
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: {{ .Values.global.seccompAllowedProfileNames }}
+    seccomp.security.alpha.kubernetes.io/defaultProfileName: {{ .Values.global.seccompDefaultProfileName }}
+    "helm.sh/hook": pre-rollback
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    "helm.sh/hook-weight": "-1"
+spec:
+  template:
+    metadata:
+      labels:
+        app: {{ .Chart.Name }}
+      annotations:
+        sidecar.istio.io/inject: "false"
+    spec:
+      {{- if .Values.global.rbacEnable }}
+      serviceAccountName: {{ template "zkserviceAccount.name" . }}
+      {{ end }}
+      {{- if eq .Values.security.enabled true }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: {{ .Values.security.runAsUser }}
+        fsGroup: {{ .Values.security.fsGroup }}
+      {{- end }}
+      restartPolicy: Never
+      containers:
+      - name: ckaf-zookeeper-zk-prerollback-scale
+        image: "{{ .Values.global.registry3 }}/{{ .Values.kubectlImage }}:{{ .Values.kubectlTag }}"
+        imagePullPolicy: IfNotPresent
+        {{- if eq .Values.security.enabled true }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          privileged: false
+          capabilities:
+            drop:
+              - all
+        {{- end }}
+        resources:
+{{ toYaml .Values.jobResources | indent 10 }}
+        command:
+        - bash
+        - -c
+        - |
+          newReplicaCount={{ .Values.servers }}
+          
+          # update the Zookeeper config map to store the number of replicas before scale operation.
+          oldReplicaCount=$(kubectl get pods -l release={{ .Release.Name }} -n {{ .Release.Namespace }} | grep {{ template "zookeeper.name" . }} | wc -l)
+          echo $oldReplicaCount
+          { echo "data:"; echo "   replicas:  \"$oldReplicaCount\""; } > /tmp/configmap.yaml
+          kubectl patch configmap {{ template "zookeeper.name" . }}-replicas -n {{ .Release.Namespace }}  --type merge -p "$(cat /tmp/configmap.yaml)"
+
+          if [ "$newReplicaCount" -eq "$oldReplicaCount" ]
+          then 
+            echo "Old and new replica counts are same."
+          # scale in case
+          elif [ "$newReplicaCount" -lt "$oldReplicaCount" ]
+          then 
+            echo "Scaling in the Zookeeper cluster to $newReplicaCount"
+            echo "Performing Zookeeper reconfig remove command to scale down the zookeeper instance."
+            # trigger the reconfig remove command.
+            CONSTRUCT_FQDN="reconfig -remove "
+            for (( i=${newReplicaCount}; i<${oldReplicaCount}; i++ ));do
+              CONSTRUCT_FQDN+=$((${i}+1))','
+            done;
+            # trim "," at the end of the string 
+            CONSTRUCT_FQDN=${CONSTRUCT_FQDN::-1}
+
+            echo "${CONSTRUCT_FQDN}" | kubectl exec -i {{ template "zookeeper.name" . }}-0 -c ckaf-zookeeper-server -n {{ .Release.Namespace }} -- bash -c  "env -i zookeeper-shell "{{ template "zookeeper.name" . }}"-0."{{ template "zookeeper.name" . }}"-headless."{{ .Release.Namespace }}".svc"{{ .Values.global.domainName }}":2181"; sleep 10 
+
+            # Verify if the reconfig remove was sucessful.
+            for (( i=${newReplicaCount}; i<${oldReplicaCount}; i++ ));do
+              CHECK_AFTER_RECONFIG_REMOVE=$(echo "config" | kubectl exec -i {{ template "zookeeper.name" . }}-0 -c ckaf-zookeeper-server -n {{ .Release.Namespace }} -- bash -c  "env -i zookeeper-shell  "{{ template "zookeeper.name" . }}"-0."{{ template "zookeeper.name" . }}"-headless."{{ .Release.Namespace }}".svc"{{ .Values.global.domainName }}":2181" | grep -c {{ template "zookeeper.name" . }}-${i})
+              if (( $CHECK_AFTER_RECONFIG_REMOVE ));then
+                echo "Failed to remove Zookeeper server.$((${i}+1))..Retrying"
+                echo "reconfig -remove $((${i}+1))"| kubectl exec -i {{ template "zookeeper.name" . }}-0 -c ckaf-zookeeper-server -n {{ .Release.Namespace }} -- bash -c  "env -i zookeeper-shell "{{ template "zookeeper.name" . }}"-0."{{ template "zookeeper.name" . }}"-headless."{{ .Release.Namespace }}".svc"{{ .Values.global.domainName }}":2181"
+              fi;
+            done;
+            
+            #updating the Zookeeper dynamic configmap with the new server entries.
+            CONFIG_MAP=$(echo "config" | kubectl exec -i {{ template "zookeeper.name" . }}-0 -c ckaf-zookeeper-server -n {{ .Release.Namespace }} -- bash -c  "env -i zookeeper-shell  "{{ template "zookeeper.name" . }}"-0."{{ template "zookeeper.name" . }}"-headless."{{ .Release.Namespace }}".svc"{{ .Values.global.domainName }}":2181" | grep server)
+
+            { echo "data:"; echo "   dynamicfileorg.cfg.dynamic: |-"; sed 's/^/      /'  <<<"$CONFIG_MAP"; } > /tmp/configmap.yaml
+            kubectl patch configmap {{ template "zookeeper.name" . }}-dynamic-config -n {{ .Release.Namespace }} --type merge -p "$(cat /tmp/configmap.yaml)"
+          # scale out case
+          else
+            echo "No Zookeeper specific operations required. Proceeding with cluster scale out !"
+          fi
+{{- end }}
+---

@@ -1,0 +1,13 @@
+{
+  "alert": "ElasticSearchDiskFull",
+  "expr": "es_fs_total_free_bytes{pod=~\".*data.*\"} / es_fs_total_total_bytes{pod=~\".*data.*\"}  * 100 < 15",
+  "for": "10m",
+  "labels": {
+    "alert_id": "6005",
+    "alert_severity": "CRITICAL"
+  },
+  "annotations": {
+    "description": "Alarm - `Elasticsearch disk is full. Please check it!`",
+    "summary": "Instance - {{ $labels.instance }}"
+  }
+}

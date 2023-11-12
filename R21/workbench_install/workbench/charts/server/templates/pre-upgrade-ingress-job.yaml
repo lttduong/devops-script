@@ -1,0 +1,39 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Chart.Name }}-pre-upgrade-ingresses
+  annotations:
+    # This is what defines this resource as a hook. Without this line, the
+    # job is considered part of the release.
+    "helm.sh/hook": pre-upgrade
+    "helm.sh/hook-weight": "-15"
+    "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded
+spec:
+  template:
+    metadata:
+      name: "{{ .Release.Name }}"
+    spec:
+      {{- if .Values.global.rbac.enabled }}
+      serviceAccountName: {{ .Chart.Name }}-hook-sa
+      {{- else if .Values.global.serviceAccountName }}
+      serviceAccountName: {{ .Values.global.serviceAccountName }}
+      {{- end }}
+{{- if .Values.global.jobNodeAffinityRuleTemplate }}
+{{ tpl .Values.global.jobNodeAffinityRuleTemplate . | indent 6 }}
+{{- end }}
+      restartPolicy: Never
+      containers:
+      - name: upgrade-ingresses-job
+        image: "{{ .Values.global.registry }}/{{ .Values.global.kubectl.image.repo }}:{{ .Values.global.kubectl.image.tag }}"
+        command:
+        - sh
+        - -c
+        - |
+          {{- range $app, $appvalue := .Values.ingress }}
+          {{- range $type, $typevalue := . }}
+          {{- if .enabled }}
+          kubectl delete ingress {{ $.Values.global.releaseNamePrefix }}{{ $app | lower }}-{{ $type | lower }} --namespace {{ $.Release.Namespace }} --ignore-not-found=true
+          {{- end }}
+          {{- end }}
+          {{- end }}

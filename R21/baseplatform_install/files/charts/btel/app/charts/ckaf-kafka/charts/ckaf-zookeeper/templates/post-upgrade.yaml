@@ -1,0 +1,169 @@
+{{if .Values.enableUpgrade}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "zookeeper.name" . }}-zk-postupg-job
+  labels:
+    app: {{ .Chart.Name }}
+    release: {{ .Release.Name | quote }}
+    heritage: {{ .Release.Service | quote }}
+  annotations:
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: {{ .Values.global.seccompAllowedProfileNames }} 
+    seccomp.security.alpha.kubernetes.io/defaultProfileName: {{ .Values.global.seccompDefaultProfileName }}
+    "helm.sh/hook": post-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    "helm.sh/hook-weight": "-5"
+spec:
+  template:
+    metadata:
+      labels:
+        app: {{ .Chart.Name }}
+      annotations:
+        sidecar.istio.io/inject: "false"
+    spec:
+      {{- if .Values.global.rbacEnable }}
+      serviceAccountName: {{ template "zkserviceAccount.name" . }}
+      {{- end }}
+      {{- if eq .Values.security.enabled true }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: {{ .Values.security.runAsUser }}
+        fsGroup: {{ .Values.security.fsGroup }}
+      {{- end }}
+      restartPolicy: Never
+      containers:
+      - name: ckaf-zookeeper-zk-postupg
+        image: "{{ .Values.global.registry3}}/{{ .Values.kubectlImage }}:{{ .Values.kubectlTag }}"
+        imagePullPolicy: IfNotPresent
+        {{- if eq .Values.security.enabled true }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          privileged: false
+          capabilities:
+            drop:
+              - all
+        {{- end }}
+        resources:
+{{ toYaml .Values.jobResources | indent 10 }}
+        command:
+        - bash
+        - -c
+        - |
+          # Since previous ckaf zookeeper charts doesn't have pre-rollback.yaml
+          {{- if .Values.global.prepareRollback }}
+          kubectl delete statefulset --cascade=false --namespace {{ .Release.Namespace }} -l app={{ .Chart.Name }},release={{ .Release.Name }}
+          {{- end }} # .Values.global.prepareRollback
+{{- end }} # .Values.enableUpgrade
+
+---
+# scale feature support via upgrade hooks.
+{{ if .Values.global.enable_scale_via_upgrade }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "zookeeper.name" . }}-kf-postupg-scale-job
+  labels:
+    app: {{ .Chart.Name }}
+    release: {{ .Release.Name | quote }}
+    heritage: {{ .Release.Service | quote }}
+  annotations:
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: {{ .Values.global.seccompAllowedProfileNames }}
+    seccomp.security.alpha.kubernetes.io/defaultProfileName: {{ .Values.global.seccompDefaultProfileName }}
+    "helm.sh/hook": post-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    "helm.sh/hook-weight": "-5"
+spec:
+  template:
+    metadata:
+      labels:
+        app: {{ .Chart.Name }}
+      annotations:
+        sidecar.istio.io/inject: "false"
+    spec:
+      {{- if .Values.global.rbacEnable }}
+      serviceAccountName: {{ template "zkserviceAccount.name" . }}
+      {{ end }}
+      {{- if eq .Values.security.enabled true }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: {{ .Values.security.runAsUser }}
+        fsGroup: {{ .Values.security.fsGroup }}
+      {{- end }}
+      restartPolicy: Never
+      containers:
+      - name: ckaf-zookeeper-zk-postupg-scale
+        image: "{{ .Values.global.registry3 }}/{{ .Values.kubectlImage }}:{{ .Values.kubectlTag }}"
+        imagePullPolicy: IfNotPresent
+        {{- if eq .Values.security.enabled true }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          privileged: false
+          capabilities:
+            drop:
+              - all
+        env:
+          - name: OLD_REPLICA_COUNT
+            valueFrom:
+              configMapKeyRef:
+                name: {{ template "zookeeper.name" . }}-replicas
+                key: replicas
+        {{- end }}
+        resources:
+{{ toYaml .Values.jobResources | indent 10 }}
+        command:
+        - bash
+        - -c
+        - |
+          newReplicaCount={{ .Values.servers }}
+          if [ "$newReplicaCount" -eq "$OLD_REPLICA_COUNT" ]
+          then
+            echo "Zookeeper Old and new replica counts are same. Nothing to do!"
+          # scale in case
+          elif [ "$newReplicaCount" -lt "$OLD_REPLICA_COUNT" ]
+          then
+            echo "Scaling in the Zookeeper cluster to ${newReplicaCount}, deleting the un-used PVC's"
+            # clean up the pvcs of the old zookeeper pod's.
+            # get the list of pvcs owned by the release.
+            listOfPvcs=`kubectl get pvc -l app={{ .Chart.Name }},release={{ .Release.Name }} -n={{ .Release.Namespace }} | awk '{print $1}'`
+            for i in ${listOfPvcs};do
+              pvcOrdinality=${i##*-}
+              # delete pvc having ordinality greater than the new cluster size
+              if ((${pvcOrdinality} >= ${newReplicaCount}));then
+                echo "Delete Zookeeper pvc: ${i}"
+                kubectl delete pvc ${i} --namespace {{ .Release.Namespace }}
+              fi
+            done
+          # scale out case
+          else
+            echo "Scaling out Zookeeper cluster to ${newReplicaCount}"
+            echo "Performing reconfig add for the new zookeeper server"
+            # constructing the reconfig add command 
+            CONSTRUCT_FQDN="reconfig -add  server."
+            for (( i=${OLD_REPLICA_COUNT}; i<${newReplicaCount}; i++ ));do
+              CONSTRUCT_FQDN+=$((${i}+1))={{ template "zookeeper.name" . }}"-${i}."{{ template "zookeeper.name" . }}"-headless."{{ .Release.Namespace }}".svc"{{ .Values.global.domainName }}":"{{ .Values.serverPort }}":"{{ .Values.leaderElectionPort }}";0.0.0.0:2181,"
+            done;
+            # trim "," at the end of the string
+            CONSTRUCT_FQDN=${CONSTRUCT_FQDN::-1}
+            echo "${CONSTRUCT_FQDN}" | kubectl exec -i {{ template "zookeeper.name" . }}-0 -c ckaf-zookeeper-server -n {{ .Release.Namespace }} -- bash -c  "env -i zookeeper-shell "{{ template "zookeeper.name" . }}"-0."{{ template "zookeeper.name" . }}"-headless."{{ .Release.Namespace }}".svc"{{ .Values.global.domainName }}":2181"; sleep 10
+            
+            # Verify if the reconfig add was sucessful. 
+            for (( i=${OLD_REPLICA_COUNT}; i<${newReplicaCount}; i++ ));do
+              CHECK_AFTER_RECONFIG_ADD=$(echo "config" | kubectl exec -i {{ template "zookeeper.name" . }}-0 -c ckaf-zookeeper-server -n {{ .Release.Namespace }} -- bash -c  "env -i zookeeper-shell  "{{ template "zookeeper.name" . }}"-0."{{ template "zookeeper.name" . }}"-headless."{{ .Release.Namespace }}".svc"{{ .Values.global.domainName }}":2181" | grep -c {{ template "zookeeper.name" . }}-${i})
+              if ! (( $CHECK_AFTER_RECONFIG_ADD ));then
+                echo "Failed to add Zookeeper server $((${i}+1))..Retrying"
+                echo "reconfig -add server.$((${i}+1))="{{ template "zookeeper.name" . }}"-${i}."{{ template "zookeeper.name" . }}"-headless."{{ .Release.Namespace }}".svc"{{ .Values.global.domainName }}":"{{ .Values.serverPort }}":"{{ .Values.leaderElectionPort }}";0.0.0.0:2181" | kubectl exec -i {{ template "zookeeper.name" . }}-0 -c ckaf-zookeeper-server -n {{ .Release.Namespace }} -- bash -c  "env -i zookeeper-shell "{{ template "zookeeper.name" . }}"-0."{{ template "zookeeper.name" . }}"-headless."{{ .Release.Namespace }}".svc"{{ .Values.global.domainName }}":2181"
+              fi;
+            done;
+
+            # updating the Zookeeper dynamic configmap data with the new replicavalues.
+            CONFIG_MAP=$(echo "config" | kubectl exec -i {{ template "zookeeper.name" . }}-0 -c ckaf-zookeeper-server -n {{ .Release.Namespace }} -- bash -c  "env -i zookeeper-shell  "{{ template "zookeeper.name" . }}"-0."{{ template "zookeeper.name" . }}"-headless."{{ .Release.Namespace }}".svc"{{ .Values.global.domainName }}":2181" | grep server)
+            { echo "data:"; echo "   dynamicfileorg.cfg.dynamic: |-"; sed 's/^/      /'  <<<"$CONFIG_MAP"; } > /tmp/configmap.yaml
+            kubectl patch configmap {{ template "zookeeper.name" . }}-dynamic-config -n {{ .Release.Namespace }}  --type merge -p "$(cat /tmp/configmap.yaml)"
+          fi
+          
+          # update the config map with the latest Zookeeper cluster size.
+          { echo "data:"; echo "   replicas:  \"$newReplicaCount\""; } > /tmp/configmap.yaml
+          cat /tmp/configmap.yaml
+          kubectl patch configmap {{ template "zookeeper.name" . }}-replicas -n {{ .Release.Namespace }}  --type merge -p "$(cat /tmp/configmap.yaml)"
+{{- end }}
+---

@@ -1,0 +1,146 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "rabbitmq.fullname" . }}-config
+  labels:
+    app: {{ template "rabbitmq.name" . }}
+    chart: {{ template "rabbitmq.chart" .  }}
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+data:
+{{- if .Values.ipv6Enabled }}
+  erl_inetrc: |-
+    {inet6, true}.
+{{- end }}
+  enabled_plugins: |-
+{{- if .Values.rabbitmq.prometheus.enabled }}
+{{ .Values.rabbitmq.plugins | indent 4 }}
+{{- else }}
+{{ .Values.rabbitmq.plugins | indent 4 | replace ",rabbitmq_prometheus" "" }}
+{{- end }}
+  rabbitmq.conf: |-
+    ##username and password
+    default_user={{.Values.rabbitmq.username}}
+    default_pass=CHANGEME
+    listeners.tcp.default={{ .Values.rabbitmq.amqpPort }}
+{{ .Values.rabbitmq.configuration | indent 4 }}
+
+{{- if or (and .Values.rabbitmq.tls.cacert .Values.rabbitmq.tls.cert .Values.rabbitmq.tls.key) (.Values.rabbitmq.tls.certmanager.used)  }}
+    listeners.ssl.default = {{ .Values.rabbitmq.tls.ssl_port }}
+    ssl_options.verify = {{ .Values.rabbitmq.tls.verify_option }}
+    ssl_options.fail_if_no_peer_cert = {{ .Values.rabbitmq.tls.fail_if_no_peer_cert }}
+{{- if .Values.rabbitmq.tls.certmanager.used }}
+    ssl_options.cacertfile = /etc/rabbitmq.tls.conf/certManagerKeys/server/ca.crt
+    ssl_options.certfile = /etc/rabbitmq.tls.conf/certManagerKeys/server/tls.crt
+    ssl_options.keyfile = /etc/rabbitmq.tls.conf/certManagerKeys/server/tls.key
+{{- else }}
+    ssl_options.cacertfile = /etc/rabbitmq.tls.conf/server/cacert.pem
+    ssl_options.certfile = /etc/rabbitmq.tls.conf/server/cert.pem
+    ssl_options.keyfile = /etc/rabbitmq.tls.conf/server/key.pem
+{{- end }}
+{{- end }}
+    log.upgrade.file = false
+    log.file = false
+{{- if .Values.rabbitmq.console.enabled }}
+    log.console = true
+    log.console.level = {{ .Values.rabbitmq.console.level }}
+{{- end }}
+{{- if .Values.rabbitmq.rsyslog.enabled }}
+    log.syslog = true
+    log.syslog.level = {{.Values.rabbitmq.rsyslog.level}}
+    log.syslog.ip = 127.0.0.1
+    log.syslog.port = 2514
+    log.syslog.protocol = rfc3164
+    log.syslog.transport = {{.Values.rabbitmq.rsyslog.transport}}
+{{- end }}
+{{- if .Values.rabbitmq.clog.bcmt.enabled }}
+    log.syslog = true
+    log.syslog.level = {{.Values.rabbitmq.clog.syslog.level}}
+    log.syslog.ip = 127.0.0.1
+    log.syslog.port = {{.Values.rabbitmq.clog.syslog.port}}
+    log.syslog.protocol = {{.Values.rabbitmq.clog.syslog.format}}
+    log.syslog.transport = {{.Values.rabbitmq.clog.syslog.transport}}
+{{- end }}
+{{- if .Values.rabbitmq.mqtt.enabled }}
+    mqtt.vhost            = {{.Values.rabbitmq.mqtt.vhost}}
+    mqtt.exchange         = {{.Values.rabbitmq.mqtt.exchange}}
+    mqtt.listeners.tcp.default  = {{.Values.rabbitmq.mqtt.DefaultTcpPort}}
+    mqtt.retained_message_store = {{.Values.rabbitmq.mqtt.DefaultRetainedSave}}
+{{- if .Values.rabbitmq.mqtt.enabledSsl }}
+    mqtt.listeners.ssl.default = {{.Values.rabbitmq.mqtt.DefaultSslPort}}
+{{- else }}
+    mqtt.listeners.ssl = none
+{{- end }}
+{{- end }}
+
+  advanced.config: |-
+    [
+{{ .Values.rabbitmq.advancedConfig | indent 6 }}
+      {rabbitmq_management, [
+{{- if .Values.rabbitmq.uaa.enabled }}
+         {enable_uaa, true},
+         {uaa_client_id, "{{ .Values.rabbitmq.uaa.clientId }}"},
+         {uaa_location, "{{ .Values.rabbitmq.uaa.serverLocation }}"},
+{{- end }}
+{{- if .Values.ipv6Enabled }}
+         {listener, [{port,     {{ .Values.rabbitmq.management.port }}}, {ip, "::"}
+{{- else }}
+         {listener, [{port,     {{ .Values.rabbitmq.management.port }}}
+{{- end }}
+{{- if or (and .Values.rabbitmq.management.cacert .Values.rabbitmq.management.cert .Values.rabbitmq.management.key) (.Values.rabbitmq.management.certmanager.used) }}
+                    ,{ssl,      true},
+{{- if .Values.rabbitmq.management.certmanager.used }}
+                     {ssl_opts, [{cacertfile, "/etc/rabbitmq.tls.conf/certManagerKeys/management/ca.crt"},
+                                 {certfile,   "/etc/rabbitmq.tls.conf/certManagerKeys/management/tls.crt"},
+                                 {keyfile,    "/etc/rabbitmq.tls.conf/certManagerKeys/management/tls.key"}]}
+{{- else }}
+                     {ssl_opts, [{cacertfile, "/etc/rabbitmq.tls.conf/management/cacert.pem"},
+                                 {certfile,   "/etc/rabbitmq.tls.conf/management/cert.pem"},
+                                 {keyfile,    "/etc/rabbitmq.tls.conf/management/key.pem"}]}
+{{- end }}
+{{- end }}
+                    ]}
+{{- if .Values.rabbitmq.rabbitmqAuthBackendOauth2.enabled }}
+        ]},
+      {rabbitmq_auth_backend_oauth2, [
+        {resource_server_id, <<"{{.Values.rabbitmq.rabbitmqAuthBackendOauth2.ressourceServerId}}">>},
+        {key_config, [
+          {signing_keys, 
+            #{<<"{{.Values.rabbitmq.rabbitmqAuthBackendOauth2.keyId}}">> => {map, #{
+              <<"kty">> => <<"{{.Values.rabbitmq.rabbitmqAuthBackendOauth2.keyType}}">>,
+              <<"alg">> => <<"{{.Values.rabbitmq.rabbitmqAuthBackendOauth2.algo}}">>,
+              <<"value">> => <<"{{.Values.rabbitmq.rabbitmqAuthBackendOauth2.signing_key | indent 4 | trim }}">>}}
+            }}
+          ]}
+     ]}
+{{- else }}
+        ]}
+{{- end }}
+    ].
+
+  rabbitmq-env.conf: |-
+{{- if .Values.ipv6Enabled }}
+{{ .Values.rabbitmq.environmentIpv6 | indent 4 }}
+{{- else }}
+{{ .Values.rabbitmq.environment | indent 4 }}
+{{- end }}
+
+{{- if .Values.rabbitmq.dynamicConfig.enabled }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "rabbitmq.fullname" . }}-parameters
+  labels:
+    app: {{ template "rabbitmq.name" . }}
+    chart: {{ template "rabbitmq.chart" .  }}
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+data:
+  parameters: |+
+{{ .Values.rabbitmq.dynamicConfig.parameters | indent 4 }}
+
+
+
+{{- end }}

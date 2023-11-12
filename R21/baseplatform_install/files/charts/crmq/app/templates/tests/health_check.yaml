@@ -1,0 +1,57 @@
+{{- if or (.Values.rbac.enabled) (.Values.rbac.test.enabled) }}
+{{- if .Values.rabbitmq.management.enabled }}
+apiVersion: v1
+kind: Pod
+metadata:
+{{ if empty .Values.global.podNamePrefix }}
+  name: "{{ template "rabbitmq.fullname" . }}-hc-test"
+{{ else }}
+  name: "{{ .Values.global.podNamePrefix }}{{ template "rabbitmq.fullname" . }}-hc-test"
+{{ end }}
+  annotations:
+    "helm.sh/hook": test-success
+    {{- if .Values.istio.enabled }}
+    sidecar.istio.io/inject: "false"
+    {{- end }}
+spec:
+  containers:
+    - name: {{ default "" .Values.global.containerNamePrefix }}{{ template "rabbitmq.fullname" . }}-hc-test
+      image: "{{ .Values.global.registry2 }}/{{ .Values.helmTestImage.repository }}:{{ .Values.helmTestImage.tag }}"
+      resources:
+        limits:
+          cpu: "0.5"
+          memory: 256Mi
+        requests:
+          cpu: "0.25"
+          memory: 128Mi
+      volumeMounts:
+        - name: testconfigmap
+          mountPath: /test/
+      command:
+         - bash
+         - -ec
+         - |
+           source /test/curl_cmd.sh
+           wait_service_available
+           response=$(get_curl_response_body "healthchecks/node")
+           echo "get response: $response"
+           echo $response|grep "ok"
+      env:
+         - name: RABBITMQ_PASSWORD
+           valueFrom:
+             secretKeyRef:
+               name: {{ template "rabbitmq.fullname" . }}
+               key: rabbitmq-password
+         - name: RABBITMQ_USER
+           valueFrom:
+             secretKeyRef:
+               name: {{ template "rabbitmq.fullname" . }}
+               key: rabbitmq-user
+
+  volumes:
+    - name: testconfigmap
+      configMap:
+        name: "{{ template "rabbitmq.fullname" . }}-test-configmap"
+  restartPolicy: Never
+{{- end }}
+{{- end }}

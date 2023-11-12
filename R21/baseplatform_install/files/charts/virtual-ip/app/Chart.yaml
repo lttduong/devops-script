@@ -1,0 +1,4 @@
+apiVersion: v1
+description: Netguard Virtual IPs
+name: virtual-ip
+version: 1.0.0

@@ -1,0 +1,55 @@
+{{- if .Values.server.migrate.enabled -}}
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ template "prometheus.migrate.preUpgradePodName" . }}
+  namespace: ncms
+{{- if or .Values.global.labels .Values.custom.pod.labels }}
+  labels:
+{{- include "prometheus-labels" (tuple .Values.global.labels) | indent 4}}
+{{- include "custom-labels" (tuple .Values.custom.pod.labels) | indent 4}}
+{{- end }}
+  annotations:
+{{- include "prometheus-annotations" (tuple .Values.global.annotations) | indent 4}}
+{{- include "custom-annotations" (tuple .Values.custom.pod.annotations) | indent 4}}
+{{- if .Values.rbac.pspUseAppArmor }}
+{{- include "custom-annotations" (tuple .Values.custom.pod.apparmorAnnotations) | indent 4}}
+{{- end }}
+    "helm.sh/hook": pre-upgrade
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": hook-failed
+    #TODO CHECK
+    sidecar.istio.io/inject: "false"
+spec:
+  {{- if or .Values.serviceAccountName .Values.global.serviceAccountName }}
+  serviceAccountName: {{ template "prometheus.serviceAccountName" . }}
+  {{- else if .Values.rbac.enabled }}
+  serviceAccountName: {{ template "prometheus.serviceAccount.fullname" . }}-pre
+  {{- else }}
+  serviceAccountName: "default"
+  {{- end }}
+  containers:
+    - name: {{ template "prometheus.migrate.preUpgradeContainer" . }}
+      image: "csf-docker-delivered.repo.lab.pl.alcatel-lucent.com/os_base/centos-mini:latest"
+      imagePullPolicy: "IfNotPresent"
+      resources:
+{{ toYaml .Values.server.migrate.resources | indent 8 }}
+      command: ["/bin/bash", "-c"]
+      args: ["mkdir -p /etc/migrate/repo/data/{{ .Release.Namespace }}/STATEFULSET_{{ template "prometheus.server.fullname" . }}/0/ && cp /etc/migrate/repo/data/{{ .Release.Namespace }}/DEPLOYMENT_{{ template "prometheus.server.fullname" . }}/{{ .Values.server.migrate.fileName }} /etc/migrate/repo/data/{{ .Release.Namespace }}/STATEFULSET_{{ template "prometheus.server.fullname" . }}/0/ && tail -f /dev/null"]
+      volumeMounts:
+        - name: glusterfsvolume
+          mountPath: /etc/migrate
+  nodeSelector:
+    is_control: "true"
+  tolerations:
+  - effect: NoExecute
+    key: is_control
+    operator: Equal
+    value: "true"
+  volumes:
+    - name: glusterfsvolume
+      glusterfs:
+        endpoints: {{ .Values.server.migrate.cbur.endpoint }}
+        path: {{ .Values.server.migrate.cbur.path }}
+        readOnly: false
+{{- end }}

@@ -1,0 +1,83 @@
+---
+- hosts: restore_dpa_vm
+  
+  
+  vars: 
+    nfmtIp: "{{ lookup('env', 'nfmtIp') }}"
+    nfmtUsername: "{{ lookup('env', 'nfmtUsername') }}"
+    nfmtPassword: "{{ lookup('env', 'nfmtPassword') }}"
+    vpnProfile: "{{ lookup('env', 'vpnProfile') }}"
+    wasUsername: "{{ lookup('env', 'wasUsername') }}"
+      
+  tasks: 
+   - name: Install expect package
+     shell: yum install -y expect
+     become: true
+
+   - name: copy wasip.txt file to dpa
+     copy:
+      src: sftp_config.yml
+      dest: /opt/nokia/dpa/digimops/config/sftp_config.yml
+     become: true
+
+   
+   - name: copy wasip.txt file to dpa
+     copy:
+      src: ../wasip.txt
+      dest: /tmp/  
+     become: true
+   
+   - name: Set Public Ip Master node
+     shell: awk '{if(NR==1) print $1}' /tmp/wasip.txt
+     register: publicIp
+     become: true
+
+   - name: Set fact Public Ip Master node
+     set_fact:
+      publicIpMaster: "{{publicIp.stdout}}"
+
+   - name: Show out NETGUARD_ADMIN_PASSWORD
+     shell: awk '{if(NR==2) print $1}' /tmp/wasip.txt
+     register: Password
+     become: true
+
+   - name: Set fact wasPassword
+     set_fact:
+      wasPassword: "{{Password.stdout}}"
+   
+   - name: copy openvpn profile
+     copy:
+      src: /etc/openvpn/{{vpnProfile}}.conf
+      dest: /etc/openvpn3
+     become: true      
+
+   - name: Connect VPN to NFM-T
+     shell: |
+      openvpn3 session-start --config /etc/openvpn3/{{vpnProfile}}.conf
+     become_user: DPA_Admin
+     become: true
+     become_method: su
+     become_flags: '-s /bin/bash'
+
+   - name: Check vpn connaction with NFMT
+     shell: |
+      openvpn3 sessions-list 
+     register: showConnection
+
+   - name: List VPN connections in VM
+     debug:
+      msg: "{{showConnection.stdout}}"
+
+   - name: Changing WAS configure in the credentials.cfg
+     shell: | 
+      sed -i "9 s/ip=.*/ip={{publicIpMaster}}/g" /opt/nokia/dpa/digimops/config/credentials.cfg
+      sed -i "11 s/username=.*/username={{wasUsername}}/g" /opt/nokia/dpa/digimops/config/credentials.cfg
+      sed -i "12 s/password=.*/password={{wasPassword}}/g" /opt/nokia/dpa/digimops/config/credentials.cfg
+     become: true
+
+   - name: Changing NFMT configure in the credentials.cfg
+     shell: | 
+      sed -i "23 s/ip=.*/ip={{nfmtIp}}/g" /opt/nokia/dpa/digimops/config/credentials.cfg
+      sed -i "25 s/username=.*/username={{nfmtUsername}}/g" /opt/nokia/dpa/digimops/config/credentials.cfg
+      sed -i "26 s/password=.*/password={{nfmtPassword}}/g" /opt/nokia/dpa/digimops/config/credentials.cfg
+     become: true

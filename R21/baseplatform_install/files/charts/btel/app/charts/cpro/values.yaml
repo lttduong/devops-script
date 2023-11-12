@@ -1,0 +1,2323 @@
+global:
+  registry: "csf-docker-delivered.repo.lab.pl.alcatel-lucent.com"
+# registry1 repo is used to pull alertmanager, nodeExporter, server, pushgateway and restserver components images
+  registry1: "csf-docker-delivered.repo.lab.pl.alcatel-lucent.com"
+# To configure annotations and labels for CPRO components resources
+  annotations: {}
+  labels: {}
+## Define serviceAccount name for prometheus at global level.
+## serviceAccount priority order is
+## 1. serviceAccountName
+## 2. global.seviceAccountName
+## 3. If we are not using customized resources set rbac.enabled to true then resources will be created on helm install
+## 4. If both serviceAccounts are not set and rbac.ebabled is set to false then default serviceAccount will be used
+##
+  serviceAccountName:
+## istio verion in X.Y format eg 1.4/1.5
+  istioVersion: 1.4
+  podNamePrefix: ""
+  containerNamePrefix: ""
+
+customResourceNames:
+  resourceNameLimit: 63
+  alertManagerPod:
+    alertManagerContainer: ""
+    configMapReloadContainer: ""
+  restServerPod:
+    restServerContainer: ""
+    configMapReloadContainer: ""
+  restServerHelmTestPod:
+    name: "" 
+    testContainer: ""
+  serverPod:
+    inCntInitChownData: ""
+    configMapReloadContainer: ""
+    serverContainer: ""
+  pushGatewayPod:
+    pushGatewayContainer: ""
+  kubeStateMetricsPod:
+    kubeStateMetricsContainer: ""
+  hooks:
+    postDeleteJobName: ""
+    postDeleteContainer: ""
+  webhook4fluentd:
+    webhookContainer: ""
+  nodeExporter:
+    nodeExporterContainer: ""
+  zombieExporter:
+    zombieExporterContainer: ""
+  migrate:
+    preUpgradePodName: ""
+    preUpgradeContainer: ""
+    postUpgradePodName: ""
+    postUpgradeContainer: ""
+  serverHelmTestPod:
+    name: ""
+    testContainer: ""
+
+custom:
+# To configure customized annotations and labels for CPRO components psp
+  psp:
+    annotations:
+      seccomp.security.alpha.kubernetes.io/allowedProfileNames: runtime/default
+      seccomp.security.alpha.kubernetes.io/defaultProfileName: runtime/default
+    apparmorAnnotations:
+      apparmor.security.beta.kubernetes.io/allowedProfileNames: runtime/default
+      apparmor.security.beta.kubernetes.io/defaultProfileName: runtime/default
+    labels: {}
+
+# To configure customized annotations and labels for CPRO components pods
+  pod:
+    annotations:
+      seccomp.security.alpha.kubernetes.io/allowedProfileNames: runtime/default
+      seccomp.security.alpha.kubernetes.io/defaultProfileName: runtime/default
+    apparmorAnnotations:
+      apparmor.security.beta.kubernetes.io/allowedProfileNames: runtime/default
+      apparmor.security.beta.kubernetes.io/defaultProfileName: runtime/default
+    labels: {}
+
+rbac:
+  enabled: true
+  pspUseAppArmor: false
+
+deployOnComPaaS: false
+
+# These certs are currently used for fetching metrics from etcd.
+# By default this will be disabled. user need to enable it
+#
+certManager:
+  used: false
+  duration: "8760h" # 365d
+  renewBefore: "360h" # 15d
+  keySize: "2048"
+  api: "cert-manager.io/v1alpha2"
+  #servername: "bcmt.domain"
+  # As per the tests in sandbox and environment dnsNames: localhost was sufficient for scrapping etcd metrics
+  dnsNames:
+    - localhost
+  domain:
+  #ipAddresses:
+  #  - 127.0.0.1
+  issuerRef:
+    name: ncms-ca-issuer
+    # We can reference ClusterIssuers by changing the kind here.
+    # The default value is Issuer (i.e. a locally namespaced Issuer)
+    kind: ClusterIssuer
+
+## If the flag is set to true, then server component scrape the metrics within listed namespaces
+## else scrape the metrics at cluster level.
+## Namespace listed in values_restricted.yaml file.
+## If the flag is set to true, then restserver component is forbidden to access
+## the configmap or any other resources of prometheus server from different namespaces and role/rolebinding is created
+## else clusterrole/clusterrolebinding is created and able to access the configmaps
+## and other resources of prometheus server across the different namespaces.
+restrictedToNamespace: false
+
+seLinuxOptions:
+  enabled: false
+  level: ""
+  role: ""
+  type: ""
+  user: ""
+
+## Define serviceAccount name for alertmanager, kubeStateMetrics, pushgateway, server, webhook4fluentd, restserver and migrate components. 
+## Defaults to component's fully qualified name.
+## 
+serviceAccountName:
+
+## Define serviceAccount name for nodeExporter and zombieExporter components.
+## Defaults to component's fully qualified name.
+##
+exportersServiceAccountName:
+
+## If true, high avaibility feature will be enabled
+## altermanger and server could create 2 instances
+## If false, altermanger and server could create only 1 instance
+##
+ha:
+  enabled: false
+
+helmDeleteImage:
+  imageRepo: tools/kubectl
+  imageTag: v1.17.8-nano
+  imagePullPolicy: IfNotPresent
+  resources:
+    limits:
+      cpu: 100m
+      memory: 100Mi
+    requests:
+      cpu: 50m
+      memory: 32Mi
+
+## If true, pvc of alertmanager and server will be reserved
+## it's only useful when ha.enabled == true
+persistence:
+  reservePvc: false
+
+## Whether the chart will deploy on istio
+istio:
+  enable: false
+  mtls_enable: true
+  cni_enable: true
+  test_timeout: 60
+
+alertmanager:
+  ## If false, alertmanager will not be installed
+  ##
+  enabled: true
+
+  ## Will you config DNS for pod? Assume true by default.
+  ## work only if ha is true
+  dnsConfig: true
+  ##soft means preferredDuringSchedulingIgnoredDuringExecution
+  ##hard means requiredDuringSchedulingIgnoredDuringExecution
+  ##you could refer k8s api for more detail
+  ##
+  antiAffinityMode: "soft"
+
+  ## alertmanager container name
+  ##
+  name: alertmanager
+
+  ## alertmanager container image
+  ##
+  image:
+    imageRepo: cpro/registry4/alertmanager
+    imageTag: v0.21.0-2
+    imagePullPolicy: IfNotPresent
+
+  ## Additional alertmanager container arguments
+  ##
+  extraArgs: {}
+
+  ## The URL prefix at which the container can be accessed. Useful in the case the '-web.external-url' includes a slug
+  ## so that the various internal URLs are still able to access as they are in the default case.
+  ## (Optional)
+  ## prefixURL: "alertmanager"
+  prefixURL: ""
+
+  ## External URL which can access alertmanager
+  ## Maybe same with Ingress host name
+  ## Alertmanager validates the 'web.external-url',configure valid baseUrl if not alertmanager installation  
+  ## will fail with error. So "/" is removed.
+  ##
+  ## when istio is enabled: baseURL path and Contextroot path should match
+  ## baseURL: "http://localhost:31380/alertmanager"
+  baseURL: ""
+
+  ## Additional alertmanager container environment variable
+  ## For instance to add a http_proxy
+  ##
+  extraEnv: {}
+
+  ## ConfigMap override where fullname is {{.Release.Name}}-{{.Values.alertmanager.configMapOverrideName}}
+  ## Defining configMapOverrideName will cause templates/alertmanager-configmap.yaml
+  ## to NOT generate a ConfigMap resource
+  ##
+  configMapOverrideName: ""
+
+  ## Alertmanager TLS for outbound messages
+  ## e.g. if connected to CNOT this should be set to CNOT's wildfly cert.
+  outboundTLS:
+    enabled: true
+    cert: "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUNzRENDQVpnQ0NRRFQ1ZVM5UnFyR3ZEQU5CZ2txaGtpRzl3MEJBUXNGQURBT01Rd3dDZ1lEVlFRRERBTkQKVTBZd0hoY05NVGt3TVRJMU1ETTFNalUyV2hjTk1qRXhNREl4TURNMU1qVTJXakFtTVNRd0lnWURWUVFEREJzcQpMbVJsWm1GMWJIUXVjM1pqTG1Oc2RYTjBaWEl1Ykc5allXd3dnZ0VpTUEwR0NTcUdTSWIzRFFFQkFRVUFBNElCCkR3QXdnZ0VLQW9JQkFRQ2J0YlR5R2kvaHBVV1dGNEFHSTIxWnJnSWFtUU1lZi9CQ0ZIemliamUzSnhTTG1Qa1MKRXRlME1STjJKUDM5NStEZXhSL0RkSmJZRnFzSUZYbzIwcU5MWXd2a3poaGxMYXBiZU9XWCtPZ1ZVUHl3cHd1NAoza1RodVZkOGVDNVY3STh4eUxUYnVIVnBheXJpYnZ1bGJsVlBRNnVwNzRkQ2R0NXZDN0pHbFlPcGgveUhNRnJxCk52QnFwWVg2Y1RVVFc5REZQM3pNY2N2SXlqK2VYR2x2WG5CUzUzOHdQbEc2SHYxbVRTNGZMcFFjTVdXdDBkNFEKcGx4YTFmL0RFdVF2by9mVFVQUFEwUnA5SzF1ZVJkQVBSeGh1cjNlL29wWStnQTdndzFnLy9ZY05ITWdGd0E3NApNYnhlbTBEZmY2dkdORklJbUVzZ2ZpbnA5VWRMWnZ6bUU4eWRBZ01CQUFFd0RRWUpLb1pJaHZjTkFRRUxCUUFECmdnRUJBSTZDc3luWThJS2FuY3k5dnVOdXptVnU1UkF0NitRWXlRTVdaZ1REVEJ5WnQ1bjlxaGEvU2toK0svTWIKQnpzVlFEMVJUSVR5ckcrMmg4Ym9Pb2h2ZVRiVUpxRUdjcjZxSThMQm1yMzEyeE5mTWV5dyt1NW5FbkF0YjBUaAp5dUNJTFdrTGZDSGNnM3JQd0UwV1llQmgzMml5WDFhTitrZ1ExUzJNZXlyc1VpWmd3bG1DMnVwaGdhYm1EMGp1CnRJLzExZjhHdk13Y0pxaUUxOUNlZ2d0OFJBZGNZZXFGUzM4RUNTZzVUTXNzRE80aWI3RTZDS0txV2VKNzAwOTYKTEFsWm52QVpaUXkzUjdoSWlzcmxMQTVkdldaM0VzbzRmUFU1RkpxVGtKcCtGYzZPVEYwRnpLUVl2T3lxMjVwVgpWZzk0amZabS9lWmU0NjR1cmV4NjdEemY4Rm89Ci0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0KLS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUM3ekNDQWRlZ0F3SUJBZ0lKQUxLV2dyWnRqc2xpTUEwR0NTcUdTSWIzRFFFQkN3VUFNQTR4RERBS0JnTlYKQkFNTUEwTlRSakFlRncweE9UQXhNalV3TXpVeU5UWmFGdzAwTmpBMk1USXdNelV5TlRaYU1BNHhEREFLQmdOVgpCQU1NQTBOVFJqQ0NBU0l3RFFZSktvWklodmNOQVFFQkJRQURnZ0VQQURDQ0FRb0NnZ0VCQU1GeEVBMEQyZXpBCm5SK3gwWU1jRFNmVUlKU0l3aS9SbWYxcWtjUVVDZm9rWFNuVWVnL0o0TXErRElyZEpQcXRLSVdFT0hMVmdUZUEKTFRxdjRkaHJ5V0lvRVNhY0U1YVN6VzhRRFRubUlrNEMyamZHeVZubTlzK1pleEMvUXZ4eGNHUldhSVl5Nm1kWAo0dVArbWNVWXJxUm1yUnhZUzQwek53Z3ZqcnRUZ3ovM1VVMk9XSENpU3M2RVJueTM4UVhLeWFVSEUrT2RXeWIwCkI5azViVzl2OERCZENwS1RCaGhjeFMwWndDN1o0TVFZQ0RqNUJiRGZzWldxbzdvTU5NUEJsd1FvUzg3WUpqZ0QKOXh2RmFiWkE1K0prZW4xdnNpNkNRV3VPSXplSTZNNkVVUUp2T21mcFFzUWlHRHg4eS9FSFM1cEYvS1JtMVZ6agp5L1Y2emp2YWk4RUNBd0VBQWFOUU1FNHdIUVlEVlIwT0JCWUVGREc1UmZyNk1iUXFYUFl6VkN1RzdrU0pLMUp4Ck1COEdBMVVkSXdRWU1CYUFGREc1UmZyNk1iUXFYUFl6VkN1RzdrU0pLMUp4TUF3R0ExVWRFd1FGTUFNQkFmOHcKRFFZSktvWklodmNOQVFFTEJRQURnZ0VCQUJ2VHhYUGFBRmV1UzNvdzI1ZTJ4UzlpM21pcnl3WmtGY1dxcW1nYQpKV2pvejNydnQ3VWhZNFNJb2NFN1ZnandLYWNhY1pPQTc2eTRsTXJsUDV1RVZDTUNTNTdiZ3Jrdks5OXl0WmQrCmZJMDVzTVo0TEhkWlRBQVBybjJ2QzJSUjk1Z0tKbURUTXdnaCszWTFQRUtyTExyWi81VHlZK0R0c2dMM3gwaHYKVW9SaW1jT1QyTWMrQUlLd1YxSEsyM21WMzlwZFhwQWxPUnhhNVNnWGtBZWh5TUVqaUNSYk9mZXc4VEFwL0s1TQpQWmplSzF0eko3QXNCQzJjTDBKWXJ0cjdEMFZtVGh2Rmp2bGNJS1U4Z0xHeE5IUkU3ZXNSRk9kSUVFdUF1OUlKClU3d3MrbXJpK3RwQUhHdjBTSktwaEpVNkU5bjJ4V3p2Y1pUcnpoeWxFTVUyTFFBPQotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0t"
+
+  ingress:
+    ## If true, alertmanager Ingress will be created
+    ##
+    enabled: false
+
+    ## alertmanager Ingress annotations
+    ##
+    annotations: {}
+    #   kubernetes.io/ingress.class: nginx
+    #   kubernetes.io/tls-acme: 'true'
+
+    ## alertmanager Ingress additional labels
+    ##
+    extraLabels: {}
+
+    ## alertmanager Ingress hostnames with optional path
+    ## Must be provided if Ingress is enabled
+    ##
+    hosts: []
+    #   - alertmanager.domain.com
+    #   - domain.com/alertmanager
+
+    ## alertmanager Ingress TLS configuration
+    ## Secrets must be manually created in the namespace
+    ##
+    tls: []
+    #   - secretName: prometheus-alerts-tls
+    #     hosts:
+    #       - alertmanager.domain.com
+  ## Whether use istio ingress gateway(Envoy) alertmanager /
+  istioIngress:
+    enabled: true
+    ## when istio is enabled: baseURL path and Contextroot path should match
+    Contextroot: alertmanager
+    selector: {istio: ingressgateway}
+    # the host used to access the management GUI from istio ingress gateway
+    host: "*"
+    httpPort: 80
+    ## Keep gatewayName to empty to create kubenetes gateway resource. If new virtualservice needs to refer to existing gateway then mention that name here
+    gatewayName: "istio-system/single-gateway-in-istio-system"
+    ## tls section will be used if gatewayName is ""
+    tls:
+      enabled: true
+      httpsPort: 443
+      ## mode could be SIMPLE, MUTUAL, ISTIO_MUTUAL
+      mode: SIMPLE
+      credentialName: "am-gateway"
+  ## Alertmanager Deployment Strategy type
+  # strategy:
+  #   type: Recreate
+
+  ## Node tolerations for alertmanager scheduling to nodes with taints
+  ## Ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/
+  ##
+  tolerations: []
+    # - key: "key"
+    #   operator: "Equal|Exists"
+    #   value: "value"
+    #   effect: "NoSchedule|PreferNoSchedule|NoExecute(1.6 only)"
+
+  ## Node labels for alertmanager pod assignment
+  ## Ref: https://kubernetes.io/docs/user-guide/node-selection/
+  ##
+  nodeSelector: {}
+
+  ## Use an alternate scheduler, e.g. "stork".
+  ## ref: https://kubernetes.io/docs/tasks/administer-cluster/configure-multiple-schedulers/
+  ##
+  # schedulerName:
+
+  persistentVolume:
+    ## If true, alertmanager will create/use a Persistent Volume Claim
+    ## If false, use emptyDir
+    ##
+    enabled: true
+
+    ## alertmanager data Persistent Volume access modes
+    ## Must match those of existing PV or dynamic provisioner
+    ## Ref: http://kubernetes.io/docs/user-guide/persistent-volumes/
+    ##
+    accessModes:
+      - ReadWriteOnce
+
+    ## alertmanager data Persistent Volume Claim annotations
+    ##
+    annotations: {}
+
+    ## alertmanager data Persistent Volume existing claim name
+    ## Requires alertmanager.persistentVolume.enabled: true
+    ## If defined, PVC must be created manually before volume will be bound
+    existingClaim: ""
+
+    ## alertmanager data Persistent Volume mount root path
+    ##
+    mountPath: /data
+
+    ## alertmanager data Persistent Volume size
+    ##
+    size: 2Gi
+
+    ## alertmanager data Persistent Volume Storage Class
+    ## If defined, storageClassName: <storageClass>
+    ## If set to "-", storageClassName: "", which disables dynamic provisioning
+    ## If undefined (the default) or set to null, no storageClassName spec is
+    ##   set, choosing the default provisioner.  (gp2 on AWS, standard on
+    ##   GKE, AWS & OpenStack)
+    ##
+    storageClass: ""
+
+    ## Subdirectory of alertmanager data Persistent Volume to mount
+    ## Useful if the volume's root directory is not empty
+    ##
+    subPath: ""
+
+  ## Annotations to be added to alertmanager pods
+  ##
+  podAnnotations: {}
+
+  ## it's only used when ha.enabled true
+  ## when ha.enabled is false, replicaCount will be hard coded to 1
+  replicaCount: 2
+
+  ## alertmanager resource requests and limits
+  ## Ref: http://kubernetes.io/docs/user-guide/compute-resources/
+  ##
+  resources:
+    limits:
+      cpu: 500m
+      memory: 1Gi
+    requests:
+      cpu: 10m
+      memory: 32Mi
+
+  ## Security context to be added to alertmanager pods
+  ##
+  securityContext: 
+    runAsUser: 65534
+    fsGroup: 65534
+
+  retention:
+    time: 120h
+
+  service:
+    annotationsForAlertmanagerCluster: {}
+    annotationsForScrape:
+      prometheus.io/scrape: "true"
+      prometheus.io/scheme: http
+    annotations: {}
+    labels: {}
+    clusterIP: ""
+
+    ## Enabling peer mesh service end points for enabling the HA alert manager
+    ## Ref: https://github.com/prometheus/alertmanager/blob/master/README.md
+    # enableMeshPeer : true
+
+    ## List of IP addresses at which the alertmanager service is available
+    ## Ref: https://kubernetes.io/docs/user-guide/services/#external-ips
+    ##
+    externalIPs: []
+
+    loadBalancerIP: ""
+    loadBalancerSourceRanges: []
+    servicePort: 80
+    clusterPort: 8001
+    # nodePort: 30000
+    type: ClusterIP
+
+## Monitors ConfigMap changes and POSTs to a URL
+## Ref: https://github.com/jimmidyson/configmap-reload
+##
+configmapReload:
+  ## configmap-reload container name
+  ##
+  name: configmap-reload
+
+  ## configmap-reload container image
+  ##
+  image:
+    imageRepo: cpro/registry4/configmap-reload
+    imageTag: v0.2.1-4.0.0
+    imagePullPolicy: IfNotPresent
+
+  ## Additional configmap-reload container arguments
+  ##
+  extraArgs: {}
+
+  ## Additional configmap-reload mounts
+  ##
+  extraConfigmapMounts: []
+    # - name: prometheus-alerts
+    #   mountPath: /etc/alerts.d
+    #   configMap: prometheus-alerts
+    #   readOnly: true
+
+
+  ## configmap-reload resource requests and limits
+  ## Ref: http://kubernetes.io/docs/user-guide/compute-resources/
+  ##
+  resources:
+    limits:
+      cpu: 10m
+      memory: 32Mi
+    requests:
+      cpu: 10m
+      memory: 32Mi
+
+tools:
+  image:
+    imageRepo: cpro/registry4/tools-image
+    imageTag: 1.6.0
+    imagePullPolicy: IfNotPresent
+
+helmtest:
+  CPROconfigmapname:
+  deletepolicy: hook-succeeded,before-hook-creation
+
+  ## helmtest resource requests and limits
+  ## Ref: http://kubernetes.io/docs/user-guide/compute-resources/
+  resources:
+    limits:
+      cpu: 10m
+      memory: 32Mi
+    requests:
+      cpu: 10m
+      memory: 32Mi
+
+initChownData:
+  ## If false, data ownership will not be reset at startup
+  ## This allows the prometheus-server to be run with an arbitrary user
+  ##
+  enabled: false
+
+  ## initChownData container name
+  ##
+  name: init-chown-data
+
+  ## initChownData container image
+  ##
+  image:
+    imageRepo: os_base/centos-nano
+    imageTag: 7.8-20200702
+    imagePullPolicy: IfNotPresent
+
+  ## initChownData resource requests and limits
+  ## Ref: http://kubernetes.io/docs/user-guide/compute-resources/
+  ##
+  resources: 
+    limits:
+      cpu: 10m
+      memory: 32Mi
+    requests:
+      cpu: 10m
+      memory: 32Mi
+
+kubeStateMetrics:
+  ## If false, kube-state-metrics will not be installed
+  ##
+  enabled: true
+
+  ## kube-state-metrics container name
+  ##
+  name: kube-state-metrics
+
+  ## kube-state-metrics container image
+  ##
+  image:
+    imageRepo: cpro/registry4/kube-state-metrics
+    imageTag: v1.5.0-5.0.0
+    imagePullPolicy: IfNotPresent
+
+  ## kube-state-metrics container arguments
+  ##
+  args: {}
+
+  ## Node tolerations for kube-state-metrics scheduling to nodes with taints
+  ## Ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/
+  ##
+  tolerations: []
+    # - key: "key"
+    #   operator: "Equal|Exists"
+    #   value: "value"
+    #   effect: "NoSchedule|PreferNoSchedule|NoExecute(1.6 only)"
+
+  ## Node labels for kube-state-metrics pod assignment
+  ## Ref: https://kubernetes.io/docs/user-guide/node-selection/
+  ##
+  nodeSelector: {}
+
+  ## Annotations to be added to kube-state-metrics pods
+  ##
+  podAnnotations: {}
+
+  pod:
+    labels: {}
+
+  replicaCount: 1
+
+  ## kube-state-metrics resource requests and limits
+  ## Ref: http://kubernetes.io/docs/user-guide/compute-resources/
+  ##
+  resources:
+    limits:
+      cpu: 100m
+      memory: 200Mi
+    requests:
+      cpu: 10m
+      memory: 32Mi
+
+  ## Security context to be added to kube-state-metrics pods
+  ##
+  securityContext:
+    runAsUser: 65534
+
+  service:
+    annotations: {}
+    annotationsForScrape:
+      prometheus.io/scrape: "true"
+      prometheus.io/scheme: http
+    labels: {}
+
+    # Exposed as a headless service:
+    # https://kubernetes.io/docs/concepts/services-networking/service/#headless-services
+    clusterIP: None
+
+    ## List of IP addresses at which the kube-state-metrics service is available
+    ## Ref: https://kubernetes.io/docs/user-guide/services/#external-ips
+    ##
+    externalIPs: []
+
+    loadBalancerIP: ""
+    loadBalancerSourceRanges: []
+    servicePort: 80
+    type: ClusterIP
+
+nodeExporter:
+  ## If false, node-exporter will not be installed
+  ##
+  enabled: true
+
+  ## node-exporter container name
+  ##
+  name: node-exporter
+
+  ## node-exporter container image
+  ##
+  image:
+    imageRepo: cpro/registry4/node_exporter
+    imageTag: v1.0.1-2
+    imagePullPolicy: IfNotPresent
+
+  ## Custom Update Strategy
+  ##
+  updateStrategy:
+    type: RollingUpdate
+
+  ## Additional node-exporter container arguments
+  ## Update "web.listen-address" If you have updated podHostPort & podContainerPort
+  ## web.listen-address value should be same as  podHostPort & podContainerPort
+  extraArgs:
+    web.listen-address: ":9100"
+
+  ## Additional node-exporter hostPath mounts
+  ##
+  extraHostPathMounts: []
+    # - name: textfile-dir
+    #   mountPath: /srv/txt_collector
+    #   hostPath: /var/lib/node-exporter
+    #   readOnly: true
+
+  extraConfigmapMounts: []
+    # - name: certs-configmap
+    #   mountPath: /prometheus
+    #   configMap: certs-configmap
+    #   readOnly: true
+
+  ## Node tolerations for node-exporter scheduling to nodes with taints
+  ## Ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/
+  ##
+  tolerations: 
+      - operator: Exists
+    # - key: "key"
+    #   operator: "Equal|Exists"
+    #   value: "value"
+    #   effect: "NoSchedule|PreferNoSchedule|NoExecute(1.6 only)"
+
+  ## Node labels for node-exporter pod assignment
+  ## Ref: https://kubernetes.io/docs/user-guide/node-selection/
+  ##
+  nodeSelector: {}
+
+  ## Annotations to be added to node-exporter pods
+  ##
+  podAnnotations: {}
+
+  ## Labels to be added to node-exporter pods
+  ##
+  pod:
+    labels: {}
+
+  ## node-exporter resource limits & requests
+  ## Ref: https://kubernetes.io/docs/user-guide/compute-resources/
+  ##
+  resources:
+    limits:
+      cpu: 500m
+      memory: 500Mi
+    requests:
+      cpu: 100m
+      memory: 30Mi
+
+  ## Security context to be added to node-exporter pods
+  ## Need to set SYS_TIME to enable timex collector, since v0.16.0
+  nodeExporterContainerSecurityContext:
+    capabilities:
+      add:
+        - SYS_TIME
+
+  service:
+    annotations:
+      prometheus.io/probe: node-exporter
+    labels: {}
+
+    # Exposed as a headless service:
+    # https://kubernetes.io/docs/concepts/services-networking/service/#headless-services
+    clusterIP: None
+
+    ## List of IP addresses at which the node-exporter service is available
+    ## Ref: https://kubernetes.io/docs/user-guide/services/#external-ips
+    ##
+    externalIPs: []
+
+    loadBalancerIP: ""
+    loadBalancerSourceRanges: []
+    servicePort: 9101
+    type: ClusterIP
+
+    podContainerPort: 9100
+    podHostPort: 9100
+
+zombieExporter:
+  ## If false, zombie-exporter will not be installed
+  ##
+  enabled: false
+
+  ## zombie-exporter container name
+  ##
+  name: zombie-exporter
+
+  ## zombie-exporter container image
+  ##
+  image:
+    imageRepo: cpro/registry4/zombie-process-exporter
+    imageTag: 1.5.0
+    imagePullPolicy: IfNotPresent
+
+  ## Custom Update Strategy
+  ##
+  updateStrategy:
+    type: RollingUpdate
+
+  ## Additional zombie-exporter container arguments
+  ##
+  extraArgs: {}
+
+  ## Additional zombie-exporter hostPath mounts
+  ##
+  extraHostPathMounts: []
+    # - name: textfile-dir
+    #   mountPath: /srv/txt_collector
+    #   hostPath: /var/lib/zombie-exporter
+    #   readOnly: true
+
+  extraConfigmapMounts: []
+    # - name: certs-configmap
+    #   mountPath: /prometheus
+    #   configMap: certs-configmap
+    #   readOnly: true
+
+  ## Node tolerations for node-exporter scheduling to nodes with taints
+  ## Ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/
+  ##
+  tolerations: []
+    # - key: "key"
+    #   operator: "Equal|Exists"
+    #   value: "value"
+    #   effect: "NoSchedule|PreferNoSchedule|NoExecute(1.6 only)"
+
+  ## Node labels for node-exporter pod assignment
+  ## Ref: https://kubernetes.io/docs/user-guide/node-selection/
+  ##
+  nodeSelector: {}
+
+  ## Annotations to be added to zombie-exporter pods
+  ##
+  podAnnotations: {}
+
+  ## Labels to be added to zombie-exporter pods
+  ##
+  pod:
+    labels: {}
+
+  ## zombie-exporter resource limits & requests
+  ## Ref: https://kubernetes.io/docs/user-guide/compute-resources/
+  ##
+  resources:
+    limits:
+      cpu: 200m
+      memory: 50Mi
+    requests:
+      cpu: 100m
+      memory: 30Mi
+
+  ## Security context to be added to zombie-exporter pods
+  ##
+  securityContext:
+    runAsUser: 65534
+    fsGroup: 65534
+
+  service:
+    annotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/scheme: http
+    labels: {}
+
+    # Exposed as a headless service:
+    # https://kubernetes.io/docs/concepts/services-networking/service/#headless-services
+    clusterIP: None
+
+    ## List of IP addresses at which the node-exporter service is available
+    ## Ref: https://kubernetes.io/docs/user-guide/services/#external-ips
+    ##
+    externalIPs: []
+
+    hostPort: 8002
+    loadBalancerIP: ""
+    loadBalancerSourceRanges: []
+    servicePort: 8003
+    type: ClusterIP
+    scrapeInterval: 15
+    ## logForwardToConsole indicates the location where log printed
+    ## True: log printed to console
+    ## False: log printed to logFile
+    logForwardToConsole: "True"
+    ##enable when logForwardToConsole is not True
+    logFile: "/var/log/zombieprocessexporter.log"
+    ##log_level : 0 – DEBUG, 1 - INFO, 2 – WARN, 3 - ERROR
+    logLevel: 1
+    
+server:
+  ## Prometheus server container name
+  ##
+  name: server
+
+  etcdCertMountPath: /etc/etcd/ssl
+
+  ##soft means preferredDuringSchedulingIgnoredDuringExecution
+  ##hard means requiredDuringSchedulingIgnoredDuringExecution
+  ##you could refer k8s api for more detail
+  ##
+  antiAffinityMode: "soft"
+
+  ## Prometheus server container image
+  ##
+  image:
+    imageRepo: cpro/registry4/prometheus
+    imageTag: v2.20.1-3
+    imagePullPolicy: IfNotPresent
+
+  ## The URL prefix at which the container can be accessed. Useful in the case the '-web.external-url' includes a slug
+  ## so that the various internal URLs are still able to access as they are in the default case.
+  ## (Optional)
+  ## prefixURL: "prometheus"
+  prefixURL: ""
+
+  ## External URL which can access prometheus server
+  ## Maybe same with Ingress host name
+  ## when istio is enabled: baseURL path and Contextroot path should match
+  ## baseURL: "http://localhost:31380/prometheus"
+  baseURL: ""
+
+  ## This flag controls access to the administrative HTTP API which includes functionality such as deleting time
+  ## series. This is disabled by default.
+  ## To enable Backup/Restore feature(need to take Prometheus snapshot), this must be set to "true"
+  enableAdminApi: true
+
+  ## Uncomment the param if the restrictedToNamespace flag is set to true, 
+  ## then list the namespaces to monitor in comma-separated value
+  ## Example: namespaceList: ['test1','test2']
+  #
+  #namespaceList: []
+
+  ## Additional Prometheus server container arguments
+  ## This flag controls the capacity of the queue for pending Alertmanager notifications.
+  ##
+  extraArgs: {}
+    # alertmanager.notification-queue-capacity: 10000
+
+
+  ## Additional Prometheus server container only key arguments
+  ## Since there is an enableAdminApi separate flag, no need to add here
+  ## wal compression flag is added, flag enables compression of the write-ahead log (WAL).
+  ##
+  extraKeys: []
+    # - storage.tsdb.wal-compression
+  
+  ## Additional Prometheus server hostPath mounts
+  ##
+  extraHostPathMounts: []
+    # - name: certs-dir
+    #   mountPath: /etc/kubernetes/certs
+    #   hostPath: /etc/kubernetes/certs
+    #   readOnly: true
+
+  extraConfigmapMounts: []
+    # - name: certs-configmap
+    #   mountPath: /prometheus
+    #   configMap: certs-configmap
+    #   readOnly: true
+
+  ## Additional Prometheus server Secret mounts
+  # Defines additional mounts with secrets. Secrets must be manually created in the namespace.
+  extraSecretMounts: []
+    # - name: secret-files
+    #   mountPath: /etc/secrets
+    #   secretName: prom-secret-files
+    #   readOnly: true
+
+  ## ConfigMap override where fullname is {{.Release.Name}}-{{.Values.server.configMapOverrideName}}
+  ## Defining configMapOverrideName will cause templates/server-configmap.yaml
+  ## to NOT generate a ConfigMap resource
+  ##
+  configMapOverrideName: ""
+
+  ## Enable this if you are previously deploy in non-HA (K8S Deployment) and want to migrate to HA (K8S Statefulset)
+  ## It will migrate scraped data to new created PersistentVolumes mounted to each Statefulset pod.
+  ## Invalid in BCMT 19.06, needs enhancement
+  migrate:    
+    enabled: false
+    name: migrate
+
+    ## The file name you backup in non-HA. This file will be copied to CBUR STATEFULSET folder so it could be backup when cpro is in HA mode
+    fileName: "20190603030217_e01_LOCAL_june-cpro-server.tar.gz"
+
+    ## migrate resource requests and limits
+    #  ## Ref: http://kubernetes.io/docs/user-guide/compute-resources/
+    resources:
+      requests:
+        cpu: 100m
+        memory: 64Mi     
+      limits:
+        cpu: 200m
+        memory: 128Mi
+
+    ## Pointing to cbur glusterfs repo. By default it is mounted to BCMT control node.
+    cbur:
+      path: "192.168.199.10:cbur-glusterfs-repo"
+      endpoint: "glusterfs-cluster"
+
+    ## Time for migrating data from CBUR DEPLOYMENT to STATEFULSET. 
+    moveDuration: 30
+
+  cbur:
+    enabled: true
+    
+    image:
+      imageRepo: cbur/cbura
+      imageTag: 1.0.3-1665
+      imagePullPolicy: IfNotPresent
+
+    resources:
+      limits:
+        cpu: 200m
+        memory: 200Mi
+      requests:
+        cpu: 100m
+        memory: 64Mi
+
+    backendMode: "local"
+    ##autoEnableCron = true indicates that the cron job is immediately scheduled when the BrPolicy is created,
+    ##while autoEnableCron = false indicates that scheduling of the cron job should be done on a subsequent backup request.
+    ##This option only works when k8swatcher.enabled is true
+    autoEnableCron: false
+    ##Indicate if subsequent update of cronjob will be done via brpoilicy update.
+    ##true means cronjob must be updated via brpolicy update,
+    ##false means cronjob must be updated via manual "helm backup -t app -a enable/disable" command.
+    autoUpdateCron: false
+    ## It is used for scheduled backup task. Empty string is allowed for no scheduled backup.
+    ## Here means every 5 minutes of every day
+    cronJob: "*/5 * * * *"
+
+    ## This value only applies to statefulset, when ha.enabled is true. The value can be 0,1 or 2.
+    ## 0: backup any one of the PODs and restore to any one of PODs 
+    ## 1: backup any one of the POD, and restore it to all PODs one by one by its index 
+    ## 2: backup all PODs and restore them one by one based by its index
+    ##
+    brOption: 2
+
+    ## Limit the number of copies that can be saved. Once it is reached, the newer backup will overwritten the oldest one.
+    maxCopy: 5
+
+  ingress:
+    ## If true, Prometheus server Ingress will be created
+    ##
+    enabled: false
+
+    ## Prometheus server Ingress annotations
+    ##
+    annotations: {}
+    #   kubernetes.io/ingress.class: nginx
+    #   kubernetes.io/tls-acme: 'true'
+
+    ## Prometheus server Ingress additional labels
+    ##
+    extraLabels: {}
+
+    ## Prometheus server Ingress hostnames with optional path
+    ## Must be provided if Ingress is enabled
+    ##
+    hosts: []
+    #   - prometheus.domain.com
+    #   - domain.com/prometheus
+
+    ## Prometheus server Ingress TLS configuration
+    ## Secrets must be manually created in the namespace
+    ##
+    tls: []
+    #   - secretName: prometheus-server-tls
+    #     hosts:
+    #       - prometheus.domain.com
+
+  ## Whether use istio ingress gateway(Envoy) for /graph
+  istioIngress:
+    enabled: true
+    ## when istio is enabled: baseURL path and Contextroot path should match
+    Contextroot: prometheus
+    selector: {istio: ingressgateway}
+    # the host used to access the management GUI from istio ingress gateway
+    host: "*" 
+    httpPort: 80
+    ## Keep gatewayName to empty to create kubenetes gateway resource. If new virtualservice needs to refer to existing gateway then mention that name here
+    gatewayName: "istio-system/single-gateway-in-istio-system"
+    tls:
+      enabled: true
+      httpsPort: 443
+      ## mode could be SIMPLE, MUTUAL, ISTIO_MUTUAL
+      mode: SIMPLE
+      credentialName: "am-gateway"
+  ## Server Deployment Strategy type
+  # strategy:
+  #   type: Recreate
+
+  ## Node tolerations for server scheduling to nodes with taints
+  ## Ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/
+  ##
+  tolerations: []
+    # - key: "key"
+    #   operator: "Equal|Exists"
+    #   value: "value"
+    #   effect: "NoSchedule|PreferNoSchedule|NoExecute(1.6 only)"
+
+  ## Node labels for Prometheus server pod assignment
+  ## Ref: https://kubernetes.io/docs/user-guide/node-selection/
+  ##
+  nodeSelector: {}
+
+  ## Use an alternate scheduler, e.g. "stork".
+  ## ref: https://kubernetes.io/docs/tasks/administer-cluster/configure-multiple-schedulers/
+  ##
+  # schedulerName:
+
+  persistentVolume:
+    ## If true, Prometheus server will create/use a Persistent Volume Claim
+    ## If false, use emptyDir
+    ##
+    enabled: true
+
+    ## Prometheus server data Persistent Volume access modes
+    ## Must match those of existing PV or dynamic provisioner
+    ## Ref: http://kubernetes.io/docs/user-guide/persistent-volumes/
+    ##
+    accessModes:
+      - ReadWriteOnce
+
+    ## Prometheus server data Persistent Volume annotations
+    ##
+    annotations: {}
+
+    ## Prometheus server data Persistent Volume existing claim name
+    ## Requires server.persistentVolume.enabled: true
+    ## If defined, PVC must be created manually before volume will be bound
+    existingClaim: ""
+
+    ## Prometheus server data Persistent Volume mount root path
+    ##
+    mountPath: /data
+
+    mountPath2: /data
+
+    ## Prometheus server data Persistent Volume size
+    ##
+    size: 16Gi
+
+    ## Prometheus server data Persistent Volume Storage Class
+    ## If defined, storageClassName: <storageClass>
+    ## If set to "-", storageClassName: "", which disables dynamic provisioning
+    ## If undefined (the default) or set to null, no storageClassName spec is
+    ##   set, choosing the default provisioner.  (gp2 on AWS, standard on
+    ##   GKE, AWS & OpenStack)
+    ##
+    storageClass: ""
+
+    ## Subdirectory of Prometheus server data Persistent Volume to mount
+    ## Useful if the volume's root directory is not empty
+    ##
+    subPath: ""
+
+  ## Annotations to be added to Prometheus server pods
+  ##
+  podAnnotations: {}
+    # iam.amazonaws.com/role: prometheus
+
+  ## it's only used when ha.enabled true
+  ## when ha.enabled is false, replicaCount will be hard coded to 1
+  replicaCount: 2
+
+  ## Prometheus server resource requests and limits
+  ## Ref: http://kubernetes.io/docs/user-guide/compute-resources/
+  ##
+  resources: 
+    limits:
+      cpu: 2
+      memory: 4Gi
+    requests:
+      cpu: 500m
+      memory: 512Mi
+
+  ## Security context to be added to server pods
+  ##
+  securityContext:
+    runAsUser: 65534
+    fsGroup: 65534
+
+  service:
+    annotations: {}
+    annotationsForScrape:
+      prometheus.io/probe: prometheus
+    labels: {}
+    clusterIP: ""
+
+    ## List of IP addresses at which the Prometheus server service is available
+    ## Ref: https://kubernetes.io/docs/user-guide/services/#external-ips
+    ##
+    externalIPs: []
+
+    loadBalancerIP: ""
+    loadBalancerSourceRanges: []
+    servicePort: 80
+    #nodePort: 31000
+    type: ClusterIP
+
+  ## Prometheus server pod termination grace period
+  ##
+  terminationGracePeriodSeconds: 10
+
+  ## Prometheus data retention
+  ##
+  retention: {}
+  ## How long to retain samples in storage. Units supported: s, m, h, d, w, y. Default is 15d.
+  # time: ""
+  ## Maximum number of bytes that can be stored for blocks. Units supported: KB, MB, GB, TB, PB. Default is disabled. For example 200GB.
+  ## If both time and size retention policies are specified, whichever policy triggers first will be used at that instant.
+  # size: ""
+
+  ## Configurations about server probes
+  ## Including livenessProbe and readinessProbe
+  livenessProbe:
+    initialDelaySeconds: 30
+    timeoutSeconds: 30
+    failureThreshold: 3
+    periodSeconds: 10
+  readinessProbe:
+    initialDelaySeconds: 30
+    timeoutSeconds: 30
+    failureThreshold: 3
+    periodSeconds: 10
+
+pushgateway:
+  ## If false, pushgateway will not be installed
+  ##
+  enabled: true
+
+  ## pushgateway container name
+  ##
+  name: pushgateway
+
+  ## soft means preferredDuringSchedulingIgnoredDuringExecution
+  ## hard means requiredDuringSchedulingIgnoredDuringExecution
+  ## you could refer k8s api for more detail
+  #
+  antiAffinityMode: "soft"
+
+  ## pushgateway container image
+  ##
+  image:
+    imageRepo: cpro/registry4/pushgateway
+    imageTag: v1.2.0-3.1.0
+    imagePullPolicy: IfNotPresent
+
+  ## Additional pushgateway container arguments
+  ## For arguments where no value is needed give it as "". eg  push.disable-consistency-check: ""
+  extraArgs: 
+     push.disable-consistency-check: ""
+
+  ## External URL which can access pushgateway
+  ## when istio is enabled: baseURL path and Contextroot path should match
+  ## baseURL: "http://localhost:31380/pushgateway"
+  baseURL: ""
+
+  ## The URL prefix at which the container can be accessed. Useful in the case the '-web.external-url' includes a slug
+  ## so that the various internal URLs are still able to access as they are in the default case.
+  ## (Optional)
+  ## prefixURL: "pushgateway"
+  prefixURL: ""
+
+  ingress:
+    ## If true, pushgateway Ingress will be created
+    ##
+    enabled: false
+
+    ## pushgateway Ingress annotations
+    ##
+    annotations: {}
+    #   kubernetes.io/ingress.class: nginx
+    #   kubernetes.io/tls-acme: 'true'
+
+    ## pushgateway Ingress hostnames with optional path
+    ## Must be provided if Ingress is enabled
+    ##
+    hosts: []
+    #   - pushgateway.domain.com
+    #   - domain.com/pushgateway
+
+    ## pushgateway Ingress TLS configuration
+    ## Secrets must be manually created in the namespace
+    ##
+    tls: []
+    #   - secretName: prometheus-alerts-tls
+    #     hosts:
+    #       - pushgateway.domain.com
+
+  ## Whether use istio ingress gateway(Envoy) pushgate /
+  istioIngress:
+    enabled: true
+    selector: {istio: ingressgateway}
+    ## when istio is enabled: baseURL path and Contextroot path should match
+    Contextroot: pushgateway
+    # the host used to access the management GUI from istio ingress gateway
+    host: "*"
+    httpPort: 80
+    ## Keep gatewayName to empty to create kubenetes gateway resource. If new virtualservice needs to refer to existing gateway then mention that name here
+    gatewayName: "istio-system/single-gateway-in-istio-system"
+    tls:
+      enabled: false
+      httpsPort: 443
+      ## mode could be SIMPLE, MUTUAL, ISTIO_MUTUAL
+      mode: SIMPLE
+      credentialName: "pushgateway-secret"
+  ## Node tolerations for pushgateway scheduling to nodes with taints
+  ## Ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/
+  ##
+  tolerations: []
+    # - key: "key"
+    #   operator: "Equal|Exists"
+    #   value: "value"
+    #   effect: "NoSchedule|PreferNoSchedule|NoExecute(1.6 only)"
+
+  ## Node labels for pushgateway pod assignment
+  ## Ref: https://kubernetes.io/docs/user-guide/node-selection/
+  ##
+  nodeSelector: {}
+
+  ## Annotations to be added to pushgateway pods
+  ##
+  podAnnotations: {}
+
+  replicaCount: 1
+
+  ## pushgateway resource requests and limits
+  ## Ref: http://kubernetes.io/docs/user-guide/compute-resources/
+  ##
+  resources:
+    limits:
+      cpu: 100m
+      memory: 200Mi
+    requests:
+      cpu: 10m
+      memory: 32Mi
+
+  ## Security context to be added to push-gateway pods
+  ##
+  securityContext:
+    runAsUser: 65534
+
+  service:
+    annotations:
+      prometheus.io/probe: pushgateway
+    labels: {}
+    clusterIP: ""
+
+    ## List of IP addresses at which the pushgateway service is available
+    ## Ref: https://kubernetes.io/docs/user-guide/services/#external-ips
+    ##
+    externalIPs: []
+
+    loadBalancerIP: ""
+    loadBalancerSourceRanges: []
+    servicePort: 9091
+    type: ClusterIP
+
+webhook4fluentd:
+  ## If false, webhook4fluentd will not be installed
+  #  ##
+  enabled: false
+
+  ## webhook4fluentd container name
+  ##
+  name: webhook4fluentd
+
+  ##soft means preferredDuringSchedulingIgnoredDuringExecution
+  ##hard means requiredDuringSchedulingIgnoredDuringExecution
+  ##you could refer k8s api for more detail
+  ##
+  antiAffinityMode: "soft"
+
+  ## webhook4fluentd container image
+  #  ##
+  image:
+    imageRepo: cpro/registry4/webhook4fluentd
+    imageTag: 3.1.0
+    imagePullPolicy: IfNotPresent
+
+  tolerations: []
+    # - key: "key"
+    #   operator: "Equal|Exists"
+    #   value: "value"
+    #   effect: "NoSchedule|PreferNoSchedule|NoExecute(1.6 only)"
+
+  ## Node labels for webhook4fluentd pod assignment
+  ## Ref: https://kubernetes.io/docs/user-guide/node-selection/
+  ##
+  nodeSelector: {}
+
+  ## Annotations to be added to webhook4fluentd pods
+  ##
+  podAnnotations: {}
+
+  replicaCount: 2
+
+  ## webhook4fluentd resource requests and limits
+  ## Ref: http://kubernetes.io/docs/user-guide/compute-resources/
+  ##
+  resources:
+    limits:
+      cpu: 100m
+      memory: 200Mi
+    requests:
+      cpu: 10m
+      memory: 32Mi
+
+  ## Security context to be added to push-gateway pods
+  ##
+  securityContext:
+    runAsUser: 65534
+
+  service:
+    annotations: {}
+    annotationsForScrape:
+      prometheus.io/scrape: "true"
+      prometheus.io/scheme: http
+    labels: {}
+    clusterIP: ""
+
+    servicePort: 8005
+    type: ClusterIP
+
+
+
+## alertmanager ConfigMap entries
+##
+
+#this config is used when webhook4fluentd.enabled is false
+#alertmanagerFiles, alertmanagerWebhookFiles are mutually exclusive
+#only one of them will be used 
+alertmanagerFiles:
+  alertmanager.yml:
+    global: {}
+      # slack_api_url: ''
+
+    receivers:
+      - name: default-receiver
+      ##
+      ## uncomment following lines when need to send to CNOT
+      ## suppose CNOT has service name 'tls-cnot' in namespace 'default'
+      ##
+      #  webhook_configs:
+      #  - url: 'http://tls-cnot.default.svc.cluster.local/api/cnot/v1/notif'
+      ##
+      ## uncomment following lines when need to send to CNOT in TLS
+      ## also need to change url above from HTTP to HTTPS
+      ## please notice 'http_config' is under 'webhook_configs'
+      ##
+      #    http_config:
+      #      tls_config:
+      #        ca_file: /etc/config/alertmanager/tls/alertmanager.cert
+
+    route:
+      group_wait: 10s
+      group_interval: 5m
+      receiver: default-receiver
+      repeat_interval: 3h
+
+#this config is used when webhook4fluentd.enabled is true
+#the following is default value, it could be changed.
+#'release' in the url should be changed to the right value
+#port in url should be webhook4fluentd.service.servicePort if the value is not 8005
+alertmanagerWebhookFiles:
+  alertmanager.yml:
+    global: {}
+    receivers:
+      - name: "webhook"
+        webhook_configs:
+        - url: 'http://release-cpro-webhook4fluentd:8005'
+    route:
+      group_wait: 10s
+      group_interval: 5m
+      receiver: "webhook"
+
+## Prometheus server ConfigMap entries
+##
+serverFiles:
+  alerts: 
+    groups:
+    - name: pre-defined-alert-rules
+      rules:
+      - alert: NodeFilesystemUsageMinor
+        expr: ((node_filesystem_size_bytes{device="rootfs"} - node_filesystem_free_bytes{device="rootfs"}) / node_filesystem_size_bytes{device="rootfs"} * 100 > 70) and ((node_filesystem_size_bytes{device="rootfs"} - node_filesystem_free_bytes{device="rootfs"}) / node_filesystem_size_bytes{device="rootfs"} * 100 <= 80)
+        for: 1m
+        labels:
+          severity: MINOR
+          name: FileSystemExceedThresholdMinor
+          text: Usage of file system is greater than the threshold value
+          id: 3001200
+          source: CPRO
+          host: "{{$labels.kubernetes_io_hostname}}"
+          eventType: 11
+          probableCause: 351
+          key: MOC001
+        annotations:
+          summary: "{{$labels.instance}}: High Filesystem usage detected"
+          description: "{{$labels.instance}}: Filesystem usage is above 70%"
+      - alert: NodeFilesystemUsageMajor
+        expr: ((node_filesystem_size_bytes{device="rootfs"} - node_filesystem_free_bytes{device="rootfs"}) / node_filesystem_size_bytes{device="rootfs"} * 100 > 80) and ((node_filesystem_size_bytes{device="rootfs"} - node_filesystem_free_bytes{device="rootfs"}) / node_filesystem_size_bytes{device="rootfs"} * 100 <= 90)
+        for: 1m
+        labels:
+          severity: MAJOR
+          name: FileSystemExceedThresholdMajor
+          text: Usage of file system is greater than the threshold value
+          id: 3001201
+          source: CPRO
+          host: "{{$labels.kubernetes_io_hostname}}"
+          eventType: 11
+          probableCause: 351
+          key: MOC002
+        annotations:
+          summary: "{{$labels.instance}}: High Filesystem usage detected"
+          description: "{{$labels.instance}}: Filesystem usage is above 80%"
+      - alert: NodeFilesystemUsageCritical
+        expr: (node_filesystem_size_bytes{device="rootfs"} - node_filesystem_free_bytes{device="rootfs"}) / node_filesystem_size_bytes{device="rootfs"} * 100 > 90
+        for: 1m
+        labels:
+          severity: CRITICAL
+          name: FileSystemExceedThresholdCritical
+          text: Usage of file system is greater than the threshold value
+          id: 3001202
+          source: CPRO
+          host: "{{$labels.kubernetes_io_hostname}}"
+          eventType: 11
+          probableCause: 351
+          key: MOC003
+        annotations:
+          summary: "{{$labels.instance}}: High Filesystem usage detected"
+          description: "{{$labels.instance}}: Filesystem usage is above 90%"  
+      - alert: NodeCPUUsageMinor
+        expr: (100 - avg by (instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100 > 70) and (100 - avg by (instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100 <= 80)
+        for: 1m
+        labels:
+          severity: MINOR
+          name: CPUExceedThresholdMinor
+          text: Usage of CPU is greater than the threshold value
+          id: 3001203
+          source: CPRO
+          host: "{{$labels.kubernetes_io_hostname}}"
+          eventType: 11
+          probableCause: 351
+          key: MOC004
+        annotations:
+          summary: "{{$labels.instance}}: High CPU usage detected"
+          description: "{{$labels.instance}}: CPU usage is above 70%"
+      - alert: NodeCPUUsageMajor
+        expr: (100 - avg by (instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100 > 80) and (100 - avg by (instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100 <= 90)
+        for: 1m
+        labels:
+          severity: MAJOR
+          name: CPUExceedThresholdMajor
+          text: Usage of CPU is greater than the threshold value
+          id: 3001204
+          source: CPRO
+          host: "{{$labels.kubernetes_io_hostname}}"
+          eventType: 11
+          probableCause: 351
+          key: MOC005
+        annotations:
+          summary: "{{$labels.instance}}: High CPU usage detected"
+          description: "{{$labels.instance}}: CPU usage is above 80%"
+      - alert: NodeCPUUsageCritical
+        expr: 100 - avg by (instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100 > 90
+        for: 1m
+        labels:
+          severity: CRITICAL
+          name: CPUExceedThresholdCritical
+          text: Usage of CPU is greater than the threshold value
+          id: 3001205
+          source: CPRO
+          host: "{{$labels.kubernetes_io_hostname}}"
+          eventType: 11
+          probableCause: 351
+          key: MOC006
+        annotations:
+          summary: "{{$labels.instance}}: High CPU usage detected"
+          description: "{{$labels.instance}}: CPU usage is above 90%"
+      - alert: NodeSwapUsageMinor
+        expr: (100 - (node_memory_SwapFree_bytes + 1) / (node_memory_SwapTotal_bytes + 1) * 100 > 70) and (100 - (node_memory_SwapFree_bytes + 1) / (node_memory_SwapTotal_bytes + 1) * 100 <= 80)
+        for: 1m
+        labels:
+          severity: MINOR
+          name: SwapExceedThresholdMinor
+          text: Usage of swap space is greater than the threshold value
+          id: 3001206
+          source: CPRO
+          host: "{{$labels.kubernetes_io_hostname}}"
+          eventType: 11
+          probableCause: 351
+          key: MOC007
+        annotations:
+          summary: "{{$labels.instance}}: High swap space usage detected"
+          description: "{{$labels.instance}}: Swap space usage is above 70%"
+      - alert: NodeSwapUsageMajor
+        expr: (100 - (node_memory_SwapFree_bytes + 1) / (node_memory_SwapTotal_bytes + 1) * 100 > 80) and (100 - (node_memory_SwapFree_bytes + 1) / (node_memory_SwapTotal_bytes + 1) * 100 <= 90)
+        for: 1m
+        labels:
+          severity: MAJOR
+          name: SwapExceedThresholdMajor
+          text: Usage of swap space is greater than the threshold value
+          id: 3001207
+          source: CPRO
+          host: "{{$labels.kubernetes_io_hostname}}"
+          eventType: 11
+          probableCause: 351
+          key: MOC008
+        annotations:
+          summary: "{{$labels.instance}}: High swap space usage detected"
+          description: "{{$labels.instance}}: Swap space usage is above 80%"
+      - alert: NodeSwapUsageCritical
+        expr: 100 - (node_memory_SwapFree_bytes + 1) / (node_memory_SwapTotal_bytes + 1) * 100 > 90
+        for: 1m
+        labels:
+          severity: CRITICAL
+          name: SwapExceedThresholdCritical
+          text: Usage of swap space is greater than the threshold value
+          id: 3001208
+          source: CPRO
+          host: "{{$labels.kubernetes_io_hostname}}"
+          eventType: 11
+          probableCause: 351
+          key: MOC009
+        annotations:
+          summary: "{{$labels.instance}}: High swap space usage detected"
+          description: "{{$labels.instance}}: Swap space usage is above 90%"
+      - alert: NodeMemoryUsageMinor
+        expr: (100 - (node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes * 100 > 70) and (100 - (node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes * 100 <= 80)
+        for: 1m
+        labels:
+          severity: MINOR
+          name: MemoryExceedThresholdMinor
+          text: Usage of memory is greater than the threshold value
+          id: 3001209
+          source: CPRO
+          host: "{{$labels.kubernetes_io_hostname}}"
+          eventType: 11
+          probableCause: 351
+          key: MOC010
+        annotations:
+          summary: "{{$labels.instance}}: High memory usage detected"
+          description: "{{$labels.instance}}: Memory usage is above 70%"
+      - alert: NodeMemoryUsageMajor
+        expr: (100 - (node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes * 100 > 80) and (100 - (node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes * 100 <= 90)
+        for: 1m
+        labels:
+          severity: MAJOR
+          name: MemoryExceedThresholdMajor
+          text: Usage of memory is greater than the threshold value
+          id: 3001210
+          source: CPRO
+          host: "{{$labels.kubernetes_io_hostname}}"
+          eventType: 11
+          probableCause: 351
+          key: MOC011
+        annotations:
+          summary: "{{$labels.instance}}: High memory usage detected"
+          description: "{{$labels.instance}}: Memory usage is above 80%"
+      - alert: NodeMemoryUsageCritical
+        expr: 100 - (node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes * 100 > 90
+        for: 1m
+        labels:
+          severity: CRITICAL
+          name: MemoryExceedThresholdCritical
+          text: Usage of memory is greater than the threshold value
+          id: 3001211
+          source: CPRO
+          host: "{{$labels.kubernetes_io_hostname}}"
+          eventType: 11
+          probableCause: 351
+          key: MOC012
+        annotations:
+          summary: "{{$labels.instance}}: High memory usage detected"
+          description: "{{$labels.instance}}: Memory usage is above 90%"
+      - alert: NodeZombieCountMinor
+        expr: (zombieCount > 5) and (zombieCount <= 10)
+        for: 1m
+        labels:
+          severity: MINOR
+          name: ZombieCountExceedThresholdMinor
+          text: Zombie process count is greater than the threshold value
+          id: 3001212
+          source: CPRO
+          host: "{{$labels.kubernetes_io_hostname}}"
+          eventType: 11
+          probableCause: 351
+          key: MOC013
+        annotations:
+          summary: "{{$labels.instance}}: Too many zombie processes detected"
+          description: "{{$labels.instance}}: Zombie process count is above 5"
+      - alert: NodeZombieCountMajor
+        expr: (zombieCount > 10) and (zombieCount <= 15)
+        for: 1m
+        labels:
+          severity: MAJOR
+          name: ZombieCountExceedThresholdMajor
+          text: Zombie process count is greater than the threshold value
+          id: 3001213
+          source: CPRO
+          host: "{{$labels.kubernetes_io_hostname}}"
+          eventType: 11
+          probableCause: 351
+          key: MOC014
+        annotations:
+          summary: "{{$labels.instance}}: Too many zombie processes detected"
+          description: "{{$labels.instance}}: Zombie process count is above 10"
+      - alert: NodeZombieCountCritical
+        expr: zombieCount > 15
+        for: 1m
+        labels:
+          severity: CRITICAL
+          name: ZombieCountExceedThresholdCritical
+          text: Zombie process count is greater than the threshold value
+          id: 3001214
+          source: CPRO
+          host: "{{$labels.kubernetes_io_hostname}}"
+          eventType: 11
+          probableCause: 351
+          key: MOC015
+        annotations:
+          summary: "{{$labels.instance}}: Too many zombie processes detected"
+          description: "{{$labels.instance}}: Zombie process count is above 15"
+      - alert: NodeSysUpTimeCritical
+        expr: node_time_seconds - node_boot_time_seconds < 5 * 24 * 3600
+        for: 1m
+        labels:
+          severity: CRITICAL
+          name: NodeSysUpTimeLessThresholdCritical
+          text: The number of seconds since last node reboot is less than the threshold value
+          id: 3001215
+          source: CPRO
+          host: "{{$labels.kubernetes_io_hostname}}"
+          eventType: 11
+          probableCause: 351
+          key: MOC016
+        annotations:
+          summary: "{{$labels.instance}}: Node uptime is less than threshold"
+          description: "{{$labels.instance}}: Node uptime is less than 5 days"
+      - alert: NetworkRetransMajor
+        expr: sum(rate(node_netstat_Tcp_RetransSegs[2m])) > 1500000
+        for: 1m
+        labels:
+          severity: MAJOR
+          name: NetworkRetransExceedThresholdMajor
+          text: The number of segments re-transmitted is greater than the threshold value
+          id: 3001216
+          source: CPRO
+          host: "{{$labels.kubernetes_io_hostname}}"
+          eventType: 11
+          probableCause: 351
+          key: MOC017
+        annotations:
+          summary: "{{$labels.instance}}: The number of re-trans segments is more than threshold"
+          description: "{{$labels.instance}}: The number of re-trans segments is more than 1500000"
+      - alert: PrometheusTsdbWalCorruptions
+        expr: rate(prometheus_tsdb_wal_corruptions_total[4m]) > 0
+        labels:
+          severity: MAJOR
+          text: The number of TSDB corruptions is {{ $value }}
+          id: 3001297
+          source: CPRO
+          host: "{{$labels.kubernetes_io_hostname}}"
+          eventType: 11
+          probableCause: 351
+          key: MOC018
+        annotations:
+          summary: "{{$labels.instance}}: The number of Prometheus TSDB WAL corruptions"
+          description: "{{$labels.instance}}: Prometheus encountered TSDB WAL corruptions"
+  rules: {}
+
+  prometheus.yml:
+    global:
+      ## How frequently to scrape targets by default
+      ##
+      scrape_interval: 1m
+      ## How long until a scrape request times out
+      ##
+      scrape_timeout: 10s
+      ## How frequently to evaluate rules
+      ##
+      evaluation_interval: 1m
+
+    rule_files:
+      - /etc/config/rules
+      - /etc/config/alerts
+
+    scrape_configs:
+      - job_name: prometheus
+        static_configs:
+          - targets:
+            - localhost:9090
+        honor_labels: true
+
+        kubernetes_sd_configs:
+          - role: endpoints
+
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_probe]
+            action: keep
+            regex: prometheus
+          - source_labels: [__meta_kubernetes_pod_container_name]
+            action: drop
+            regex: istio-proxy
+          - source_labels: [__meta_kubernetes_namespace]
+            action: replace
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_path]
+            action: replace
+            target_label: __metrics_path__
+
+      # Uncomment the below lines if etcd metrics are to be scrapped in BCMT environment.
+      #- job_name: bcmt-etcd
+      #  kubernetes_sd_configs:
+      #    - role: node
+      #  metrics_path: /metrics
+      #  scheme: https
+      #  tls_config:
+      #    ca_file: /etc/etcd/ssl/ca.crt
+      #    cert_file: /etc/etcd/ssl/tls.crt
+      #    key_file: /etc/etcd/ssl/tls.key
+      #    insecure_skip_verify: true
+      #  relabel_configs:
+      #  - action: keep
+      #    regex: true
+      #    source_labels:
+      #    - __meta_kubernetes_node_label_is_control
+      #  - action: replace
+      #    regex: (.*)
+      #    replacement: $1:2379
+      #    source_labels:
+      #    - __meta_kubernetes_node_address_InternalIP
+      #    target_label: __address__
+      #  - action: replace
+      #    regex: (.*)
+      #    replacement: $1
+      #    source_labels:
+      #    - job
+      #    target_label: component 
+
+      - job_name: 'kubernetes-apiservers'
+
+        kubernetes_sd_configs:
+          - role: endpoints
+
+        # Default to scraping over https. If required, just disable this or change to
+        # `http`.
+        scheme: https
+
+        # This TLS & bearer token file config is used to connect to the actual scrape
+        # endpoints for cluster components. This is separate to discovery auth
+        # configuration because discovery & scraping are two separate concerns in
+        # Prometheus. The discovery auth config is automatic if Prometheus runs inside
+        # the cluster. Otherwise, more config options have to be provided within the
+        # <kubernetes_sd_config>.
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+          # If your node certificates are self-signed or use a different CA to the
+          # master CA, then disable certificate verification below. Note that
+          # certificate verification is an integral part of a secure infrastructure
+          # so this should only be disabled in a controlled environment. You can
+          # disable certificate verification by uncommenting the line below.
+          #
+          insecure_skip_verify: true
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+
+        # Keep only the default/kubernetes service endpoints for the https port. This
+        # will add targets for each API server which Kubernetes adds an endpoint to
+        # the default/kubernetes service.
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: default;kubernetes;https
+          - source_labels: [__meta_kubernetes_namespace]
+            action: replace
+            target_label: namespace
+
+      - job_name: 'kubernetes-nodes'
+
+        # Default to scraping over https. If required, just disable this or change to
+        # `http`.
+        scheme: https
+
+        # This TLS & bearer token file config is used to connect to the actual scrape
+        # endpoints for cluster components. This is separate to discovery auth
+        # configuration because discovery & scraping are two separate concerns in
+        # Prometheus. The discovery auth config is automatic if Prometheus runs inside
+        # the cluster. Otherwise, more config options have to be provided within the
+        # <kubernetes_sd_config>.
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+          # If your node certificates are self-signed or use a different CA to the
+          # master CA, then disable certificate verification below. Note that
+          # certificate verification is an integral part of a secure infrastructure
+          # so this should only be disabled in a controlled environment. You can
+          # disable certificate verification by uncommenting the line below.
+          #
+          insecure_skip_verify: true
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+
+        kubernetes_sd_configs:
+          - role: node
+
+        relabel_configs:
+          - action: labelmap
+            regex: __meta_kubernetes_node_label_(.+)
+          - target_label: __address__
+            replacement: kubernetes.default.svc:443
+          - source_labels: [__meta_kubernetes_node_name]
+            regex: (.+)
+            target_label: __metrics_path__
+            replacement: /api/v1/nodes/${1}/proxy/metrics
+          - source_labels: [__meta_kubernetes_namespace]
+            action: replace
+            target_label: namespace
+
+
+      - job_name: 'kubernetes-nodes-cadvisor'
+
+        # Default to scraping over https. If required, just disable this or change to
+        # `http`.
+        scheme: https
+
+        # This TLS & bearer token file config is used to connect to the actual scrape
+        # endpoints for cluster components. This is separate to discovery auth
+        # configuration because discovery & scraping are two separate concerns in
+        # Prometheus. The discovery auth config is automatic if Prometheus runs inside
+        # the cluster. Otherwise, more config options have to be provided within the
+        # <kubernetes_sd_config>.
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+          # If your node certificates are self-signed or use a different CA to the
+          # master CA, then disable certificate verification below. Note that
+          # certificate verification is an integral part of a secure infrastructure
+          # so this should only be disabled in a controlled environment. You can
+          # disable certificate verification by uncommenting the line below.
+          #
+          insecure_skip_verify: true
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+
+        kubernetes_sd_configs:
+          - role: node
+
+        # This configuration will work only on kubelet 1.7.3+
+        # As the scrape endpoints for cAdvisor have changed
+        # if you are using older version you need to change the replacement to
+        # replacement: /api/v1/nodes/${1}:4194/proxy/metrics
+        # more info here https://github.com/coreos/prometheus-operator/issues/633
+        relabel_configs:
+          - action: labelmap
+            regex: __meta_kubernetes_node_label_(.+)
+          - target_label: __address__
+            replacement: kubernetes.default.svc:443
+          - source_labels: [__meta_kubernetes_node_name]
+            regex: (.+)
+            target_label: __metrics_path__
+            replacement: /api/v1/nodes/${1}/proxy/metrics/cadvisor
+          - source_labels: [__meta_kubernetes_namespace]
+            action: replace
+            target_label: namespace
+
+      # Scrape config for service endpoints.
+      #
+      # The relabeling allows the actual service scrape endpoint to be configured
+      # via the following annotations:
+      #
+      # * `prometheus.io/scrape`: Only scrape services that have a value of `true`
+      # * `prometheus.io/scheme`: If the metrics endpoint is secured then you will need
+      # to set this to `https` & most likely set the `tls_config` of the scrape config.
+      # * `prometheus.io/path`: If the metrics path is not `/metrics` override this.
+      # * `prometheus.io/port`: If the metrics are exposed on a different port to the
+      # service then set this appropriately.
+      - job_name: 'kubernetes-service-endpoints-insecure'
+
+        kubernetes_sd_configs:
+          - role: endpoints
+
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_container_name]
+            action: drop
+            regex: istio-proxy
+          - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_scrape]
+            action: keep
+            regex: true
+          - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_scheme]
+            action: keep
+            target_label: __scheme__
+            regex: http
+          - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_path]
+            action: replace
+            target_label: __metrics_path__
+            regex: (.+)
+          - source_labels: [__address__, __meta_kubernetes_service_annotation_prometheus_io_port]
+            action: replace
+            target_label: __address__
+            regex: ([^:]+)(?::\d+)?;(\d+)
+            replacement: $1:$2
+          - action: labelmap
+            regex: __meta_kubernetes_service_label_(.+)
+          - source_labels: [__meta_kubernetes_namespace]
+            action: replace
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_service_name]
+            action: replace
+            target_label: kubernetes_name
+          - source_labels: [__meta_kubernetes_pod_node_name]
+            target_label: kubernetes_io_hostname
+            action: replace
+        # Start of custom modification of original chart for CSFS-27019 NOTE: marked resolved, won't fix
+        tls_config:
+          insecure_skip_verify: true
+        # End of custom modification of original chart for CSFS-27019
+
+      - job_name: 'prometheus-pushgateway'
+        honor_labels: true
+        scheme: http
+        kubernetes_sd_configs:
+          - role: service
+
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_probe]
+            action: keep
+            regex: pushgateway
+          - source_labels: [__meta_kubernetes_namespace]
+            action: replace
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_path]
+            action: replace
+            target_label: __metrics_path__
+
+      - job_name: 'kubernetes-pods-insecure'
+        kubernetes_sd_configs:
+          - role: pod
+        relabel_configs:  # If first two labels are present, pod should be scraped  by the istio-secure job.
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+            action: keep
+            regex: true
+          - source_labels: [__meta_kubernetes_pod_annotation_sidecar_istio_io_status, __meta_kubernetes_pod_annotation_istio_mtls]
+            action: drop
+            regex: (([^;]+);([^;]*))|(([^;]*);(true))
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scheme]
+            action: drop
+            regex: https
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+            action: replace
+            target_label: __metrics_path__
+            regex: (.+)
+          - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+            action: replace
+            regex: ([^:]+)(?::\d+)?;(\d+)
+            replacement: $1:$2
+            target_label: __address__
+          - action: labelmap
+            regex: __meta_kubernetes_pod_label_(.+)
+          - source_labels: [__meta_kubernetes_namespace]
+            action: replace
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            action: replace
+            target_label: kubernetes_pod_name
+          - source_labels: [__meta_kubernetes_pod_node_name]
+            action: replace
+            target_label: instance
+
+      # Example scrape config for probing services via the Blackbox Exporter.
+      #
+      # The relabeling allows the actual service scrape endpoint to be configured
+      # via the following annotations:
+      #
+      # * `prometheus.io/probe`: Only probe services that have a value of `true`
+      #
+      #
+      - job_name: 'prometheus-nodeexporter'
+        honor_labels: true
+
+        kubernetes_sd_configs:
+          - role: endpoints
+
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_probe]
+            action: keep
+            regex: node-exporter
+          - source_labels: [__meta_kubernetes_namespace]
+            action: replace
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_pod_node_name]
+            target_label: kubernetes_io_hostname
+            action: replace
+
+      - job_name: 'kubernetes-services'
+
+        metrics_path: /probe
+        params:
+          module: [http_2xx]
+
+        kubernetes_sd_configs:
+          - role: service
+
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_probe]
+            action: keep
+            regex: true
+          - source_labels: [__address__]
+            target_label: __param_target
+          - target_label: __address__
+            replacement: blackbox
+          - source_labels: [__param_target]
+            target_label: instance
+          - action: labelmap
+            regex: __meta_kubernetes_service_label_(.+)
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_service_name]
+            target_label: kubernetes_name
+
+      # Example scrape config for pods
+      #
+      # The relabeling allows the actual pod scrape endpoint to be configured via the
+      # following annotations:
+      #
+      # * `prometheus.io/scrape`: Only scrape pods that have a value of `true`
+      # * `prometheus.io/path`: If the metrics path is not `/metrics` override this.
+      # * `prometheus.io/port`: Scrape the pod on the indicated port instead of the default of `9102`.
+      # Mixer scrapping. Defaults to Prometheus and mixer on same namespace.
+      - job_name: 'istio-mesh'
+        kubernetes_sd_configs:
+        - role: endpoints
+          namespaces:
+            names:
+            - istio-system
+        relabel_configs:
+        - source_labels: [__meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+          action: keep
+          regex: istio-telemetry;prometheus
+
+      # Scrape config for envoy stats
+      - job_name: 'envoy-stats'
+        metrics_path: /stats/prometheus
+        kubernetes_sd_configs:
+        - role: pod
+
+        relabel_configs:
+        - source_labels: [__meta_kubernetes_pod_container_port_name]
+          action: keep
+          regex: '.*-envoy-prom'
+        - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+          action: replace
+          regex: ([^:]+)(?::\d+)?;(\d+)
+          replacement: $1:15090
+          target_label: __address__
+        - action: labeldrop
+          regex: __meta_kubernetes_pod_label_(.+)
+        - source_labels: [__meta_kubernetes_namespace]
+          action: replace
+          target_label: namespace
+        - source_labels: [__meta_kubernetes_pod_name]
+          action: replace
+          target_label: pod_name
+
+      - job_name: 'istio-policy'
+        kubernetes_sd_configs:
+        - role: endpoints
+          namespaces:
+            names:
+            - istio-system
+
+
+        relabel_configs:
+        - source_labels: [__meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+          action: keep
+          regex: istio-policy;http-policy-monitoring
+
+      - job_name: 'istio-telemetry'
+        kubernetes_sd_configs:
+        - role: endpoints
+          namespaces:
+            names:
+            - istio-system
+
+        relabel_configs:
+        - source_labels: [__meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+          action: keep
+          regex: istio-telemetry;http-monitoring
+
+      - job_name: 'pilot'
+        kubernetes_sd_configs:
+        - role: endpoints
+          namespaces:
+            names:
+            - istio-system
+
+        relabel_configs:
+        - source_labels: [__meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+          action: keep
+          regex: istiod;http-monitoring
+        - source_labels: [__meta_kubernetes_service_label_app]
+          target_label: app
+
+      - job_name: 'galley'
+        kubernetes_sd_configs:
+        - role: endpoints
+          namespaces:
+            names:
+            - istio-system
+
+        relabel_configs:
+        - source_labels: [__meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+          action: keep
+          regex: istio-galley;http-monitoring
+
+      - job_name: 'citadel'
+        kubernetes_sd_configs:
+        - role: endpoints
+          namespaces:
+            names:
+            - istio-system
+
+        relabel_configs:
+        - source_labels: [__meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+          action: keep
+          regex: istio-citadel;http-monitoring
+
+      - job_name: 'sidecar-injector'
+
+        kubernetes_sd_configs:
+        - role: endpoints
+          namespaces:
+            names:
+            - istio-system
+
+        relabel_configs:
+        - source_labels: [__meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+          action: keep
+          regex: istio-sidecar-injector;http-monitoring
+
+
+serverFilesForComPaaS:
+  alerts: {}
+  rules: {}
+
+  prometheus.yml:
+    global:
+      scrape_interval: 1m
+      scrape_timeout: 10s
+      evaluation_interval: 1m
+
+    rule_files:
+      - /etc/config/rules
+      - /etc/config/alerts
+
+    scrape_configs:
+      - job_name: prometheus
+        static_configs:
+          - targets:
+            - localhost:9090
+
+## Define custom scrape job here for Prometheus.
+## These jobs will be appended to prometheus.yml
+customScrapeJobs: []
+#    - job_name: cnot
+#      metrics_path: /api/cnot/v1/metrics
+#      scheme: http
+#      static_configs:
+#      - targets:
+#        - cnot.default.svc.cluster.local
+#    - job_name: grafana
+#      scheme: https
+#      tls_config:
+#        insecure_skip_verify: true
+#      static_configs:
+#      - targets:
+#        - grafana-cpro-grafana.default.svc.cluster.local:80
+
+networkPolicy:
+  ## Enable creation of NetworkPolicy resources.
+  ##
+  enabled: false
+
+restserver:
+  enabled: false
+
+  name: restserver
+
+  podAnnotations: {}
+  
+  BCMT:
+    serverURL: https://k8s-apiserver.bcmt.cluster.local:8443  
+
+  ## soft means preferredDuringSchedulingIgnoredDuringExecution
+  ## hard means requiredDuringSchedulingIgnoredDuringExecution
+  ## you could refer k8s api for more detail
+  #
+  antiAffinityMode: "soft"
+  
+  image:
+    imageRepo: cpro/registry4/prometheus-restapi
+    imageTag: 3.3.3
+    imagePullPolicy: IfNotPresent
+
+  replicaCount: 1
+
+  service:
+    # Options: ClusterIP or NodePort
+    type: ClusterIP
+    servicePort: 8888
+    # Note the range of a valid nodePort is 30000-32767.
+    nodePort: 32766
+
+  ingress:
+    enabled: false
+    annotations: {}
+    # kubernetes.io/ingress.class: nginx
+    # kubernetes.io/tls-acme: "true"
+    tls: []
+  #  - secretName: chart-example-tls
+  #    hosts:
+  #      - chart-example.local
+  ## Whether use istio ingress gateway(Envoy)
+  istioIngress:
+    enabled: true
+    selector: {istio: ingressgateway}
+    Contextroot: restserver
+    # the host used to access the management GUI from istio ingress gateway
+    host: "*"
+    httpPort: 80
+    ## Keep gatewayName to empty to create kubenetes gateway resource. If new virtualservice needs to refer to existing gateway then mention that name here
+    gatewayName: "istio-system/single-gateway-in-istio-system"
+    tls:
+      enabled: false
+      httpsPort: 443
+      ## mode could be SIMPLE, MUTUAL, PASSTHROUGH, ISTIO_MUTUAL
+      mode: SIMPLE
+      credentialName: "restserver-gateway"
+  resources:
+  # We usually recommend not to specify default resources and to leave this as a conscious
+  # choice for the user. This also increases chances charts run on environments with little
+  # resources, such as Minikube. If you do want to specify resources, uncomment the following
+  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+    limits:
+      cpu: 1
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+  nodeSelector: {}
+  
+  tolerations: []
+    # - key: "key"
+    #   operator: "Equal|Exists"
+    #   value: "value"
+    #   effect: "NoSchedule|PreferNoSchedule|NoExecute(1.6 only)"
+
+  configs:
+    ncmsUsername: user-input
+    ncmsPassword: user-input
+    ncmsPassPhrase: user-input
+    httpsEnabled: false
+    restCACert: |+
+      -----BEGIN CERTIFICATE-----
+      MIIEETCCAvmgAwIBAgIJAIQFm91ZPjOsMA0GCSqGSIb3DQEBCwUAMIGeMQswCQYD
+      VQQGEwJDTjEQMA4GA1UECAwHQmVpamluZzERMA8GA1UEBwwIV2FuZ2ppbmcxDjAM
+      BgNVBAoMBU5va2lhMQwwCgYDVQQLDANDU0YxHjAcBgNVBAMMFW1pYW9mZW5rLWNh
+      Lm5va2lhLmNvbTEsMCoGCSqGSIb3DQEJARYdbWlhb2Zlbmcua2FuZ0Bub2tpYS1z
+      YmVsbC5jb20wHhcNMTgwNTIxMDIwNjIyWhcNMjgwNTE4MDIwNjIyWjCBnjELMAkG
+      A1UEBhMCQ04xEDAOBgNVBAgMB0JlaWppbmcxETAPBgNVBAcMCFdhbmdqaW5nMQ4w
+      DAYDVQQKDAVOb2tpYTEMMAoGA1UECwwDQ1NGMR4wHAYDVQQDDBVtaWFvZmVuay1j
+      YS5ub2tpYS5jb20xLDAqBgkqhkiG9w0BCQEWHW1pYW9mZW5nLmthbmdAbm9raWEt
+      c2JlbGwuY29tMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA6NyT+S/i
+      rFotAivpTUb2WjHVvvREgiC5f4pSqwHk/sVYvl+sTaaHPSd/wWa9yc1C9nQ3iHvX
+      9PYo8dRKYsPKxoFcSl8C1DLoVYCUDrpVS2HbpBxXlUrBow46LMFDaUQAH8e4fi4K
+      +l/H5kxvnQRXPkKnx2uc13vGW5mRXTGfLGLHUwoVdighnRNAhqUUZqwafveBMXWf
+      6mBTdOi6JUg+Hz6UrIsZlTciYI7t1weFm944YSKeF7L8LcqqnZxBfvbttyw8XmWd
+      M0XbT8SJ3G1om4y8nbFyMHa4Fm8eN0TyxM7lUa2r1GAeda2rMNf+RSOreryEXbYY
+      pNIzbUPyFFKkYQIDAQABo1AwTjAdBgNVHQ4EFgQUn4mdychSlHrO2W/uP+25A8dU
+      x7wwHwYDVR0jBBgwFoAUn4mdychSlHrO2W/uP+25A8dUx7wwDAYDVR0TBAUwAwEB
+      /zANBgkqhkiG9w0BAQsFAAOCAQEA4iMY4kEKlcOmihQnEn6a3Jwn+7ajEJ5MQOWw
+      UONUH6T/EzUWJL74g2uoXFz2ykqv/eSSWJk6T0F+hJVKh2yXMeGS6+WvJlrakPNF
+      sylpjRR7rYqFXLqtWpLGoXE/mTHj0PeakvCN9Fo+kJ8PmkdYuIcVxdMIlLv0judJ
+      yrNL/3v2MLkEKF9xmtpjeyIYoRVlkf2ehdMVvWrpeWbY1PSNE2BSM60qFb5pCd9G
+      O1yQ15b4smvgx1kcIerZ6abMsLJUF9Z+8crHKja1/4e9/xoP5n/CSjzPNWnaGQM1
+      r/IGGTDpw6eym9yPH0nbv76/Mse3xqGGSZJA0eSlT6B2aXtUSg==
+      -----END CERTIFICATE-----
+    restServerKey: |+
+      -----BEGIN PRIVATE KEY-----
+      MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDIcfMXbmZrWcOj
+      081L1wHhTJgZ6ZdkUXAj/Abkkk3PLwPoZ9KxYwKhZ54Zy1N6owy+raYa0bGZWNZf
+      b4P1cFMoGX7+vJYGOmkorF9AYBCh6jbeVoHfEYw1ozejFRo64Eud2g3MKBFLwcVB
+      Za+bebm7QXLn0j3LURzN2Vembj7FZETg/weTGZC2Nw2RK+vACEFIeXkeDx2jSldQ
+      hCquOAYvRV0emAZIm7uf80Or6LoBOjKBkTUxGLWDbvSkzxUPGXgbZTl5ZpeS+jpc
+      JH/gdjHVqoa+XDTzT8xZOrTXJp9HJUGg/Jy6P6MFRHJtkaFQ7Ci8j51teuBh2xFf
+      /fxhdPF7AgMBAAECggEAXdmkhRsGz0qXJHS90b2YvsFbEf7iCHFs/Rw6qfiqf9A2
+      lzFNYArIp4PZbaBatLf09q5dcH8wFWmX7dVLxrZR6RuO73yjDcV5iTaz3nNcNkNw
+      b0e3xRb1PAPwv+XYgyqTnRQEk8tK1dqjHgybXUNwJ/Hr+AjjL/gJcYRK2r0RnN+S
+      FCPX4dpjNet7O+vSZ4nK+51qMJ2OEvLdzhvIJkmKbjRr0/S6b+Ze1BKzo9DGFkvg
+      6B2O7As1ReHX5ahqSXlGPRGldcvW3VI4okHXtbIL30Y59c2+Prqjtg79fk/ClO0M
+      Te4jUYm16wSW1RHMWtD8BweMCN/0A3nLvKhOekV0EQKBgQDyoKMXHJu2WrMsTtjY
+      llwuvFeD/gCaHnS9W9m61TkvkcnjZkwTXN16k16EmRgtbNaqDojnTU18LbOOR2O6
+      8w7ai79diL0G5bCst+uXpjIzld4tnf6n8TZYsuiG8EI0u4CpmUkRXU7s0X8cu0qO
+      pw22stvsVzhUvWRHG0H2QZtygwKBgQDTfiN1RmjafyqrLWzcH0AUEhtijtfndBuE
+      NMaM1IBSUQnDJoJf0rMX+UEttj9VohRmRM8p8aAMEN6IjLh7Y9oYjoXGyYxzk2Pz
+      TacsueV477KkVBoS0snEAIjcrGxsCp2eCX/s1+4fJAYPS0WNDEDRMjoE7dBf6f6t
+      LnvXYgzzqQKBgAGDoSDuy8X6kO2w3EeVwKOGB2HKfwR3NjFMVnKFDCNQ3Jqvs7/X
+      L4apTsizD+SQrlJHXvFamSYyPtGffm7XP3t7rckOpmdZnZ2mVDERF3Uc9VMBjmpL
+      5hPtoefdrfwYQ3hLfZo/I9P0hr+OJ6v2PO6r9RVngfF9cRfEgsffpvGzAoGAJw6p
+      b7QEEy3e7GPkMbaXt90sL4RfvP/FQSIZ9NIdrJYIroCDHT0lE+1VKyL4CVF4YPae
+      J4nW28OVxTPvseHb2iMf83kvNfznPXx+vhTKmw3xOMXLVuSUnFzY6Z/yGfXP6+qn
+      NE8gS6H0eIiXHJhBtCCJdHWSwNPO0569Aia6a5kCgYEA1B0FdO4Ok8z3ut39aZpw
+      SlJooCCxdx5udyXtQvNPrmyMRRpTqFezYCYIGYVquR5KyZjISQJswCUzCMbJc3hi
+      nqY/F+5nre9HURT1py66VDxX6rOXldiRlCbDS6VacV0JnfYX6FwtRjGosgdhv6nV
+      NDZmqe58yC7pYp77yFHJOPM=
+      -----END PRIVATE KEY-----
+    restServerCert: |+
+      -----BEGIN CERTIFICATE-----
+      MIIDtDCCApwCCQDIFRUb+zmnGDANBgkqhkiG9w0BAQUFADCBnjELMAkGA1UEBhMC
+      Q04xEDAOBgNVBAgMB0JlaWppbmcxETAPBgNVBAcMCFdhbmdqaW5nMQ4wDAYDVQQK
+      DAVOb2tpYTEMMAoGA1UECwwDQ1NGMR4wHAYDVQQDDBVtaWFvZmVuay1jYS5ub2tp
+      YS5jb20xLDAqBgkqhkiG9w0BCQEWHW1pYW9mZW5nLmthbmdAbm9raWEtc2JlbGwu
+      Y29tMB4XDTE4MDUyMTAyMDYyMloXDTE5MDUyMTAyMDYyMlowgZgxCzAJBgNVBAYT
+      AkNOMRAwDgYDVQQIDAdCZWlqaW5nMREwDwYDVQQHDAhXYW5namluZzEOMAwGA1UE
+      CgwFTm9raWExDDAKBgNVBAsMA0NTRjEYMBYGA1UEAwwPbWlhb2Zlbmsuc2VydmVy
+      MSwwKgYJKoZIhvcNAQkBFh1taWFvZmVuZy5rYW5nQG5va2lhLXNiZWxsLmNvbTCC
+      ASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAMhx8xduZmtZw6PTzUvXAeFM
+      mBnpl2RRcCP8BuSSTc8vA+hn0rFjAqFnnhnLU3qjDL6tphrRsZlY1l9vg/VwUygZ
+      fv68lgY6aSisX0BgEKHqNt5Wgd8RjDWjN6MVGjrgS53aDcwoEUvBxUFlr5t5ubtB
+      cufSPctRHM3ZV6ZuPsVkROD/B5MZkLY3DZEr68AIQUh5eR4PHaNKV1CEKq44Bi9F
+      XR6YBkibu5/zQ6vougE6MoGRNTEYtYNu9KTPFQ8ZeBtlOXlml5L6Olwkf+B2MdWq
+      hr5cNPNPzFk6tNcmn0clQaD8nLo/owVEcm2RoVDsKLyPnW164GHbEV/9/GF08XsC
+      AwEAATANBgkqhkiG9w0BAQUFAAOCAQEAKNOkKbdLhTwxGDE8941CIiLHZ7pyYCP7
+      h+Ov0zfkLRzEwbIQwcrkAfQYyOO7xWCmNfcHaSdFTayaHV/i3QktSdQFwcI3i8+L
+      i/XkmGX+IvKG0KiQ/JwClKjO6B/DUKqU6fyg5lHWPUyOvLdNo0kKEVe30Fb9wNr+
+      8dMHAW/drTbxngUtNArPM8xsa5gQId887bHRzXJs7Pd9tojWMeyny8A0bXrshrdF
+      812eZNla7nBiQTipb9nJwjzW31B6V5jP95R4UnlvIgdhj2/UxEyrb/6yj/lfyO5H
+      h8BzBBa1gf2pvJfxh9idS4cHC0Bqc+Etqble6tGNNuUTmFzfx2+rgg==
+      -----END CERTIFICATE-----
+
+  # Log Level: DEBUG < INFO < WARN < ERROR < FATAL < OFF
+  loglevel: INFO

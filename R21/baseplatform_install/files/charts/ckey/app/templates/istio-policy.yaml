@@ -1,0 +1,32 @@
+{{- if and (.Values.istio.enabled) (.Values.istio.mtls.enabled) (lt (float64 .Values.global.istioVersion) 1.5) }}
+apiVersion: "authentication.istio.io/v1alpha1"
+kind: "Policy"
+metadata:
+  name: {{ template "keycloak.fullname" . }}-mlts-pl-ckey
+  namespace: "{{ .Release.Namespace }}"
+  labels:
+    app: {{ template "keycloak.name" . }}
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+spec:
+  targets:
+  - name: {{ template "keycloak.fullname" . }}
+  peers:
+  - mtls:
+      mode: {{ .Values.istio.mtls.mode | default "PERMISSIVE" }}
+---
+apiVersion: "authentication.istio.io/v1alpha1"
+kind: "Policy"
+metadata:
+  name: {{ template "keycloak.fullname" . }}-mlts-pl-ckey-headless
+  labels:
+    app: {{ template "keycloak.name" . }}
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+spec:
+  targets:
+  - name: {{ template "keycloak.fullname" . }}-headless
+  peers:
+  - mtls:
+      mode: {{ .Values.istio.mtls.mode | default "PERMISSIVE" }}
+{{- end }}

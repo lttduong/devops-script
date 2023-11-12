@@ -1,0 +1,39 @@
+{{ $certManager := .Values.certManager }}
+{{- if not $certManager.enabled }}
+{{- if .Values.keystore }}
+{{- if .Values.keystore.certManager }}
+{{- if .Values.keystore.certManager.enabled }}
+{{  $certManager = mergeOverwrite .Values.certManager .Values.keystore.certManager }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
+
+{{- if eq (include "ncm-app.certAPIexist" .) "true" }}
+{{- include "ncm-app.certAPIversion" .}}
+kind: Certificate
+metadata:
+  name: {{ template "ncm-app.fullname" . }}-cert
+  labels:
+    {{- include "ncm-app.labels" . | nindent 4 }}
+spec:
+  secretName: {{ template "ncm-app.fullname" . }}-tls
+  duration: {{ $certManager.certDuration }}
+  renewBefore: {{ $certManager.renewBefore }}
+  keySize: 2048
+  keyAlgorithm: rsa
+  keyEncoding: pkcs1
+  usages:
+    - server auth
+    - client auth
+  dnsNames:
+    - {{template "ncmHost" .}}
+    - ncm-app-lcmtest-ncms-app.ncm-app-lcmtest.svc.cluster.local
+    - localhost
+{{- if $certManager.dnsNames }}
+{{ toYaml $certManager.dnsNames | indent 4 }}
+{{- end }}
+  issuerRef:
+    name: {{ $certManager.issuerName }}
+    kind: {{ $certManager.issuerType }}
+{{- end }}

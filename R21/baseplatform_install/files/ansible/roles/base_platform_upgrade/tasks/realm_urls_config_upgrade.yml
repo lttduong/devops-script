@@ -1,0 +1,10 @@
+---
+- name: "Upgrading realm-urls config chart"
+  shell: >
+    {{ helm }}  upgrade {{ realmUrlsConfigurationHelmName }} {{ chartsPath }}/ckey/realm-urls-config
+    --namespace {{ BP_CONFIG_NAMESPACE }}
+    --reuse-values
+    --install
+    --wait
+    --timeout {{ wait_timeout }}s
+  no_log: "{{ no_log }}"

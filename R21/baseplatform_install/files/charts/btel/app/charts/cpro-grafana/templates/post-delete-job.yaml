@@ -1,0 +1,61 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: "{{ template "grafana.postDeletejobPod" . }}"
+  labels:
+    app: {{ template "grafana.fullname" . }}
+    release: {{ .Release.Name }}
+    {{- if .Values.global.labels }}
+{{ toYaml .Values.global.labels | indent 4}}
+    {{- end }}
+{{- include "custom-labels" (tuple .Values.custom.pod.labels) | indent 4}}
+  annotations:
+{{- if .Values.global.annotations }}
+{{- include "grafana-annotations" (tuple .Values.global.annotations) | indent 4}}
+{{- end }}
+    # This is what defines this resource as a hook. Without this line, the
+    # job is considered part of the release.
+    # If there're multiple hooks, may define differnent hook-weight value. 
+    "helm.sh/hook": post-delete
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": hook-succeeded, hook-failed
+spec:
+  template:
+    metadata:
+      labels:
+        app: {{ template "grafana.fullname" . }}
+        release: "{{ .Release.Name }}"
+{{- include "custom-labels" (tuple .Values.custom.pod.labels) | indent 8}}
+      annotations:
+{{- include "custom-annotations" (tuple .Values.custom.pod.annotations) | indent 8}}
+{{- if .Values.rbac.pspUseAppArmor }}
+{{- include "custom-annotations" (tuple .Values.custom.pod.apparmorAnnotations) | indent 8}}
+{{- end }}
+        sidecar.istio.io/inject: "false"
+    spec:
+      {{- if or .Values.serviceAccountName .Values.global.serviceAccountName }}
+      serviceAccountName: {{ template "grafana.serviceAccountName" . }}
+      {{- else if .Values.rbac.enabled }}
+      serviceAccountName: {{ template "grafana.fullname" . }}-post-del
+      {{- else }}
+      serviceAccountName: "default"
+      {{- end }}
+      restartPolicy: Never
+      containers:
+{{- if and (.Values.cmdb.enabled) (not .Values.cmdb.need_deployed) (not .Values.cmdb.retain_data) }}
+      - name: {{ template "grafana.deletedbContainer" . }}
+        image: "{{ .Values.global.registry3 }}/{{ .Values.mdbToolImage.imageRepo }}:{{ .Values.mdbToolImage.imageTag }}"
+        imagePullPolicy: {{ .Values.mdbToolImage.imagePullPolicy }}
+        resources:
+{{ toYaml .Values.mdbToolImage.resources | indent 10 }}
+        command: ["sh", "-c", "/usr/bin/grafana_deldb.sh {{ .Values.dbIP }} {{ .Values.dbName }} {{ .Values.dbUser }} {{ .Values.dbPassword }} "]
+{{- end }}
+      - name: {{ template "grafana.deletesecretsContainer" . }}
+        image: "{{ .Values.global.registry3 }}/{{ .Values.helmDeleteImage.imageRepo }}:{{ .Values.helmDeleteImage.imageTag }}"
+        imagePullPolicy: "{{ .Values.helmDeleteImage.imagePullPolicy }}"
+        resources:
+{{ toYaml .Values.helmDeleteImage.resources | indent 10 }}
+        command:
+        - sh
+        - -c
+        - kubectl delete secrets --namespace {{ .Release.Namespace }} {{ template "grafana.fullname" . }}

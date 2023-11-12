@@ -1,0 +1,4 @@
+apiVersion: v1
+description: Keycloak netguard config
+name: ckey-netguard-config
+version: 1.0.0

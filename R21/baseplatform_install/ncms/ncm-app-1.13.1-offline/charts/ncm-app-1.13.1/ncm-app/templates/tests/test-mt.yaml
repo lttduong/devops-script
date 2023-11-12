@@ -1,0 +1,36 @@
+{{- if .Values.env }}
+{{- if .Values.env.MT }}
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ .Release.Name }}-mt-test"
+  annotations:
+    "helm.sh/hook": test-success
+  labels:
+    component: "{{ .Values.service.name }}"
+spec:
+  containers:
+  - name: {{ .Release.Name }}-mt-test
+    image: {{ .Values.global.registry }}/{{ .Values.image.name }}:{{ .Values.image.tag }}
+    env:
+      - name: NCM_HOST
+        value: {{ template "ncmHost" . }}
+      - name: NCM_PORT
+        value: "{{ .Values.service.httpPort }}"
+    command: 
+    - bash
+    - "-c"
+    - |
+      curl -kvs -H 'NCM-Project: myproject' -H 'Authorization: Bearer token' -X POST "https://$NCM_HOST:$NCM_PORT/ncm/repos/csf-stable?reset&repoUrl=https://repo.lab.pl.alcatel-lucent.com/csf-helm-stable"
+      sleep 4s
+      check=$(curl -kvs --head -H 'Authorization: Bearer token' -H 'NCM-Project: myproject' -X GET https://$NCM_HOST:$NCM_PORT/ncm/repos/csf-stable |grep HTTP |awk '{print $2}')
+      echo $check
+      if [[ $check = "200" || $check = "403" ]]
+      then
+        exit 0
+      else
+        exit 1
+      fi
+  restartPolicy: Never
+{{- end }}
+{{- end }}

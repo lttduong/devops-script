@@ -1,0 +1,4 @@
+apiVersion: v1
+description: Config map with keycloak acceptable urls
+name: ckey-realm-urls-config
+version: 1.0.0

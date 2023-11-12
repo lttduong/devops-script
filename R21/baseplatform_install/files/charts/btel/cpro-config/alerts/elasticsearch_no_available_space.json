@@ -1,0 +1,13 @@
+{
+  "alert": "ElasticSearchNoAvailableSpace",
+  "expr": "es_fs_path_free_bytes / es_fs_path_total_bytes * 100 < 10",
+  "for": "10m",
+  "labels": {
+    "alert_id": "6004",
+    "alert_severity": "CRITICAL"
+  },
+  "annotations": {
+    "description": "Alarm - `There is only {{ $value }}% space left on {{ $labels.path }} at {{$labels.instance}}. Please check it!`",
+    "summary": "Instance - {{ $labels.instance }}"
+  }
+}

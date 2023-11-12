@@ -1,0 +1,21 @@
+    resource_group: open-wavehub-dev
+    resourceGroup: "{{ lookup('env', 'rg') }}"
+    vaultName: "{{ lookup('env', 'vaultname') }}"
+    masterContainerName: "{{ lookup('env', 'masterContainerName') }}"
+    workerContainerName: "{{ lookup('env', 'workerContainerName') }}"
+    dpaContainerName: "{{ lookup('env', 'dpaContainerName') }}"
+    storageName: "{{ lookup('env', 'storagename') }}"
+    masterRecoveryPoint: "{{ lookup('env', 'masterRecoveryPoint') }}"
+    workerRecoveryPoint: "{{ lookup('env', 'workerRecoveryPoint') }}"
+    dpaRecoveryPoint: "{{ lookup('env', 'dpaRecoveryPoint') }}"
+    masterName: "{{ lookup('env', 'mastername') }}" 
+    workerName: "{{ lookup('env', 'workername') }}"
+    dpaName: "{{ lookup('env', 'dpaname') }}"
+    location: "{{ lookup('env', 'region') }}"
+    nfmtIp: "{{ lookup('env', 'nfmtIp') }}"
+    nfmtUsername: "{{ lookup('env', 'nfmtUsername') }}"
+    nfmtPassword: "{{ lookup('env', 'nfmtPassword') }}"
+    vpnProfile: "{{ lookup('env', 'vpnProfile') }}"
+    wasUsername: "{{ lookup('env', 'wasUsername') }}"
+
+    

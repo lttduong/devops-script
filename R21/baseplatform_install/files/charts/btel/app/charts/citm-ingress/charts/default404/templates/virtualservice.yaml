@@ -1,0 +1,16 @@
+{{- if .Values.istio.enabled }}
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: {{ template "df404.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  hosts:
+  - {{ template "df404.fullname" . }}
+  http:
+  - route:
+    - destination:
+        host: {{ template "df404.fullname" . }}
+        port:
+          number: {{ .Values.backend.port }}
+{{- end }}

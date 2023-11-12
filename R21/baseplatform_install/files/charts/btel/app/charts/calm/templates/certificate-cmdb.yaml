@@ -1,0 +1,22 @@
+## Start of custom chart file - CSFID-3370
+apiVersion: {{ .Values.global.certManager.api }}
+kind: Certificate
+metadata:
+  name: {{ template "alarm.fullname" . }}-cmdb-cert
+  namespace: {{ .Release.Namespace }}
+spec:
+  secretName: {{ template "alarm.fullname" . }}-cmdb-cert
+  issuerRef:
+    name: {{ default "ncms-ca-issuer" .Values.global.certManager.issuerRef.name }}
+    kind: ClusterIssuer
+  duration: {{ default "8760h" .Values.global.certManager.duration }}
+  renewBefore: {{ default "360h" .Values.global.certManager.renewBefore }}
+  commonName: {{ template "alarm.fullname" . }}
+  dnsNames:
+    - {{ printf "%s.%s.%s" (include "alarm.fullname" .) .Release.Namespace .Values.dns.domain | quote }}
+  usages:
+    - server auth
+    - client auth
+#  organization:
+#    - Nokia
+## End of custom chart file

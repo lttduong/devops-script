@@ -1,0 +1,6 @@
+DefaultRemoteServer:
+  server: adlswavehublab.dpaadmin@adlswavehublab.blob.core.windows.net
+  username: dpaadmin
+  password: anAuq1/lHo7kahqT37adnbYVjk/9OPancW3zjRRDi6PfGCdBR5sV5OePMBQLRi88ohFUivf9IJdROBCp3cE9zw==
+  remote_path: /nokia
+  host_key: False

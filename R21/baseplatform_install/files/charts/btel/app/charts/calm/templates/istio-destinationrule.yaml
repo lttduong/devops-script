@@ -1,0 +1,22 @@
+{{- if .Values.istio.enabled }}
+apiVersion: "networking.istio.io/v1alpha3"
+kind: "DestinationRule"
+metadata:
+  labels:
+    app: {{ template "alarm.name" . }}
+    chart: {{ .Chart.Name }}
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+    version: {{ .Chart.Version }}
+  name: {{ template "alarm.fullname" . }}-mtls-dr
+  namespace: {{ .Release.Namespace }}
+spec:
+  host: {{ template "alarm.fullname" . }}
+  trafficPolicy:
+    tls:
+{{- if .Values.istio.permissive }}
+      mode: DISABLE
+{{- else }}
+      mode: ISTIO_MUTUAL
+{{- end }}
+{{- end }}

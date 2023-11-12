@@ -1,0 +1,5 @@
+DRIVER = smtp
+DKIM_DOMAIN = labs-open-ecosystem.org
+DKIM_SELECTOR = dkim
+DKIM_PRIVATE_KEY = /etc/exim4/dkim.private.key
+DKIM_CANON = relaxed

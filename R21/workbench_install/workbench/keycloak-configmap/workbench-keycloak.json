@@ -1,0 +1,14 @@
+{
+  "realm": "netguard",
+  "realm-urls": {{ .Values.global.ckeyAdapterAddresses }},
+  "auth-server-url": "${env.KEYCLOAK_AUTH_SERVER_URL}",
+  "ssl-required": "external",
+  "resource": "workflow-automation-workbench",
+  "credentials": {
+    "secret": "${VAULT::app::{{ .Values.global.releaseNamePrefix }}ckey-was-workbench-client-secret::1}"
+  },
+  "allow-any-hostname": false,
+  "enable-basic-auth": true,
+  "use-resource-role-mappings": true,
+  "confidential-port": 0
+}

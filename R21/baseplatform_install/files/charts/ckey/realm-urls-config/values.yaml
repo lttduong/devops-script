@@ -1,0 +1,4 @@
+config:
+  ckey:
+    realmUrls: "localhost"
+    serviceUrl: "ckey-ckey.netguard-base.svc.cluster.local:8443"

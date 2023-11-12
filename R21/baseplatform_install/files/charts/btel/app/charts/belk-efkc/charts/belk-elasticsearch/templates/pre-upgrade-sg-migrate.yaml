@@ -1,0 +1,227 @@
+{{- if .Values.searchguard.enable }}
+{{- if and ( .Values.global.rbac.enabled ) ( eq .Values.serviceAccountName "" ) ( eq .Values.global.serviceAccountName "") }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ template "elasticsearch.fullname" . }}-pre-sa
+  namespace: "{{.Release.Namespace}}"
+  labels:
+    app: {{ template "elasticsearch.fullname" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+  annotations:
+    "helm.sh/hook": pre-upgrade
+    "helm.sh/hook-weight": "-8"
+    "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded, hook-failed
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: {{ .Values.global.seccompAllowedProfileNames }}
+    seccomp.security.alpha.kubernetes.io/defaultProfileName: {{ .Values.global.seccompDefaultProfileName }}
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ template "elasticsearch.fullname" . }}-pre-rb
+  namespace: "{{.Release.Namespace}}"
+  labels:
+    app: {{ template "elasticsearch.fullname" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+  annotations:
+    "helm.sh/hook": pre-upgrade
+    "helm.sh/hook-weight": "-7"
+    "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded, hook-failed
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: {{ .Values.global.seccompAllowedProfileNames }}
+    seccomp.security.alpha.kubernetes.io/defaultProfileName: {{ .Values.global.seccompDefaultProfileName }}
+subjects:
+- kind: ServiceAccount
+  name: {{ template "elasticsearch.fullname" . }}-pre-sa
+  namespace: "{{.Release.Namespace}}"
+  apiGroup: ""
+roleRef:
+  kind: Role
+  name: {{ template "elasticsearch.fullname" . }}-pre-role
+  apiGroup: ""
+
+---
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  namespace: "{{.Release.Namespace}}"
+  name: {{ template "elasticsearch.fullname" . }}-pre-role
+  labels:
+    app: {{ template "elasticsearch.fullname" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+  annotations:
+    "helm.sh/hook": pre-upgrade
+    "helm.sh/hook-weight": "-8"
+    "helm.sh/hook-delete-policy": before-hook-creation, hook-succeeded, hook-failed
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: {{ .Values.global.seccompAllowedProfileNames }}
+    seccomp.security.alpha.kubernetes.io/defaultProfileName: {{ .Values.global.seccompDefaultProfileName }}
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - pods/attach
+  - pods/exec
+  - pods/portforward
+  - pods/proxy
+  - secrets
+  - pods
+  - services/proxy
+  - pods/log
+  - pods/status
+  - configmaps
+  verbs:
+  - get
+  - list
+  - watch
+
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  - pods/attach
+  - pods/exec
+  - pods/portforward
+  - pods/proxy
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - patch
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - endpoints
+  - persistentvolumeclaims
+  - replicationcontrollers
+  - replicationcontrollers/scale
+  - pods
+  - secrets
+  - services
+  - services/proxy
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - patch
+  - update
+- apiGroups:
+  - apps
+  resources:
+  - daemonsets
+  - deployments
+  - deployments/rollback
+  - deployments/scale
+  - replicasets
+  - replicasets/scale
+  - statefulsets
+  - statefulsets/scale
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - patch
+  - update
+- apiGroups:
+  - batch
+  resources:
+  - cronjobs
+  - jobs
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - patch
+  - update
+- apiGroups:
+  - extensions
+  resources:
+  - daemonsets
+  - deployments
+  - deployments/rollback
+  - deployments/scale
+  - ingresses
+  - networkpolicies
+  - replicasets
+  - replicasets/scale
+  - replicationcontrollers/scale
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - patch
+  - update
+- apiGroups:
+  - apps
+  resources:
+  - daemonsets
+  - deployments
+  - deployments/scale
+  - replicasets
+  - replicasets/scale
+  - statefulsets
+  - statefulsets/scale
+  verbs:
+  - get
+  - list
+  - watch
+{{- end }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "es.preUpgradeJob.name" . }}
+  labels:
+    app: {{ template "elasticsearch.name" . }}
+  annotations:
+    "helm.sh/hook-weight": "-6"
+    "helm.sh/hook": pre-upgrade
+    "helm.sh/hook-delete-policy": {{ .Values.upgrade.hookDelPolicy }}
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: {{ .Values.global.seccompAllowedProfileNames }}
+    seccomp.security.alpha.kubernetes.io/defaultProfileName: {{ .Values.global.seccompDefaultProfileName }}
+spec:
+  template:
+    metadata:
+      labels:
+        app: {{ template "elasticsearch.name" . }}
+      {{- if .Values.istio.enabled }}
+      annotations:
+        sidecar.istio.io/inject: "false"
+      {{- end }}
+    spec:
+      serviceAccountName: {{ default ( default (printf "%s-pre-sa" ( include "elasticsearch.fullname" . )) .Values.global.serviceAccountName ) .Values.serviceAccountName }}
+      restartPolicy: Never
+      containers:
+      - name: {{ template "es.preUpgradeSgMigrateContainer.name" . }}
+        image: "{{ .Values.global.registry1 }}/{{ .Values.kubectl.image.repo }}:{{ .Values.kubectl.image.tag }}"
+        command:
+        - sh
+        - -c
+        - |
+          pod=$(kubectl get pods  --namespace {{ .Release.Namespace }} -l role=client,component=elasticsearch --no-headers=true | grep Running | grep {{ .Release.Name }} | sort -r |  awk '{ print$1 }' | tail -1)
+          kubectl exec -i ${pod} --namespace {{ .Release.Namespace }} -c {{ template "elasticsearch.client.container" . }} -- bash -c '[ -d /usr/share/elasticsearch/plugins/search-guard-6 ] && [ ! -z "$(ls -A /usr/share/elasticsearch/plugins/search-guard-6)" ]'
+          if [ $? -eq 0 ]; then
+            echo "Checking if the configmap exists.. Deleting if it exists.."
+            kubectl delete cm elk-version-check --namespace {{ .Release.Namespace }}
+            data_nodes=$(kubectl get sts {{ template "elasticsearch.data.fullname" . }}  --namespace {{ .Release.Namespace }} --no-headers | awk '{ print $2 }' | cut -f1 -n -d"/")
+            kubectl create cm elk-version-check --from-literal=ElkVersion=ELK-6 --from-literal=DataNodes=$data_nodes --namespace {{ .Release.Namespace }}
+            kubectl get cm {{ template "elasticsearch.fullname" . }}-searchguard-config --namespace {{ .Release.Namespace }} -o yaml > /tmp/sg-6-cm.yml
+            cd /tmp
+            var=$(grep name: sg-6-cm.yml) && sed -i "s/$var/$var-6/g" sg-6-cm.yml
+            kubectl delete cm {{ template "elasticsearch.fullname" . }}-searchguard-config-6  --namespace {{ .Release.Namespace }}
+            kubectl create -f /tmp/sg-6-cm.yml
+          else
+            echo "SG migration is not needed"
+          fi
+
+        securityContext:
+          allowPrivilegeEscalation: false
+          privileged: false
+          capabilities:
+            drop:
+              - all
+        resources:
+{{ toYaml .Values.jobResources | indent 10 }}
+{{- end }}

@@ -1,0 +1,85 @@
+{{- if .Values.rbac.enabled }}
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ template "grafana.fullname" . }}-rolebinding
+  labels:
+    app: {{ template "grafana.name" . }}
+    chart: {{ template "grafana.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+    {{- if .Values.global.labels }}
+{{ toYaml .Values.global.labels | indent 4}}
+    {{- end }}
+{{- if or .Values.global.annotations .Values.annotations}}
+  annotations:
+{{- include "grafana-annotations" (tuple .Values.global.annotations) | indent 4}}
+{{- include "grafana-annotations" (tuple .Values.annotations) | indent 4}}
+{{- end }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ template "grafana.fullname" . }}
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: Role
+  name: {{ template "grafana.fullname" . }}-role
+  apiGroup: rbac.authorization.k8s.io
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ template "grafana.fullname" . }}-post-del
+  labels:
+    app: {{ template "grafana.name" . }}
+    chart: {{ template "grafana.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+    {{- if .Values.global.labels }}
+{{ toYaml .Values.global.labels | indent 4}}
+    {{- end }}
+  annotations:
+    {{- if .Values.global.annotations }}
+{{ toYaml .Values.global.annotations | indent 4}}
+    {{- end }}
+    "helm.sh/hook": post-delete
+    "helm.sh/hook-weight": "-6"
+    "helm.sh/hook-delete-policy": hook-succeeded, hook-failed
+subjects:
+  - kind: ServiceAccount
+    name: {{ template "grafana.fullname" . }}-post-del
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: Role
+  name: "{{ template "grafana.fullname" . }}-post-del"
+  apiGroup: rbac.authorization.k8s.io
+{{- if .Values.sqlitetomdb }}
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ template "grafana.fullname" . }}-post-upgrade
+  labels:
+    app: {{ template "grafana.name" . }}
+    chart: {{ template "grafana.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+    {{- if .Values.global.labels }}
+{{ toYaml .Values.global.labels | indent 4}}
+    {{- end }}
+  annotations:
+    {{- if .Values.global.annotations }}
+{{ toYaml .Values.global.annotations | indent 4}}
+    {{- end }}
+    "helm.sh/hook": post-upgrade
+    "helm.sh/hook-weight": "-6"
+    "helm.sh/hook-delete-policy": hook-succeeded, hook-failed
+subjects:
+  - kind: ServiceAccount
+    name: {{ template "grafana.fullname" . }}-post-upgrade
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: Role
+  name: "{{ template "grafana.fullname" . }}-post-upgrade"
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}
+{{- end}}

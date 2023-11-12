@@ -1,0 +1,44 @@
+{{- if and .Values.istio.enable .Values.pushgateway.enabled}}
+{{- if .Values.pushgateway.istioIngress.enabled }}
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  labels:
+    app: {{ template "prometheus.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    component: "{{ .Values.pushgateway.name }}"
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+{{- include "prometheus-labels" (tuple .Values.global.labels) | indent 4}}
+  name: {{ template "prometheus.pushgateway.fullname" . }}-vs
+{{- if .Values.global.annotations }}
+  annotations:
+{{- include "prometheus-annotations" (tuple .Values.global.annotations) | indent 4}}
+{{- end }}
+spec:
+  hosts:
+  - '*'
+  gateways:
+ {{- if eq .Values.pushgateway.istioIngress.gatewayName "" }}
+  - {{ template "prometheus.pushgateway.fullname" . }}-istio-gateway
+        {{- else }}
+  - {{ .Values.pushgateway.istioIngress.gatewayName }}
+  {{- end }}
+  http:
+  - match:
+    - uri:
+        prefix: /{{ .Values.pushgateway.istioIngress.Contextroot}}
+    rewrite:
+  {{- $rewriteURI := include "pushgateway.routePrefixURL" . -}}
+  {{- if ne $rewriteURI "" }}
+      uri: {{ $rewriteURI }}
+  {{- else }}
+      uri: /
+  {{- end }}
+    route:
+    - destination:
+        host: {{ template "prometheus.pushgateway.fullname" . }}
+        port:
+          number: {{ .Values.pushgateway.service.servicePort }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,93 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Chart.Name }}-pre-delete
+  namespace: "{{ .Values.global.BP_CONFIG_NAMESPACE }}"
+  annotations:
+    # This is what defines this resource as a hook. Without this line, the
+    # job is considered part of the release.
+    "helm.sh/hook": pre-delete
+    "helm.sh/hook-weight": "-6"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  template:
+    metadata:
+      name: "{{ .Release.Name }}"
+    spec:
+      {{- if .Values.global.rbac.enabled }}
+      serviceAccountName: {{ .Chart.Name }}-pre-sa
+      {{- else if .Values.global.serviceAccountNameBP }}
+      serviceAccountName: {{ .Values.global.serviceAccountNameBP }}
+      {{- end }}
+{{- if .Values.global.jobNodeAffinityRuleTemplate }}
+{{ tpl .Values.global.jobNodeAffinityRuleTemplate . | indent 6 }}
+{{- end }}
+      restartPolicy: Never
+      containers:
+      - name: post-delete-hook
+        image: "{{ .Values.global.registry }}/{{ .Values.global.kubectl.image.repo }}:{{ .Values.global.kubectl.image.tag }}"
+        command:
+        - sh
+        - -c
+        - |
+          {{- range $name, $entry := .Values.jobs }}
+          {{- if .enabled }}
+          {{ with $ }}
+          kubectl delete job {{ .Values.global.releaseNamePrefix }}{{ .Release.Name}}-{{ .Chart.Name }}-{{ $name | lower }}-job  --namespace {{ .Values.global.BP_CONFIG_NAMESPACE }} --ignore-not-found=true
+          {{- end }}
+          {{- end }}
+          {{- end }}
+          {{- range $index, $job:= .Values.jobs }}
+          {{- if .enabled }}
+          {{- range list "adminConfig" "adminCommands" "controlCommands" }}
+          {{- $type := . }}
+          {{- $entry := index $job $type }}
+          {{- if ($entry.files) }}
+          {{- with $ }}
+          kubectl delete secret {{ tpl $entry.secretName . }} --namespace {{ .Values.global.BP_CONFIG_NAMESPACE }} --ignore-not-found=true
+          {{- end }}
+          {{- end }}
+          {{- end }}
+          {{- end }}
+          {{- end }}
+          # the name of the certificate was changed so we delete both names not knowing which one is currently installed
+          kubectl delete cert {{ .Values.global.releaseNamePrefix }}{{ template "fullname" . }}-tls --namespace {{ .Values.global.BP_CONFIG_NAMESPACE }} --ignore-not-found=true
+          kubectl delete cert {{ .Values.global.releaseNamePrefix }}{{ template "name" . }}-tls --namespace {{ .Values.global.BP_CONFIG_NAMESPACE }} --ignore-not-found=true
+          kubectl delete secret {{ .Values.global.releaseNamePrefix }}{{ .Values.certificatesSecretName }} --namespace {{ .Values.global.BP_CONFIG_NAMESPACE }} --ignore-not-found=true
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Chart.Name }}-pre-app-delete
+  namespace: "{{ .Values.global.APP_NAMESPACE }}"
+  annotations:
+    # This is what defines this resource as a hook. Without this line, the
+    # job is considered part of the release.
+    "helm.sh/hook": pre-delete
+    "helm.sh/hook-weight": "-6"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  template:
+    metadata:
+      name: "{{ .Release.Name }}"
+    spec:
+      {{- if .Values.global.rbac.enabled }}
+      serviceAccountName: {{ .Chart.Name }}-pre-app-sa
+      {{- else if .Values.global.serviceAccountName }}
+      serviceAccountName: {{ .Values.global.serviceAccountName }}
+      {{- end }}
+{{- if .Values.global.jobNodeAffinityRuleTemplate }}
+{{ tpl .Values.global.jobNodeAffinityRuleTemplate . | indent 6 }}
+{{- end }}
+      restartPolicy: Never
+      containers:
+      - name: post-delete-hook
+        image: "{{ .Values.global.registry }}/{{ .Values.global.kubectl.image.repo }}:{{ .Values.global.kubectl.image.tag }}"
+        command:
+        - sh
+        - -c
+        - |
+          {{- range $index, $entry := .Values.users }}
+          kubectl delete secret {{ tpl $entry.secretName $ }} --namespace {{ $.Values.global.APP_NAMESPACE }} --ignore-not-found=true
+          {{- end }}

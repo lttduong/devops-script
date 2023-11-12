@@ -1,0 +1,11 @@
+httpServer:
+  replicaCount: 1
+  resources:
+    requests:
+      memory: 550Mi
+      cpu: 50m
+    limits:
+      memory: 550Mi
+      cpu: 150m
+
+affinity: {}

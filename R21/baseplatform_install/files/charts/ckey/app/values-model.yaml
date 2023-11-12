@@ -1,0 +1,990 @@
+type: object
+properties:
+    imageInfo:
+        description: |
+            Provides information about basic parameters. Refer to Confluence 2.8.4 "Change basic parameters"
+        type: object
+        properties:
+            replicaCount:
+                description: |
+                    The number of Kubernetes pods.
+                type: integer
+                default: 1
+                minimum: 1
+                title: Replica Count
+
+    userInfo:
+        description: |
+            Provides credentials for initial keycloak user.
+        type: object
+        properties:
+            createInitialUser:
+                description: |
+                    Flag for whether to create an initial user or not. The Keycloak User and Keycloak Password attributes are not used if this value is set to false.
+                type: boolean
+                default: true
+                title: Create Initial User Flag
+            keycloakUser:
+                description: |
+                    Initial username
+                type: string
+                default: admin
+                title: Keycloak User
+            keycloakPassword:
+                description: |
+                    Initial user's password
+                type: string
+                default: Admin123!
+                format: password
+                title: Keycloak Password
+
+    dbInfo:
+        description: |
+            Provides information about DB parameters. Refer to Confluence 2.8.4 "Change parameters for DB"
+        type: object
+        properties:
+            dbAddress:
+                description: |
+                    (External DB only) External DB Address
+                type: string
+                default: 127.0.0.1
+                title: DB ADDRESS
+            dbPort:
+                description: |
+                    (External DB only) External DB Port
+                type: string
+                default: 3306
+                title: DB PORT
+            dbName:
+                description: |
+                    (External DB only) DB instance's name
+                type: string
+                default: db4keycloak
+                title: DB Name
+            dbUser:
+                description: |
+                    (External DB only) DB username
+                type: string
+                default: keycloak
+                title: DB User
+            picketBoxEncryptedDBPassword:
+                description: |
+                    (External DB only) DB password. Encrypted using picketbox as of R17.10-3
+                type: string
+                default: -444d243c54645015207a6df87216de44
+                format: password
+                title: Picketbox Encrypted DB Password
+            jdbcParams:
+                description: |
+                    JDBC parameters are only used with mariadb if externalDB:1. The expected format is ?PARAM_1&PARAM_2&PARAM_3 etc. If you do not want to pass JDBC params, please leave the field blank.
+                type: string
+                default: ?autoReconnect=true
+                title: JDBC Parameters
+
+    iptypeInfo:
+        description: |
+            Type of ip to support. Possible values: IPv4, IPv6.
+        type: object
+        properties:
+            ipType:
+                description: |
+                    IP Type: IPv4 or IPv6
+                type: string
+                default: "IPv4"
+                title: IP Type
+
+    bindingInfo:
+        description: |
+            Keycloak server by default binds to the container IP address. You could change the mamangement and public binding addresses via Bind IP setting.
+        type: object
+        properties:
+            bindIP:
+                description: |
+                    Binding address for management and public interfaces (0.0.0.0 , [::])
+                type: string
+                default: ""
+                title: Bind IP
+
+    portInfo:
+        description: |
+            Provides information about Keycloak port parameters. Refer to Confluence 2.8.4 "Change parameters for Keycloak port"
+        type: object
+        properties:
+            httpPort:
+                description: |
+                    Keycloak port for HTTP access
+                type: integer
+                default: 8080
+                minimum: 1
+                maximum: 65535
+                title: HTTP Port
+            httpsPort:
+                description: |
+                    Keycloak port for HTTPS access
+                type: integer
+                default: 8443
+                minimum: 1
+                maximum: 65535
+                title: HTTPS Port
+            managementHTTPPort:
+                description: |
+                    Keycloak management port for HTTP access
+                type: integer
+                default: 9990
+                minimum: 1
+                maximum: 65535
+                title: Management HTTP Port
+            managementHTTPSPort:
+                description: |
+                    Keycloak management port for HTTPS access
+                type: integer
+                default: 9993
+                minimum: 1
+                maximum: 65535
+                title: Management HTTPS Port
+            healthCheckPort:
+                description: |
+                    Keycloak Health Check port for LivenessProbe
+                type: integer
+                default: 8668
+                title: Health Check HTTP Port
+            dbAlarmCheckPeriod:
+                description: |
+                    Keycloak database Health Check time period to clear the alarm raised.
+                type: integer
+                default: 30000
+                title: Database Health Check period
+
+    rsyslogInfo:
+        description: |
+            Provides information about Keycloak rsyslog parameters. Refer to Confluence 2.8.4 "Change parameters for Keycloak RSYSLOG"
+        type: object
+        properties:
+            traceLevel:
+                description: |
+                    Keycloak Trace Level
+                type: string
+                default: INFO
+                title: Trace Level
+            syslogServerHost:
+                description: |
+                    RSYSLOG Server Host IP Address
+                type: string
+                default: 127.0.0.1
+                title: Syslog Server Host
+            syslogServerPort:
+                description: |
+                    RSYSLOG Server Port
+                type: integer
+                default: 514
+                minimum: 1
+                maximum: 65535
+                title: Syslog Server Port
+
+    resourcesInfo:
+        description: |
+            Keycloak resource configuration
+        type: object
+        properties:
+            memory:
+                description: |
+                    Memory size reserved for a service.
+                type: string
+                default: 2048Mi
+                max: 2048Mi
+                pattern: '^([0-9]+(T|G|M)i?)$'
+                title: Keycloak Container Memory
+            cpu:
+                description: |
+                    CPU resources reserved for a service.
+                type: string
+                default: 250m
+                max: 500m
+                pattern: '^([0-9]+m?)$'
+                title: Keycloak Container CPU
+
+    probesInfo:
+        description: |
+            Keycloak readiness and liveness probe delays
+        type: object
+        properties:
+            readinessProbeInitialDelay:
+                description: |
+                    The initial delay (in seconds) for the CKEY readiness probe. After this amount of time, we expect Keycloak to be deployed and ready for use.
+                type: integer
+                default: 180
+                min: 150
+                title: Initial Delay for the Readiness Probe
+            readinessProbeTimeoutSeconds:
+                description: |
+                    The timeout seconds for the CKEY readiness probe.
+                type: integer
+                default: 1
+                min: 1
+                title: Timeout Seconds for the Readiness Probe
+            readinessProbePeriodSeconds:
+                description: |
+                    The period seconds for the CKEY readiness probe.
+                type: integer
+                default: 15
+                min: 1
+                title: Period Seconds for the Readiness Probe
+            livenessProbeInitialDelay:
+                description: |
+                    The initial delay (in seconds) for the CKEY liveness probe. After this amount of time, we will start to verify periodically that CKEY is live and accessible.
+                type: integer
+                default: 600
+                min: 240
+                title: Initial Delay for the Liveness Probe
+            livenessProbeTimeoutSeconds:
+                description: |
+                    The timeout seconds for the CKEY liveness probe.
+                type: integer
+                default: 5
+                min: 1
+                title: Timeout Seconds for the Liveness Probe
+            livenessProbePeriodSeconds:
+                description: |
+                    The period seconds for the CKEY liveness probe.
+                type: integer
+                default: 15
+                min: 1
+                title: Period Seconds for the Liveness Probe
+
+    corsHeaderInfo:
+        description: |
+            Sets the cors header for keycloak.
+        type: object
+        properties:
+            corsHeaderDomain:
+                description: |
+                    Can be set to * or domain name. If empty cors header won't be set.
+                type: string
+                default: ""
+                title: Cors header domain
+
+    keystoreInfo:
+        description: |
+            External Keystore Configuration. The values below are only used if the enabled option is set to true.
+        type: object
+        properties:
+            enabled:
+                description: |
+                    Flag for whether to look for and use an imported keystore or not. If set to true, a secret with keycloak.jks is expected.
+                type: boolean
+                default: false
+                title: External Java Keystore Flag
+            keystoreSecretName:
+                description: |
+                    The name of the Kubernetes secret that contains the keycloak.jks file.
+                type: string
+                default: keycloak-java-keystore
+                title: Java Keystore Secret Name
+            keystorePassword:
+                description: |
+                    The password for the supplied keycloak.jks file.
+                type: string
+                format: password
+                default: keycloak
+                title: Java Keystore Password
+
+    clientTruststoreInfo:
+        description: |
+            External client truststore Configuration. The values below are only used if the enabled option is set to true.
+        type: object
+        properties:
+            enabled:
+                description: |
+                    Flag for whether to look for and use an imported client truststore or not. If set to true, a secret with client_keystore.jks is expected.
+                type: boolean
+                default: false
+                title: External Java Client Truststore Flag
+            clientTruststoreSecretName:
+                description: |
+                    The name of the Kubernetes secret that contains the client_keystore.jks file.
+                type: string
+                default: keycloak-java-client-truststore
+                title: Java Client Truststore Secret Name
+            clientTruststorePassword:
+                description: |
+                    The password for the supplied client_keystore.jks file.
+                type: string
+                format: password
+                default: keycloak
+                title: Java Client Truststore Password
+
+    certificateInfo:
+        description: |
+            External Certificate Configuration. The values below are only used if the enabled option is set to true.
+        type: object
+        properties:
+            enabled:
+                description: |
+                    Flag for whether to look for and use an imported certificate or not. If set to true, a secret with tls.crt and tls.key is expected.
+                type: boolean
+                default: false
+                title: External TLS Flag
+            tlsSecretName:
+                description: |
+                    The name of the Kubernetes secret that contains the tls.crt and tls.key files.
+                type: string
+                default: keycloak-server-cert
+                title: TLS Secret Name
+
+    ldapsCertificateInfo:
+        description: |
+            LDAPS Certificate Configuration. The values below are only used if the enabled option is set to true.
+        type: object
+        properties:
+            enabled:
+                description: |
+                    Flag for whether to look for and use an imported SSL certificate for LDAP or not. If set to true, a secret with a file named LDAPtls.crt is expected.
+                type: boolean
+                default: false
+                title: External LDAPS Certificate Flag
+            ldapsCertificateSecretName:
+                description: |
+                    The name of the Kubernetes secret that contains the LDAPtls.crt file
+                type: string
+                default: keycloak-federated-ldaps-cert
+                title: LDAPS Secret Name
+
+    cmdbCertificateInfo:
+        description: |
+            CMDB SSL Certificate Configuration.
+        type: object
+        properties:
+            enabled:
+                description: |
+                    Flag for whether to look for and use imported CMDB certificates for not. If set to true, a secret with the files server-cert.pem, client-cert.pem and client-key.pem is expected.
+                type: boolean
+                default: false
+                title: External CMDB Certificates Flag
+            secure_connection_type:
+                description: |
+                    The secure connection type attribute determines whether we want secure one-way or two-way communication with CMDB; Type 1 for one way, 2 for two way. The default is 0 (for none).
+                type: integer
+                default: 0
+                title: Secure Connection Type
+            cmdbSSLSecretName:
+                description: |
+                    The name of the Kubernetes secret that contains the server-cert.pem, client-cert.pem, and client-key.pem certificates.
+                type: string
+                default: keycloak-secure-cmdb-cert
+                title: CMDB Certificates Secret Name
+
+    periodicSizeLogger:
+        description: |
+            Change default logger to rotate logs based on time, size or both.
+        type: object
+        properties:
+            enabled:
+                description: |
+                    Flag for whether to use new logger - periodic size logger.
+                type: boolean
+                default: false
+                title: Periodic Size Logger Flag
+            fileSize:
+                description: |
+                    Maximum file size to rotate logs on.
+                type: string
+                default: 10k
+                title: File Size
+            timeRotation:
+                description: |
+                    Maximum time to keep logs file
+                type: string
+                format: string
+                default: .yyyy-MM-dd
+                title: Maximum Time
+
+    masterRealmConfigurationJobInfo:
+        description: |
+            Customizable options for the master realm configuration job. This job connects to the Master realm and configures the settings below (if enabled) by default.
+        type: object
+        properties:
+            enabled:
+                description: |
+                    Flag for whether the job should execute or not. If set to false, the job will not run and all the values in this section will not be used.
+                type: boolean
+                default: true
+                title: Flag for Master Realm Configuration Job
+            overwritePasswordTimestamp:
+                description: |
+                    This variable is needed when setting the passwordExpiry policy for the first time. If you set this to false, you will be required to manually update your password.
+                type: boolean
+                default: true
+                title: Flag for Overwriting Password Timestamp
+            enableForgotPassword:
+                description: |
+                    Do you want to enable the Forgot Password option by default in the master realm? If set to false, we won't modify the existing settings.
+                type: boolean
+                default: true
+                title: Enable Forgot Password
+            enableBruteForceProtection:
+                description: |
+                    Do you want to enable the Brute Force Protection option by default in the master realm? If set to false, we won't modify the existing settings.
+                type: boolean
+                default: true
+                title: Enable Brute Force Protection
+            overwritePasswordPolicies:
+                description: |
+                    Do you want to overwrite the existing password policies in the master realm? If set to false, we won't modify the existing settings. If set to true, the following setting swill be set: password expiry: 90 days, minimum length: 8, special charaters(minimum): 1, upper case characters(minimum): 1, lower case characters (minimum): 1, password history (not recently used): 3.
+                type: boolean
+                default: true
+                title: Overwrite Password Policies
+            enableLoginEvents:
+                description: |
+                    Do you want to turn on Login Events by default in the master realm? If set to false, we won't modify the existing settings.
+                type: boolean
+                default: true
+                title: Enable Login Events
+            enableAdminEvents:
+                description: |
+                    Do you want to turn on Admin Events by default in the master realm? If set to false, we won't modify the existing settings.
+                type: boolean
+                default: true
+                title: Enable Admin Events
+            enableSSLRequireForAll:
+                description: |
+                    Do you want to require SSL from ALL addresses by default in the master realm? If set to false, we won't modify the existing settings.
+                type: boolean
+                default: true
+                title: Require SSL from all Addresses
+            setNokiaLoginTheme:
+                description: |
+                    Do you want the Nokia login theme to be set by default?
+                type: boolean
+                default: true
+                title: Set Nokia Login Theme
+
+    customPreStartScript:
+        description: |
+            Custom pre-start script
+        type: object
+        properties:
+            script: 
+                description: |
+                    Custom script to run before starting keycloak server.
+                type: string
+                format: text-area
+                title: Script
+                default: ""
+
+    pushEventListenerDataInfo:
+        description: |
+            Configure listeners for kafka and RabbitMQ
+        type: object
+        properties:
+            ReceiverList:
+                description: |
+                    The listener configuration
+                type: string
+                default: ""
+                title: Configure Listener
+
+    genericEventListenerDataInfo:
+        description: |
+            Configure listeners for URL notification
+        type: object
+        properties:
+            ReceiverList:
+                description: |
+                    The generic listener configuration
+                type: string
+                default: ""
+                title: Configure Generic Listener
+
+    metric:
+        title: Metric annotations
+        description: |
+            Expose all metrics through a single endpoint
+        type: object
+        properties:
+            annotations:
+                type: object
+                properties:    
+                    prometheusIoScrape:
+                        title: Prometheus scraping enabled
+                        description:
+                            Allow CPRO to discover keycloak metrics?
+                        type: string
+                        default: "\"false\""
+                    prometheusIoPath:
+                        title: Metric path
+                        description:
+                            Metric endpoint for deployment. This metric endpoint
+                            holds metrics for all realms despite having 'master' 
+                            realm embedded in the endpoint. 'master' can be replaced
+                            by any realm where the listener has been added.
+                        type: string
+                        default: "\"/auth/realms/master/metrics\""
+    customAttributeInfo:
+        description: |
+            Configure custom attributes
+        type: object
+        properties:
+            enabled:
+                description: |
+                    Flag for set custom attributes. If set to false, no custom attribute  will be added and values in attributes section will not be used.
+                type: boolean
+                default: false
+                title: Flag for Custom Attribute Configuration
+
+            Attributes:
+                description: |
+                    Custom attributes in user details are configured here
+                type: string
+                default: ""
+                title: Configure Custom Attribute
+
+    customLoginBannerInfo:
+        description: |
+            Configurable Login Banner Messages
+        type: object
+        properties:
+            loginBannerTitle:
+                description: |
+                    The title that would be displayed on the Login Banner.
+                type: string
+                default: "Login Banner"
+                title: Custom Login Banner Title
+            loginBannerWelcomeFirstNameMessage:
+                description: |
+                    The welcome message that would be displayed on the Login Banner (with the user's first name).
+                type: string
+                default: "Welcome, {0}."
+                title: Custom Login Banner Welcome Message (First Name)
+            loginBannerWelcomeUsernameMessage:
+                description: |
+                    The welcome message that would be displayed on the Login Banner (with the user's username).
+                type: string
+                default: "Welcome, {0}."
+                title: Custom Login Banner Welcome Message (Username)
+            loginBannerPreviousSuccessMessage:
+                description: |
+                    The last successful attempt message that would be displayed on the Login Banner.
+                type: string
+                default: "Your last successful login was on {0}."
+                title: Custom Login Banner Last Successful Attempt Message
+            loginBannerMainMessage:
+                description: |
+                    The main message that would be displayed on the Login Banner.
+                type: string
+                default: "You are about to access a private system. This system is for the use of authorized users only. All connections are logged. Any unauthorized access or access attempts may be punishable to the fullest extent possible under the applicable local legislation."
+                title: Custom Login Banner Main Message
+            loginBannerAcceptMessage:
+                description: |
+                    The accept message that would be displayed on the Login Banner.
+                type: string
+                default: "OK"
+                title: Custom Login Banner Accept Message
+
+    proxyAdditionalInfo:
+        description: |
+            Additional proxy configurations.
+        type: object
+        properties:
+            proxyAddressForwarding:
+                description: |
+                    Flag for whether proxy address forwarding should be enabled or not.
+                type: boolean
+                default: false
+                title: Proxy Address Forwarding Flag
+
+    tlsAdditionalInfo:
+        description: |
+            Enabled versions of TLS supported
+        type: object
+        properties:
+            tlsVersionList:
+                description: |
+                    List of supported TLS versions, please use the following format if you have multiple entries: "TLSv1 TLSv1.1 TLSv1.2"
+                type: string
+                default: TLSv1.2
+                title: Supported TLS versions
+
+    keycloakPersistenceInfo:
+        description: |
+            Keycloak persistence info.
+        type: object
+        properties:
+            preserveKeycloakPVC:
+                description: |
+                    Flag for whether to keep persistent volume claims (e.g. for backup) after CKEY is deleted (CMDB PVCs are managed separately).
+                type: boolean
+                default: false
+                title: Preserve Keycloak Persistent Volume Claims
+
+    cmdbInfo:
+        description: |
+            Sample CMDB Configuration. The values below are only used if the enabled option is set to true.
+        type: object
+        properties:
+            enabled:
+                description: |
+                    Flag for the sample CMDB instance. If enabled is set to true, a sample CMDB instance will get deployed. Otherwise, the specified information for the external DB will be used!
+                type: boolean
+                default: true
+                title: Sample DB Enabled
+            cluster_type:
+                description: |
+                    The CMDB cluster type. For this sample CMDB instance we use the cluster type "simplex".
+                type: string
+                default: simplex
+                title: Cluster Type
+                enum:
+                - master-slave
+                - master-master
+                - galera
+                - simplex
+            cluster_name:
+                description: |
+                    The CMDB cluster name.
+                type: string
+                default: my-cluster
+                title: Cluster Name
+            cluster_size:
+                description: |
+                    The CMDB cluster size.
+                type: integer
+                default: 1
+                min: 1
+                maximum: 9
+                title: Cluster Size
+            auto_rollback:
+               description: |
+                   Indicates if the database should perform an automatic rollback attempt of uncommitted transactions on pod restarts when the database already exists.
+               type: boolean
+               default: true
+               title: Automatic Uncommitted Transaction Rollback
+            heuristic_recover:
+               description: |
+                   Indicates if the database should perform an automatic heuristic recover attempt of uncommitted transactions on pod restarts when the database already exists.
+               type: string
+               default: rollback
+               title: Automatic Uncommitted Transaction Recovery
+               enum:
+               - rollback
+               - commit
+               - none
+            audit_logging:
+               description: Server Audit Logging
+               type: object
+               properties:
+                   enabled:
+                       description: |
+                           Enable server audit logging?
+                       type: boolean
+                       default: true
+                       title: Audit Logging Enabled
+                   events:
+                       description: |
+                           Event(s) which should be logged
+                       type: string
+                       default: "CONNECT,QUERY_DCL,QUERY_DDL"
+                       title: Audit Events to Log
+            use_tls:
+               description: |
+                   Use TLS encryption for data in flight.
+               type: boolean
+               default: false
+               title: Use TLS for external data in flight
+            root_password:
+                description: |
+                    The CMDB root password (must be encoded with base 64).
+                type: string
+                default: cjAwdHIwMHQ=
+                format: password
+                title: Root Password
+            allow_admin_from_all:
+                description: |
+                    Allows admin user to connect from any host
+                type: boolean
+                default: true
+                title: Allow admin from all hosts
+            mysql_database:
+                description: |
+                    The name of the database that we want to create for Keycloak.
+                type: string
+                default: db4keycloak
+                title: MYSQL Database
+            mysql_user:
+                description: |
+                    The database user that we want to create for Keycloak.
+                type: string
+                default: keycloak
+                title: MYSQL User
+            mysql_password:
+                description: |
+                    The password to set for the database user that we create for Keycloak (must be encoded with base 64).
+                type: string
+                default: cjAwdHIwMHQ=
+                format: password
+                title: MYSQL Password
+            requires:
+                description: |
+                    If use_tls is set to true, should the SQL user have SSL or X509?
+                type: string
+                default: ""
+                title: Requires SSL or X509
+            mysqld:
+                description: |
+                    MySQL server configuration. Refer:https://mariadb.com/kb/en/library/server-system-variables/
+                type: string
+                format: text-area
+                title: MySQL configuration
+            accessMode:
+                description: |
+                    The access mode for the persistence.
+                type: string
+                default: ReadWriteOnce
+                title: Access Mode
+            size:
+                description: |
+                    The storage size for the persistence.
+                type: string
+                default: 20Gi
+                pattern: '^([0-9]+(T|G|M)i?)$'
+                title: Size
+            storageClass:
+                description: |
+                    The storage class for the persistence
+                type: string
+                default: ""
+                title: Storage Class
+            resourcePolicy:
+                description: |
+                    The resource policy for the persistence.
+                type: string
+                default: delete
+                title: Resource Policy
+            preserve_pvc:
+                description: |
+                    Preserve the persistent volume claim in helm delete event.
+                type: boolean
+                default: false
+                title: Preserve PVC
+            backupPersistenceEnabled:
+                description: |
+                    CMDB backup persistence flag. By default enabled is set to true. Please ensure that there exists a persistent volume that can be used by CMDB's persistent volume claim.
+                type: boolean
+                default: true
+                title: Backup Persistence Enabled
+            backupAccessMode:
+                description: |
+                    The access mode for the backup persistence.
+                type: string
+                default: ReadWriteOnce
+                title: Backup Access Mode
+            backupSize:
+                description: |
+                    The storage size for the backup persistence.
+                type: string
+                default: 20Gi
+                pattern: '^([0-9]+(T|G|M)i?)$'
+                title: Backup Size
+            backupStorageClass:
+                description: |
+                    The storage class for the backup persistence
+                type: string
+                default: ""
+                title: Backup Storage Class
+            backupDir:
+                description: |
+                    The directory to be used by CMDB for the backup
+                type: string
+                default: /mariadb/backup
+                title: Backup Directory
+            memory:
+                description: |
+                     Memory size reserved for MariaDB
+                type: string
+                default: 256Mi
+                title: DB Container Memory
+                pattern: '^([0-9]+(T|G|M)i?)$'
+            cpu:
+                description: |
+                    CPU resources reserved for MariaDB
+                type: string
+                default: 250m
+                title: DB Container CPU
+                pattern: '^([0-9]+m?)$'
+
+    serviceInfo:
+        description: |
+            Control the naming for resources.
+        type: object
+        properties:
+            nameOverride:
+                description: |
+                    This appends the value to ChartName. ie <Releasename>-nameOverride for all resources
+                type: string
+                default: ""
+                title: Name Override
+            fullnameOverride:
+                description: |
+                    Replace the entire name with the supplied value.This is useful to yield predictable service names. fullnameOverride takes precedency over nameOverride
+                type: string
+                default: ""
+                title: Full Name Override
+    ingress:
+      description: |
+        Whether citm ingress will be used
+      type: object
+      properties:
+        enabled:
+          description: |
+            Flag to indicate whether citm ingress will be used. When istio is enabled, this should be set to false.
+          type: boolean
+          default: false
+          title: Whether citm ingress will be created. 
+
+    istio:
+      description: |
+        Whether istio is enabled in the target environment
+      type: object
+      properties:
+        enabled:
+          description: |
+            Flag to indicate whether istio is enabled in the target deployment
+          type: boolean
+          default: false
+          title: Whether istio is enabled. 
+        cni_enabled:
+          description: |
+            Flag to indicate whether istio cni is enabled in the target deployment
+          type: boolean
+          default: false
+          title: Whether istio cni plugin is enabled. 
+        gateway:
+          description: |
+            Istio ingress gateway configuration
+          type: object
+          properties:
+            enabled:
+              description: |
+                  Flag to indicate whether istio ingress gateway will be used to expose Keycloak
+              type: boolean
+              default: false
+              title: Whether istio ingress gateway is used. 
+            customized_selectors:
+              description: |
+                  Which istio ingress gateway to use. The string can contain multiple key value pairs.
+              type: string
+              format: text-area
+              default: "istio: ingressgateway"
+              title: Selector(s) for the istio ingress gateway to use
+            hosts:
+              description: |
+                  What hostname to use in the istio gateway configuration
+              type: string
+              default: "ckey.io"
+              title: Hostname for ingress gateway
+            
+
+    installUMLiteFlag:
+      description: |
+        Install UM Lite
+      type: object
+      properties:
+        installUmLite:
+          description: |
+            Flag to indicate if UM Lite is to be installed or not. If set to false, the UM Lite related attributes are not used.
+          type: boolean
+          default: false
+          title: Install User Management Lite Flag
+
+    umLiteImage:
+      description: |
+        User Management Lite Docker Image details
+      type: object
+      properties:
+        replicaCount:
+          description: |
+            The number of Kubernetes pods.
+          type: integer
+          default: 2
+          title: Replica Count
+
+    umLiteEnv:
+      description: |
+        User Management Lite environment settings
+      type: object
+      properties:
+        keycloakServiceUrl:
+          description: |
+            Ingress URL to connect to Keycloak. Sample https://clab433node07/auth
+          type: string
+          default: https://<replace-with-ingress><replace with ingress path>
+          title: KeycloakServiceUrl
+        loggingLevel:
+          description: |
+            Log level
+          type: string
+          default: "info"
+          title: Logging Level
+        usersQueryMax:
+          description: |
+            Max number of rows to fetch for Users data
+          type: integer
+          default: 200
+          title: Users Query Max
+        groupsQueryMax:
+          description: |
+            Max number of rows to fetch for Groups data
+          type: integer
+          default: 20
+          title: Groups Query Max
+        usersToGroupQueryMax:
+          description: |
+            Max number of rows to fetch for Users to Groups data
+          type: integer
+          default: 400
+          title: Users to Groups Query Max
+        isConfidentialClient:
+          description: |
+            If Confidential client is used, set this flag as true. If Public client is used, set this flag as false.
+          type: boolean
+          default: false
+          title: Confidential Client flag
+        ckeyAdminSecret:
+          description: |
+            Secret key of CKEY admin
+          type: string
+          default: <replace-with-admin-secret>
+          title: CKEY Admin Secret
+
+    umLiteResources:
+        description: |
+            User Management Lite resource configuration
+        type: object
+        properties:
+            memory:
+                description: |
+                    Memory size reserved for UM Lite.
+                type: string
+                default: 2048Mi
+                max: 2048Mi
+                pattern: '^([0-9]+(T|G|M)i?)$'
+                title: UM Lite Container Memory
+            cpu:
+                description: |
+                    CPU resources reserved for UM Lite.
+                type: string
+                default: 250m
+                max: 500m
+                pattern: '^([0-9]+m?)$'
+                title: UM Lite Container CPU
+
+    cburBrHookPostRestore:
+        description: |
+            CBUR PostRestore BrHook running in the end of helm restore command and restarting all ckey pods. Available since BCMT / CBUR 20.03
+        type: object
+        properties:
+            enable:
+                description: |
+                    true - BrHook enabled, false - disabled
+                type: boolean
+                default: false
+                title: Enable PostRestor BrHook

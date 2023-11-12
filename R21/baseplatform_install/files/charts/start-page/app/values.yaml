@@ -1,0 +1,131 @@
+# nginx configuration
+# Ref: https://confluence.app.alcatel-lucent.com/display/plateng/CITM+-+NGINX+Guide#CITM-NGINXGuide-InstallviaImageoncontainer
+
+# Image Registry
+global:
+  registry: "csf-docker-delivered.repo.lab.pl.alcatel-lucent.com"
+
+# For job cleanup
+kubectlImage: "tools/kubectl"
+kubectlTag: "v1.17.8-nano"
+  
+httpServer:
+  name: "citm-server"  
+  imageRepo: "citm/citm-nginx-server"
+  imageTag: "1.18.0-2.1"
+  imagePullPolicy: IfNotPresent
+  replicaCount: 1
+  
+  webapp:
+    url: ""
+    proxy: ""
+  conf:
+    url: "" 
+ 
+  filesPath:
+    conf: "/usr/share/nginx/conf"
+    webapp: "/usr/share/nginx/html"
+
+    #path where the default .key are generated
+    tls: "/usr/share/nginx/ssl"
+
+  configurationConfigMap:
+
+  hostNetwork: false
+  serviceType: ClusterIP  
+
+  watch:
+    config: false
+    timer: 2
+    
+  # Must be in the same namespace of the pod
+  # mounted in /certificate
+  defaultSecret:
+
+  modsecurity:
+    enabled: false
+    owaspCrs: false
+
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 250m
+    limits:
+      memory: 512Mi
+      cpu: 500m
+
+  extend:
+    env: {}
+
+  expose:
+    - port: 8080
+      ingressPath: "server1"
+    - port: 8443 
+      ingressPath: "server2"
+
+  overrideIngress: |
+ 
+  servers:
+  # - server: server1
+  #   port: 8080
+  #   root: "/usr/share/nginx/html/"
+  #   locations:
+  #     - location: /
+  #       index: index.html
+  #       alias: /usr/share/nginx/html/
+  #     - location: /50x.html
+  #       index: 50x.html
+  #       alias: /usr/share/nginx/html/
+  #  - server: server2
+  #    port: 8082
+  #    root: "/usr/share/nginx/html"
+  #    locations:
+  #      - location: /
+  #        index: index.html
+  #        alias: /usr/share/nginx/html/
+
+# Change tested path for redinessProbe & livenessProbe default "/" 
+  livenessProbePath: "/"
+  readinessProbePath: "/"
+  livenessScheme: "HTTP"
+  readinessScheme: "HTTP"
+  livenessInitialDelaySeconds: 10
+  readinessInitialDelaySeconds: 10
+  livenessTimeoutSeconds: 1
+  readinessTimeoutSeconds: 1
+
+certManager:
+  used: false
+  duration: "8760h" # 365d
+  renewBefore: "360h" # 15d
+  keySize: "2048"
+  api: "cert-manager.io/v1alpha2"
+  issuerRef:
+    name: ncms-ca-issuer
+    # We can reference ClusterIssuers by changing the kind here.
+    # The default value is Issuer (i.e. a locally namespaced Issuer)
+    kind: ClusterIssuer
+
+rbac:
+  enabled: true
+  serviceAccountName: default
+  
+istio:
+  enable: false
+    
+# The name of the secret that contains the grafana credentials
+grafanaSecret:
+
+# URL and port of the grafana server, without 'http://'
+# Example: 127.0.0.1:3000
+grafanaURL:
+
+# Harmonized logging. Set this to false if you do not want json logging format output  
+json_log: true
+
+# enable/disable monitoring console
+metrics: false
+
+# Set this to true if you want debug log for nginx, and disable probing
+docker_debug: false
+

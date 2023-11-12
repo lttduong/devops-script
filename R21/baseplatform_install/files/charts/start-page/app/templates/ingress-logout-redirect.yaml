@@ -1,0 +1,20 @@
+## Start of custom chart file
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: logout-redirect
+  annotations:
+    kubernetes.io/ingress.class: {{ .Values.httpServer.ingressClass }}
+    nginx.ingress.kubernetes.io/rewrite-target: /logout-redirect
+    nginx.ingress.kubernetes.io/secure-backends: "true"
+    nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  rules:
+    - http:
+        paths:
+        - path: /logout-redirect
+          backend:
+            serviceName: {{ template "httpserver.fullname" $ }}
+            servicePort: 8443
+## End of custom chart file

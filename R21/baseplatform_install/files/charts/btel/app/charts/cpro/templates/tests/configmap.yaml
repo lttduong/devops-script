@@ -1,0 +1,52 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: "{{ .Release.Name }}-{{ .Chart.Name }}-status-test-configmap"
+  namespace: {{ .Release.Namespace }}
+data:
+  run.sh: |
+    #!/bin/bash
+    let retry=10
+    let i=1
+    while [ $i -lt $retry ]
+    do
+        unset RC1 RC2 RC3 RC4 RC5
+        curl --connect-timeout 5 -m 10 --retry 3 --retry-delay 5 {{ template "prometheus.server.fullname.helmtest" . }}.{{ .Release.Namespace }}.svc.cluster.local:80{{ template "server.routePrefixURL" . }}/metrics; RC1=$?;
+
+        {{- if .Values.alertmanager.enabled -}}
+          curl --connect-timeout 5 -m 10 --retry 3 --retry-delay 5 {{ template "prometheus.alertmanager.fullname.helmtest" . }}.{{ .Release.Namespace }}.svc.cluster.local:80{{ template "alertmanager.routePrefixURL" . }}/metrics; RC2=$?;
+        {{- else -}}
+          RC2=0;
+        {{- end -}}
+
+
+        {{- if .Values.pushgateway.enabled -}}
+        curl --connect-timeout 5 -m 10 --retry 3 --retry-delay 5 {{ template "prometheus.pushgateway.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:9091{{ template "pushgateway.routePrefixURL" . }}/metrics; RC3=$?;
+        {{- else -}}
+          RC3=0;
+        {{- end -}}
+
+        {{- if .Values.nodeExporter.enabled -}}
+        curl --connect-timeout 5 -m 10 --retry 3 --retry-delay 5 {{ template "prometheus.nodeExporter.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:9100/metrics; RC4=$?;
+        {{- else -}}
+          RC4=0;
+        {{- end -}}
+
+        {{- if and (not .Values.istio.enable) (.Values.kubeStateMetrics.enabled) -}}
+        curl --connect-timeout 5 -m 10 --retry 3 --retry-delay 5 {{ template "prometheus.kubeStateMetrics.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:8080/metrics; RC5=$?;
+        {{- else -}}
+          RC5=0;
+        {{- end -}}
+
+        if [[ $RC1 == 0 ]] && [[ $RC2 == 0 ]] && [[ $RC3 == 0 ]] && [[ $RC4 == 0 ]] && [[ $RC5 == 0 ]]; then
+            exit 0
+        else
+            let "i+=1"
+            sleep 10
+            if [ $i == $retry ]; then
+              exit 1
+            else
+              continue
+            fi            
+        fi
+    done

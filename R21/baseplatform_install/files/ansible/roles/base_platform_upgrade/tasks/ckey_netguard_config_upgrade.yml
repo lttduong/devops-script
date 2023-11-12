@@ -1,0 +1,24 @@
+---
+- name: "Generate redirect uris lists"
+  set_fact:
+    logoutRedirectUris: "{{ redirectUris.results | map(attribute='ansible_facts.logoutUri') | list }}"
+    keycloakRedirectUris: "{{ redirectUris.results | map(attribute='ansible_facts.keycloakUri') | list }}"
+    ssoRedirectUris: "{{ redirectUris.results | map(attribute='ansible_facts.ssoRedirectUri') | list }}"
+    rootRedirectUris: "{{ redirectUris.results | map(attribute='ansible_facts.rootUri') | list }}"
+
+- name: "Merge redirect uris"
+  set_fact:
+    bpRedirectUris: "{{ logoutRedirectUris + keycloakRedirectUris + ssoRedirectUris + rootRedirectUris }}"
+
+- name: "Upgrading CKEY netguard config chart"
+  shell:
+    "{{ helm }}  upgrade {{ ckeyNetguardConfigHelmName }} {{ chartsPath }}/ckey/netguard-config
+    --namespace {{ BP_CONFIG_NAMESPACE }}
+    --reuse-values
+    --values {{ chartsPath }}/values/upgrade-global-values.yaml
+    --set config.ckey.redirectUris=\"{{ bpRedirectUris | join(\"\\, \") }}\"
+    --set config.ckey.clientSecret={{ netguardAdminSecret }}
+    --install
+    --wait
+    --timeout {{ wait_timeout }}s"
+  no_log: "{{ no_log }}"

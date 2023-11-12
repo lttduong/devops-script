@@ -1,0 +1,162 @@
+{{- if .Values.restserver.enabled -}}
+apiVersion: {{ template "prometheus.apiVersionExtensionsV1Beta1orV1" . }}
+kind: Deployment
+metadata:
+  name: {{ template "prometheus.restserver.deploymentName" . }}
+  labels:
+    app: {{ template "prometheus.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    component: "{{ .Values.restserver.name }}"
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+{{- include "prometheus-labels" (tuple .Values.global.labels) | indent 4}}
+{{- if .Values.global.annotations }}
+  annotations:
+{{- include "prometheus-annotations" (tuple .Values.global.annotations) | indent 4}}
+{{- end }}
+spec:
+  replicas: {{ .Values.restserver.replicaCount }}
+  {{- if semverCompare ">=1.16.0-0" .Capabilities.KubeVersion.GitVersion }}
+  selector:
+   matchLabels:
+    app: {{ template "prometheus.name" . }}
+    component: "{{ .Values.restserver.name }}"
+    release: {{ .Release.Name }}
+  {{- end }}
+  template:
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "{{ .Values.istio.enable }}"
+{{- if and (.Values.istio.enable) (.Values.istio.mtls_enable) }}
+        sidecar.istio.io/rewriteAppHTTPProbers: "true"
+{{- end }}
+    {{- if .Values.restserver.podAnnotations }}
+{{ toYaml .Values.restserver.podAnnotations | indent 8 }}
+    {{- end }}
+{{- include "custom-annotations" (tuple .Values.custom.pod.annotations) | indent 8}}
+{{- if .Values.rbac.pspUseAppArmor }}
+{{- include "custom-annotations" (tuple .Values.custom.pod.apparmorAnnotations) | indent 8}}
+{{- end }}
+      labels:
+        app: {{ template "prometheus.name" . }}
+        component: "{{ .Values.restserver.name }}"
+        release: {{ .Release.Name }}
+        {{- include "custom-labels" (tuple .Values.custom.pod.labels) | indent 8}}
+    spec:
+      ## Start of custom modification of original chart
+      ## Reported CSFID-3300 https://jiradc2.ext.net.nokia.com/browse/CSFID-3300
+      {{- if .Values.affinity }}
+      affinity:
+{{ toYaml .Values.affinity | indent 8 }}
+      {{- end }}
+      ## End of custom modification of original char
+      securityContext:
+        fsGroup: 1999
+      {{- if .Values.seLinuxOptions.enabled }}
+        seLinuxOptions:
+          level: {{ .Values.seLinuxOptions.level }}
+          role: {{ .Values.seLinuxOptions.role }}
+          type: {{ .Values.seLinuxOptions.type }}
+          user: {{ .Values.seLinuxOptions.user }}
+      {{- end }}
+      serviceAccountName: {{ template "prometheus.serviceAccountName" . }}
+      containers:
+        - name: {{ template "prometheus.restserver.configmapReloadContainerName" . }}
+          image: "{{ .Values.global.registry1 }}/{{ .Values.configmapReload.image.imageRepo }}:{{ .Values.configmapReload.image.imageTag }}"
+          imagePullPolicy: "{{ .Values.configmapReload.image.imagePullPolicy }}"
+          args:
+            - --volume-dir=/etc/prometheus
+            - --webhook-url=http://127.0.0.1:9090/cpro/v1/reload
+          resources:
+{{ toYaml .Values.configmapReload.resources | indent 12 }}
+          volumeMounts:
+            - name: config-volume
+              mountPath: /etc/prometheus
+              readOnly: true
+        - name: {{ template "prometheus.restserver.restServerContainerName" . }}
+          image: "{{ .Values.global.registry1 }}/{{ .Values.restserver.image.imageRepo }}:{{ .Values.restserver.image.imageTag }}"
+          imagePullPolicy: "{{ .Values.restserver.image.imagePullPolicy }}"
+          securityContext:
+            runAsUser: 1999
+          ports:
+            - name: tcp-8880
+              containerPort: 8880
+              protocol: TCP
+            - name: tcp-health
+              containerPort: 9090
+              protocol: TCP
+          volumeMounts:
+          - name: config-volume
+            mountPath: /etc/prometheus
+          livenessProbe:
+            httpGet:
+              path: /cpro/v1/health
+              port: tcp-health
+          readinessProbe:
+            httpGet:
+              path: /cpro/v1/health
+              port: tcp-health
+          resources:
+{{ toYaml .Values.restserver.resources | indent 12 }}
+          env:
+            - name: BCMT_MASTER_URL
+              value: {{ .Values.restserver.BCMT.serverURL }}
+      volumes:
+        - name: config-volume
+          configMap:
+            name: {{ template "prometheus.restserver.fullname" . }}
+            items:
+{{- range $path , $bytes := .Files.Glob "configs/*" }}
+            - key: {{ base $path }}
+              path: {{ base $path }}
+{{- end }}
+            - key: ca.crt
+              path: ca.crt
+            - key: server.key
+              path: server.key
+            - key: server.crt
+              path: server.crt
+      tolerations:
+{{ toYaml .Values.restserver.tolerations | indent 8 }}
+      nodeSelector:
+{{ toYaml .Values.restserver.nodeSelector | indent 8 }}
+      affinity:
+        podAntiAffinity:
+{{- if eq .Values.restserver.antiAffinityMode "hard" }}
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - {{ template "prometheus.name" . }}
+              - key: component
+                operator: In
+                values:
+                - {{  .Values.restserver.name }}
+              - key: release
+                operator: In
+                values:
+                - {{ .Release.Name }}
+            topologyKey: "kubernetes.io/hostname"
+{{- else }}
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - {{ template "prometheus.name" . }}
+                - key: component
+                  operator: In
+                  values:
+                  - {{  .Values.restserver.name }}
+                - key: release
+                  operator: In
+                  values:
+                  - {{ .Release.Name }}
+              topologyKey: "kubernetes.io/hostname"
+{{- end }}
+{{- end -}}

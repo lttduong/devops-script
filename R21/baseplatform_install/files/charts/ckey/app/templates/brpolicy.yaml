@@ -1,0 +1,56 @@
+{{- if  .Values.cbur.enabled }}
+apiVersion: "cbur.bcmt.local/v1"
+kind: BrPolicy
+metadata:
+  name: {{ template "keycloak.fullname" . }}
+  labels:
+    app: {{ template "keycloak.name" . }}
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+    csf-component: ckey
+    csf-subcomponent: keycloak
+spec:
+  weight: {{ .Values.cbur.brPolicyWeight }}
+  selector:
+    matchLabels:
+      app: {{ template "keycloak.name" . }}
+## Start of custom modifications to original chart
+# We don't want to backup keycloak installation configuration and SSL stores
+#  volumes:
+#  - backup
+  k8sobjects:
+    - object-type: ["secret"]
+      match-criteria: label
+      label-key: {backup: "true"}
+      ## CSFLCM-2863 causes apps to backup all k8sobjects in the same namespace
+      ## this needs to be added in the ckey brpolicy because it will backup the 
+      ## CITM configmap below, indirectly. Otherwise, we'd need to create a new
+      ## BrPolicy for CITM which would require an extra backup
+    - object-type: ConfigMaps
+      match-string: citm-citm-ingress-controller-lua-keycloak
+      match-criteria: name
+
+## End of custom modification of original chart
+## Start of custom modification - special cron settings
+  backend:
+    mode: "{{ .Values.cbur.backendMode }}"
+  autoEnableCron: {{ .Values.cbur.autoEnableCron }}
+# https://jiradc2.ext.net.nokia.com/browse/CSFS-28111
+  autoUpdateCron: {{ .Values.cbur.autoUpdateCron }}
+## End of custom modification of original chart
+  maxiCopy: {{ .Values.cbur.brMaxiCopy }}
+  cronSpec: {{ .Values.cbur.brCronSpec }}
+  k8sType: statefulset
+  brOption: 2
+  ignoreFileChanged: {{ .Values.cbur.ignoreFileChanged | default "true" }}
+## Start of custom modification to original chart
+# We don't want to backup keycloak installation configuration and SSL stores
+#  hooks:
+#  - name: {{ template "keycloak.fullname" . }}
+#    commands:
+#      preBackupCmd: ["sh", "-c", "/opt/keycloak/csf-common/others/backup_manager --backup --file /ckey/backup/ckey-$(date +%Y%m%d_%H%M%S)-backup.tgz"]
+#      postBackupCmd: ["sh", "-c", "echo post-backup"]
+#      preRestoreCmd: ["sh", "-c", "rm -rf /ckey/backup/*"]
+#      postRestoreCmd: ["sh", "-c", "/opt/keycloak/csf-common/others/backup_manager --restore"]
+## End of custom modification of original chart
+{{- end }} #cbur.enabled

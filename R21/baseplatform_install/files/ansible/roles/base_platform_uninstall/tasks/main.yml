@@ -1,0 +1,62 @@
+---
+- name: Remove installed charts
+  shell: "{{ helm }} delete {{ item }}"
+  with_items:
+    - "{{ caCertHelmName }}-{{ BP_NAMESPACE }}"
+    - "{{ caCertHelmName }}-{{ BP_CONFIG_NAMESPACE }}"
+    - "{{ btelGrafanaConfiguratorHelmName }}"
+    - "{{ cproGrafanaConfiguratorHelmName }}"
+    - "{{ startPageHelmName }}"
+    - "{{ citmHelmName }}"
+    - "{{ ckeyHelmName }}"
+    - "{{ ckeyConfiguratorConfigHelmName }}"
+    - "{{ ckeyCrmqConfiguratorHelmName }}"
+    - "{{ ckeyMasterConfigHelmName }}"
+    - "{{ ckeyNetguardConfigHelmName }}"
+    - "{{ ckeyDatabaseConfigHelmName }}"
+    - "{{ realmUrlsConfigurationHelmName }}"
+    - "{{ cmdbHelmName }}"
+    - "{{ cmdbConfiguratorConfigHelmName }}"
+    - "{{ cmdbPasswordPolicyConfigHelmName }}"
+    - "{{ crmqHelmName }}"
+    - "{{ crmqConfiguratorConfigHelmName }}"
+    - "{{ btelHelmName }}"
+    - "{{ btelDatabaseConfigHelmName }}"
+    - "{{ btelCrmqConfiguratorHelmName }}"
+    - "{{ geoRedundancySettingsHelmName }}"
+    - "{{ geoRedundancyBtelHelmName }}"
+
+- name: Remove installed geo validation charts
+  shell: "{{ helm }} delete {{ geoRedundancyValidationHelmName }}-{{ item.name }}"
+  with_items:
+    - { name: "mariadb" }
+    - { name: "maxscale" }
+    - { name: "repl" }
+    - { name: "keycloak" }
+    - { name: "grafana" }
+    - { name: "alma" }
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Delete egress if present
+  shell: "{{ helm }} delete  {{ egressHelmName }}"
+  ignore_errors: yes
+  register: result
+  failed_when: result.rc >= 2
+
+- name: Delete Virtual IP if present
+  shell: "{{ helm }} delete {{ virtualIpName }}"
+  when: VIRTUAL_IP.ENABLED
+
+- name: Cleaning up cronjobs from backups
+  shell: "kubectl get cj -n ncms --no-headers=true | awk '/{{ BP_NAMESPACE }}|{{ BP_CONFIG_NAMESPACE }}/{print $1}'| xargs  kubectl delete -n ncms cj"
+  ignore_errors: yes
+  register: result
+  failed_when: result.rc >= 2
+
+- name: Waiting for removal of all charts
+  shell: echo $(kubectl get pods -n {{ BP_NAMESPACE }} | grep -v Completed | grep -v NAME | wc -l)
+  register: result
+  until: result.stdout == "0"
+  retries: 100
+  delay: 3

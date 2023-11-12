@@ -1,0 +1,254 @@
+createProfileResource: false
+global:
+  registry: csf-docker-delivered.repo.lab.pl.alcatel-lucent.com
+fullnameOverride:
+nameOverride: ncms-app
+image:
+ name: ncm
+ tag: 1.13.5
+ pullPolicy: IfNotPresent
+
+serviceAccountName:
+# cert should be bas64 encoded,
+# # base64 ca.crt | tr -d '\n'
+# keycloak parameters are specified by user
+# keycloak:
+#   enabled: true
+#   parameters:
+#     server: https://localhost:8666/auth
+#     client: vanilla
+#     secret: 066d5a04-e986-494c-a3f8-75ace136f2a8
+#     realm: master
+#     cert : optional certificate
+keycloak:
+  enabled: false
+  parameters:
+    server: ""
+    client: ""
+    secret: ""
+    realm: ""
+
+lcm:
+  heal_flags: "--recreate-pods"
+  heal_timeout: 30
+# prepare new future camelCase property
+  heal:
+   flags: "--recreate-pods"
+   timeout: 30
+
+replicas: 1
+# allows install --wait to wait
+maxUnavailable: 0
+
+hostNetwork: false
+
+# this is the default TTL for unactive TLS connection in the system
+idleTimeout: 900000
+
+# this is to extend the processing pool capacity (use 0 meaning aligned with the number of cpu core)
+# you should extend it in case of massive // queries with long delay 
+processingPoolSize: 10
+service:
+ name: appserver
+ type: ClusterIP
+ httpPort: 8443
+
+ingress:
+  enabled: true
+  #host:
+  ## If true, sso through keycloak will be enabled
+  sso: false
+  # to be test for testing with our test env
+  # class: test 
+  # the template will automatically prefix with also in nginx.ingress
+  annotations:
+    ingress.kubernetes.io/ssl-redirect: "false"
+    ingress.kubernetes.io/secure-backends: "true"
+    ingress.kubernetes.io/proxy-read-timeout: "600"
+    ingress.kubernetes.io/proxy-send-timeout: "600"
+  # when activating ingress class, default path is /ncm
+  # when activating ingress only, default is the paths in comment + /ncm {/helm /bin /version /resources}
+  # you can customize here
+  # paths:
+  #  - "/ncm/applications(.*)"
+  #  - "/ncm/repos(.*)"
+  #  - "/ncm/profiles(.*)"
+   
+# this is the public url displayed in resource list or links
+ncmsUri: "/ncm"
+rootPath: "ncm"
+conf:
+ timeout: 30
+ mock: false
+secure: true
+
+liveness: true
+# livenessMaxTime: 10 # max time in seconds the REST server can be unresponsive
+readiness: true
+# the number of attempts before probes really fails. Since probes checks every 10s, it let ~30s for the server to start by default
+failureThreshold: 3
+
+rbac:
+  enabled: true
+  plugins:
+    enabled: true
+  ## Only used if enabled: true
+  #imagePullSecrets:
+  #- name: harbor-secret
+  #- name: another-secret
+  
+
+# when using helm from host
+# bcmt < 20.06 (aka k8S < 1.18.x)
+# default is helmHostPath: /root/.helm
+# else helmHostPath: /opt/bcmt/storage/helm_home
+
+
+# mouting point are required for hosted-helm mode
+# local zone is required for host TZ uniformity
+# cbur is required for autonomous storage mode with cbur backup
+appHostPathMounts:
+- hostPath: /etc/tools
+  mountPath: /etc/tools
+  name: tools
+  readOnly: true
+- hostPath: /etc/sysconfig
+  mountPath: /etc/sysconfig
+  name: sysconfig-etc
+  readOnly: true
+- hostPath: /usr/local/sbin
+  mountPath: /usr/local/sbin
+  name: slocalbin-dir
+  readOnly: true
+- hostPath: /etc/localtime
+  name: host-timezone
+  mountPath: /etc/localtime
+  readOnly: true
+- hostPath: /opt/bcmt/config/cbur
+  mountPath: /opt/bcmt/config/cbur
+  name: cbur-certs
+  readOnly: true
+
+# this can be commented using autonomous binaries
+localBinHostPathMount:
+  hostPath: /usr/local/bin
+  mountPath: /usr/local/bin
+  name: localbin-dir
+  readOnly: true
+
+# only for dev purpose
+dev: false
+devHostPathMounts:
+- hostPath: /tmp/bundles
+  mountPath: /casr/ncms-1.0.0/custo
+  name: bundles
+  readOnly: true
+- hostPath: /tmp/bundles/jacoco
+  mountPath: /root/org.jacoco.agent-0.8.4-runtime.jar
+  subPath: "org.jacoco.agent-0.8.4-runtime.jar"
+  name: jacoco
+  readOnly: true
+
+##
+# see README.md for of possible ENV configuration
+#
+env:
+  HELM_CHECK: "helm version"
+  STABLE_URL: "http://tiller-repo:8879"
+  LOGGERS: "ncm.audit=WARN ncms=WARN http.access=WARN"
+  RETRY_PENDING_WAIT: 180
+  AUTHORIZED_NS_PATTERN:
+  TAGS2LABELS: false
+  DOLABELLING: false
+  
+resources:
+ requests:
+  cpu: 100m
+  memory: 164Mi
+ limits:
+  cpu: 2
+  memory: 1Gi
+
+priorityClassName: system-node-critical
+
+#  jdk11
+jvmOptions: "-Dlog4j2.StatusLogger.level=FATAL -XX:+UseContainerSupport"
+#  jdk8
+#jvmOptions: "-Dlog4j2.StatusLogger.level=FATAL -XX:+UnlockExperimentalVMOptions -XX:+UseCGroupMemoryLimitForHeap"
+profileEndpoint: Legacy
+controller: false
+
+nodeSelector: {is_control: 'true'}
+
+tolerations:
+- effect: NoExecute
+  key: is_control
+  operator: Equal
+  value: "true"
+- effect: NoExecute
+  key: is_edge
+  operator: Equal
+  value: "true"
+- effect: NoExecute
+  key: is_storage
+  operator: Equal
+  value: "true"
+
+persistence:
+  # this enabled property should be deprecated
+  enabled: false
+  storageClass: ""
+  size: 2Gi
+  mode: ReadWriteOnce
+
+autonomous:
+  enabled: false
+  tiller:
+    enabled: false
+    imagePushPolicy: IfNotPresent
+    tag: "v2.16.9"
+    registry: "bcmt-registry:5000"
+    repository: "repo/tiller"
+    # only needed when registry is harbor
+    username:
+    password:
+    secretName: 
+deletePVC: false
+
+cbur:
+  enabled: false
+  maxiCopy: 5
+  cburagent:
+    repo: cbur/cbura
+    tag: 1.0.3-232
+    imagePullPolicy: IfNotPresent
+  # Periodic backup frequency if enabled
+  cronSpec: "\"*/10 * * * *\""
+
+# certSecretName and certManager are all used to change server certificate.
+# if user want to provide customized certificate, pls provide the certSecretName. ca.crt, tls.key and tls.crt shoud be included in the secret
+certSecretName:
+
+certManager:
+  # enable or disable certificate creation
+  enabled: true
+  # duration of the certificate
+  certDuration: 8760h # 365d
+  # renew the certificate x time before
+  renewBefore: 360h # 15d
+  # DNS names for the certificate
+  dnsNames:
+  # - "example.com"
+  #  - "*.your.dns.com"
+  # issuer of the certificate
+  issuerName: ncms-ca-issuer
+  # type of this issuer
+  issuerType: ClusterIssuer
+  # maximum time to wait until generate secrets is completed
+  generationTimeout: 10
+
+
+kubectl:
+  image:
+    repo: tools/kubectl
+    tag: v1.14.3-nano

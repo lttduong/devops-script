@@ -1,0 +1,2 @@
+bcmt_registry: wasr21containerregistry.azurecr.io
+helm: helm3

@@ -1,0 +1,18 @@
+[kubernetes_master_nodes]
+kubernetes-master ansible_host=172.17.0.4 ansible_user=azureuser
+
+[kubernetes_worker_nodes]
+kubernetes-worker1 ansible_host=172.17.0.5 ansible_user=azureuser
+
+[restore_dpa_vm]
+dpaforreplicatevm ansible_host=172.17.0.8 ansible_user=DPA_Admin 
+
+[restore_wsha_vm]
+wshaforreplicatevm ansible_host=172.17.0.6 ansible_user=WSHA_Admin ansible_port=22
+
+[restore_wsse_vm]
+wsseforreplicatevm ansible_host=172.17.0.7 ansible_user=WSSE_Admin
+
+[kubernetes:children]
+kubernetes_worker_nodes
+kubernetes_master_nodes

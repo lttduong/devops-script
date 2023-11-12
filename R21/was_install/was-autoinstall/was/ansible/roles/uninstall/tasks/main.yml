@@ -1,0 +1,38 @@
+- name: "Uninstall product"
+  include: uninstall_product.yml
+
+- name: "Delete {{ sshConfigHelmName }} helm chart"
+  shell: "{{ helmPath }} delete --purge {{ sshConfigHelmName }}"
+  become: yes
+
+- name: "Check if {{ ckeyConfigHelmName }} helm chart is installed"
+  shell: "{{ helmPath }} status {{ ckeyConfigHelmName }}"
+  become: yes
+  register: ckeyResult
+  failed_when: ( ckeyResult.rc not in [ 0, 1 ] )
+
+- name: "Delete {{ ckeyConfigHelmName }} helm chart"
+  shell: "{{ helmPath }} delete --purge {{ ckeyConfigHelmName }}"
+  become: yes
+  when: ckeyResult.rc == 0
+
+- name: "Check if {{ helmName }}-psp-bypass helm chart is installed"
+  shell: "{{ helmPath }} status {{ helmName }}-psp-bypass"
+  become: yes
+  register: pspBypassResult
+  failed_when: ( pspBypassResult.rc not in [ 0, 1 ] )
+
+- name: "Delete {{ helmName }}-psp-bypass helm chart"
+  shell: "{{ helmPath }} delete --purge {{ helmName }}-psp-bypass"
+  become: yes
+  when: pspBypassResult.rc == 0
+  
+- name: "Delete {{ namespaceHelmName }} helm chart"
+  shell: "{{ helmPath }} delete --purge {{ namespaceHelmName }}"
+  become: yes
+  when: namespaceInstall == true
+
+- name: "Delete {{ caCertHelmName }}-{{ NAMESPACE }} helm chart"
+  shell: "{{ helmPath }} delete --purge {{ caCertHelmName }}-{{ NAMESPACE }}"
+  become: yes
+  

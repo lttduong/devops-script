@@ -1,0 +1,4 @@
+apiVersion: v1
+description: CMDB configuration
+name: cmdb-configurator-config
+version: 1.0.0

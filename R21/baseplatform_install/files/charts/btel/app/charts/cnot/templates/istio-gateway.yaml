@@ -1,0 +1,56 @@
+{{- if and .Values.istio.gateway .Values.istio.enabled }}
+apiVersion: networking.istio.io/v1alpha3
+kind: Gateway
+metadata:
+  labels:
+    app: {{ template "cnot.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+  name: {{ template "cnot.fullname" . }}-gateway
+spec:
+  selector:
+    istio: ingressgateway # use istio default controller
+  servers:
+  - port:
+      number: 8080
+      name: http-8080
+      protocol: HTTP
+    hosts:
+    - "*"
+  - port:
+      number: 8443
+      name: https-8443
+      protocol: HTTPS
+    tls:
+      mode: PASSTHROUGH
+    hosts:
+    - "*"
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  labels:
+    app: {{ template "cnot.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+  name: {{ template "cnot.fullname" . }}-vs
+spec:
+  hosts:
+  - "*"
+  gateways:
+  - {{ template "cnot.fullname" . }}-gateway
+  http:
+  - route:
+    - destination:
+        host: {{ template "cnot.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local
+        port:
+          number: 8080
+  https:
+  - route:
+    - destination:
+        host: {{ template "cnot.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local
+        port:
+          number: 8443
+{{- end }}

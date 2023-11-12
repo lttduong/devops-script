@@ -1,0 +1,8 @@
+- name: "Installing geo redundancy settings"
+  shell:
+    "{{ helm }} install {{ chartsPath }}/geo-redundancy-settings
+    --name-template {{ geoRedundancySettingsHelmName }}
+    --namespace {{ BP_NAMESPACE }}
+    --set geo_redundancy.enabled={{ GEO_REDUNDANCY.ENABLED }}
+    {{ siteIndexSettings  | default('') }}
+    {{ siteModeSettings  | default('') }}"

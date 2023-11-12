@@ -1,0 +1,13 @@
+---
+- name: "Upgrading BTEL CRMQ config chart"
+  shell: >
+    {{ helm }} upgrade {{ btelCrmqConfiguratorHelmName }} {{ chartsPath }}/btel/crmq-config
+    --namespace {{ BP_CONFIG_NAMESPACE }}
+    --values {{ chartsPath }}/values/upgrade-global-values.yaml
+    --reuse-values
+    {{ btelResourcesOverride }}
+    --set dns.domain={{ svcDnsDomain }}
+    --install
+    --timeout {{ wait_timeout }}s
+    --wait
+  no_log: "{{ no_log }}"

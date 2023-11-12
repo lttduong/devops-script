@@ -1,0 +1,4 @@
+---
+ - import_playbook: cleanup-vm/teardown-master.yml
+ - import_playbook: cleanup-vm/teardown-worker.yml
+ - import_playbook: cleanup-vm/teardown-dpa.yml

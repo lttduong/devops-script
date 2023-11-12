@@ -1,0 +1,12 @@
+apiVersion: v1
+appVersion: 1.13.5
+description: Advanced Helm/Profile Operator with REST API events
+engine: gotpl
+home: https://nok.it/ncms-changelog
+maintainers:
+- email: christophe.lebel@nokia.com
+  name: chris
+name: ncm-app
+sources:
+- https://gitlabe1.ext.net.nokia.com/csf_bcmt/gerrit/CSF-CHARTS/tree/1.0/ncm-app
+version: 1.13.1

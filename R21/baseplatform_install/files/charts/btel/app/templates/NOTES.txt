@@ -1,0 +1,66 @@
+
++---------------------------------------------------------------------------+
+|###########################################################################|
+|##                                                                       ##|
+|##   ###########      ##############    #############    #####           ##|
+|##   ##        ##     ##    ##    ##    ##         ##    ###             ##|
+|##   ##         ##          ##          ##          #    ##              ##|
+|##   ##        ##           ##          ##               ##              ##|
+|##   ###########            ##          ##########       ##              ##|
+|##   ##        ###          ##          ##               ##              ##|
+|##   ##          ##         ##          ##          #    ##          #   ##|
+|##   ##         ##          ##          ##         ##    ##         ##   ##|
+|##   ############          ####         #############    #############   ##|
+|##                                                                       ##|
+|###########################################################################|
++---------------------------------------------------------------------------+
+
+BTEL Chart version Installed : 2.0.0
+
+BTEL Release involves the below components:
+
+ Release Name:                                  Chart Version:
+=============================================================
+{{- if  .Values.tags.btel_cmdb }}
+{{ printf "  %-32s \t\t %s" "cmdb" "7.13.5" }}
+{{- end }}
+
+{{- if  .Values.tags.btel_crmq  }}
+{{ printf "  %-32s \t\t %s" "crmq" "2.4.6" }}
+{{- end }}
+
+{{- if  .Values.tags.btel_cnot  }}
+{{ printf "  %-32s \t\t %s" "cnot" "1.5.15" }}
+{{- end }}
+
+{{- if  .Values.tags.btel_calm  }}
+{{ printf "  %-32s \t\t %s" "calm" "20.9.2" }}
+{{- end }}
+
+{{- if  .Values.tags.btel_cpro  }}
+{{ printf "  %-32s \t\t %s" "cpro" "2.11.0" }}
+{{- end }}
+
+{{- if  .Values.tags.btel_gen3gppxml  }}
+{{ printf "  %-32s \t\t %s" "gen3gppxml" "2.3.0" }}
+{{- end }}
+
+{{- if  .Values.tags.btel_grafana }}
+{{ printf "  %-32s \t\t %s" "grafana" "3.16.1" }}
+{{- end }}
+
+{{- if  .Values.tags.btel_ckaf }}
+{{ printf "  %-32s \t\t %s" "ckaf" "3.0.2" }}
+{{- end }}
+
+{{- if  .Values.tags.btel_ckaf_schema }}
+{{ printf "  %-32s \t\t %s" "ckaf_schema" "6.0.1" }}
+{{- end }}
+
+{{- if  .Values.tags.btel_belk }}
+{{ printf "  %-32s \t\t %s" "belk" "6.3.2" }}
+{{- end }}
+
+{{- if  .Values.tags.btel_citm }}
+{{ printf "  %-32s \t\t %s" "citm" "1.18.7" }}
+{{- end }}

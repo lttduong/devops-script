@@ -1,0 +1,7 @@
+---
+- name: "Creating configuration directories"
+  file:
+    path: "{{ appThisVersionConfigDirectory }}"
+    state: directory
+    recurse: no
+    mode: "0750"

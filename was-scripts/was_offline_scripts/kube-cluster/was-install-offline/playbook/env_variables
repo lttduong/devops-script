@@ -1,0 +1,14 @@
+edge_node: nodemaster-off
+worker_node:
+ nodeworker-off
+ nodemaster-off
+
+dir_master:
+- "/mnt/package"              # store the packages to install 
+- "/mnt/dockerdata"           # change the path of library docker where will be docker images  
+- "/mnt/netguard-data"        # mount point to install NFS server in order to create PV for install WAS
+
+dir_worker:
+- "/mnt/package"
+- "/mnt/docker-data"
+- "/mnt/netguard-data"

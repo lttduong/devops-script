@@ -1,0 +1,152 @@
+image:
+  registry: epsec-docker-releases.repo.lab.pl.alcatel-lucent.com/common
+  pullPolicy: IfNotPresent
+
+certManager:
+  used: true
+  duration: "8760h" # 365d
+  renewBefore: "360h" # 15d
+  keySize: "2048"
+  api: "cert-manager.io/v1alpha2"
+  issuerRef:
+    name: ncms-ca-issuer
+    kind: ClusterIssuer
+
+dns:
+  policy: ClusterFirst
+
+config:
+  ckey:
+    configurator:
+      image:
+        name: ckey-config
+        tag: 21.0.1
+      secretName: ckey-configurator-config
+      masterSecretName: ckey-configurator-config-master
+      configDir: /import/config
+      dataDir: /import/data
+      certificatesDir: /certificates
+      caCertFile: ca.crt
+    master:
+      passwordPolicy: "forceExpiredPasswordChange(360) and passwordHistory(5) and upperCase(1) and lowerCase(1) and digits(1) and specialChars(1) and length(8) and regexPattern(^.{8,150}$)"
+    netguard:
+      passwordPolicy: "forceExpiredPasswordChange(90) and passwordHistory(5) and upperCase(1) and lowerCase(1) and digits(1) and specialChars(1) and length(8) and regexPattern(^.{8,150}$)"
+  cmdb:
+    configurator:
+      image:
+        name: cmdb-config
+        tag: 21.0.1
+      secretName: cmdb-configurator-config
+      configMapName: cmdb-configurator-config-configmap
+      configDir: /import/config
+  crmq:
+    configurator:
+      image:
+        name: crmq-config
+        tag: 21.0.1
+      secretName: crmq-configurator-config
+      configMapName: crmq-configurator-config-configmap
+  btel:
+    configurator:
+      configDir: /import/config
+
+certsConverter:
+  image:
+    name: certs-converter
+    tag: 21.0.2
+
+centos:
+  image:
+    name: centos-micro
+
+geoRedundancyBtel:
+  image:
+    name: geo-redundancy-btel
+
+global:
+  image:
+    registry: epsec-docker-releases.repo.lab.pl.alcatel-lucent.com/common
+    pullPolicy: IfNotPresent
+
+  dns:
+    policy: ClusterFirst
+
+  caCertName: netguard-ca
+
+  config:
+    ckey:
+      configurator:
+        image:
+          name: ckey-config
+          tag: 21.0.1
+        secretName: ckey-configurator-config
+        masterSecretName: ckey-configurator-config-master
+        configDir: /import/config
+        dataDir: /import/data
+        certificatesDir: /certificates
+        caCertFile: ca.crt
+      master:
+        passwordPolicy: "forceExpiredPasswordChange(360) and passwordHistory(5) and upperCase(1) and lowerCase(1) and digits(1) and specialChars(1) and length(8) and regexPattern(^.{8,150}$)"
+      netguard:
+        passwordPolicy: "forceExpiredPasswordChange(90) and passwordHistory(5) and upperCase(1) and lowerCase(1) and digits(1) and specialChars(1) and length(8) and regexPattern(^.{8,150}$)"
+      messageQueuingResourceServer: crmq-resource-server
+      messageQueuingRealmRole: crmq-resource-server-consumer
+    cmdb:
+      configurator:
+        image:
+          name: cmdb-config
+          tag: 21.0.1
+        secretName: cmdb-configurator-config
+        configMapName: cmdb-configurator-config-configmap
+        configDir: /import/config
+      clientCertSecretName: cmdb-client-cert
+    crmq:
+      configurator:
+        image:
+          name: crmq-config
+          tag: 21.0.1
+        secretName: crmq-configurator-config
+        configMapName: crmq-configurator-config-configmap
+    btel:
+      elasticsearchServiceName: elasticsearch
+      elasticsearchClientPort: 9200
+      grafanaRealmRole: BP_GRAFANA
+      kibanaRealmRole: BP_KIBANA
+      crmqUsername: alma_mquser
+      configurator:
+        configDir: /import/config
+      restoreScriptConfigMapName: btel-belk-elasticsearch-restore-script
+      backupScriptConfigmapName: btel-belk-elasticsearch-backup-script
+      restoreScriptFilename: postRestoreCommand.sh
+      backupScriptFilename: preBackupCommand.sh
+    common:
+      sysAdminRealmRole: BP_SYSTEM_ADMIN
+
+  certsConverter:
+    image:
+      name: certs-converter
+      tag: 21.0.2
+
+  pause:
+    image:
+      name: gcr.io/google-containers/pause-amd64
+      tag: 3.1
+      pullPolicy: IfNotPresent
+    resources:
+      requests:
+        memory: 32Mi
+        cpu: 10m
+      limits:
+        memory: 32Mi
+        cpu: 10m
+
+  certManager:
+    used: true
+    duration: "8760h" # 365d
+    renewBefore: "360h" # 15d
+    keySize: "2048"
+    api: "cert-manager.io/v1alpha2"
+    issuerRef:
+      name: ncms-ca-issuer
+      kind: ClusterIssuer
+

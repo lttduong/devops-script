@@ -1,0 +1,21 @@
+{{- if .Values.mariadb.metrics.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "cmdb.fullname" . }}-mariadb-metrics
+  labels:
+    {{- include "cmdb-mariadb.labels" . | indent 4 }}
+  annotations:
+{{ toYaml .Values.mariadb.metrics.annotations | indent 4 }}
+    "prometheus.io/port": {{ .Values.services.mysql.exporter_port | quote }}
+spec:
+  type: ClusterIP
+  ports:
+  - name: tcp-mdb-metrics
+    port: {{ .Values.services.mysql.exporter_port }}
+    targetPort: tcp-mdb-metrics
+  selector:
+    {{- include "cmdb-mariadb.labels" . | indent 4 }}
+    type: mariadb
+{{- end }}

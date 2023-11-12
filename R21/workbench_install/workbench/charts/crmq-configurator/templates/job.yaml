@@ -1,0 +1,111 @@
+{{- range $name, $entry := .Values.jobs }}
+{{- if .enabled }}
+{{ with $ }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Values.global.releaseNamePrefix }}{{ .Release.Name}}-{{ .Chart.Name }}-{{ $name | lower }}-job
+  namespace: "{{ .Values.global.BP_CONFIG_NAMESPACE }}"
+  annotations:
+    "helm.sh/hook": {{ tpl ($entry.jobHook | default .Values.global.helmHooks.crmqconfig.hook) . | quote }}
+    "helm.sh/hook-weight": {{ tpl ($entry.jobHookWeight | default .Values.global.helmHooks.crmqconfig.weight) . | quote }}
+    "helm.sh/hook-delete-policy": "before-hook-creation"
+spec:
+  template:
+    metadata:
+      labels:
+        name: {{ .Chart.Name }}
+    spec:
+      securityContext:
+        runAsUser: 10000
+        fsGroup: 10000
+{{- if .Values.global.jobNodeAffinityRuleTemplate }}
+{{ tpl .Values.global.jobNodeAffinityRuleTemplate . | indent 6 }}
+{{- end }}
+      restartPolicy: Never
+      containers:
+      - name: {{ .Chart.Name }}-{{ $name | lower }}
+        image: {{ .Values.global.registry }}/{{ .Values.config.image.repository }}:{{ tpl .Values.config.image.tag . }}
+        terminationMessagePolicy: FallbackToLogsOnError
+        command: ["/bin/sh", "-c"]
+        args: [ "crmq-config" ]
+        volumeMounts:
+          - name: admin-config
+            mountPath: /tmp/admin-config
+          - name: admin-commands
+            mountPath: /tmp/admin-commands
+          - name: control-commands
+            mountPath: /tmp/control-commands
+          - name: {{ .Values.global.releaseNamePrefix }}{{ .Values.certificatesSecretName }}
+            mountPath: /certificates/management
+        env:
+          - name: LC_ALL
+            value: en_US.UTF-8
+          - name: RABBITMQ_USE_LONGNAME
+            value: "true"
+          - name: RABBITMQ_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.config.secretName }}
+                key: rabbitmq-admin-password
+          - name: RABBITMQ_USER
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.config.secretName }}
+                key: rabbitmq-admin-user
+          - name: RABBITMQ_HOST
+            valueFrom:
+              configMapKeyRef:
+                name: {{ .Values.config.configMapName }}
+                key: rabbitmq-host
+          - name: RABBITMQ_PORT
+            valueFrom:
+              configMapKeyRef:
+                name: {{ .Values.config.configMapName }}
+                key: rabbitmq-port
+          - name: RABBITMQ_ERL_COOKIE
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.config.secretName }}
+                key: rabbitmq-erlang-cookie
+          - name: RABBITMQ_ERLANG_COOKIE
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.config.secretName }}
+                key: rabbitmq-erlang-cookie
+          - name: RABBITMQ_NODE
+            valueFrom:
+              configMapKeyRef:
+                name: {{ .Values.config.configMapName }}
+                key: rabbitmq-node
+          - name: SSL_CERT
+            value: /certificates/management/ca.crt
+      volumes:
+        - name: admin-config
+        {{- if $entry.adminConfig }}
+          secret:
+            secretName: {{ tpl $entry.adminConfig.secretName . }}
+        {{- else }}
+          emptyDir: {}
+        {{- end }}
+        - name: admin-commands
+        {{- if $entry.adminCommands}}
+          secret:
+            secretName: {{ tpl $entry.adminCommands.secretName . }}
+        {{- else }}
+          emptyDir: {}
+        {{- end }}
+        - name: control-commands
+        {{- if $entry.controlCommands }}
+          secret:
+            secretName: {{ tpl $entry.controlCommands.secretName . }}
+        {{- else }}
+          emptyDir: {}
+        {{- end }}
+        - name: {{ .Values.global.releaseNamePrefix }}{{ .Values.certificatesSecretName }}
+          secret:
+            secretName: {{ .Values.global.releaseNamePrefix }}{{ .Values.certificatesSecretName }}
+{{- end }}
+{{- end }}
+{{- end }}

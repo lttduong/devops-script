@@ -1,0 +1,74 @@
+{{- if .Values.egress.ipv4.enabled }}
+{{- if or (eq .Values.egress.mode "controlworker") (eq .Values.egress.mode "workeronly") }}
+---
+apiVersion: ncm.nokia.com/v1alpha1
+kind: EgressGateway
+metadata:
+  name: worker-egressgateway-ipv4
+  labels:
+{{ toYaml .Values.egress.labels | indent 4 }}
+spec:
+  nodeSelector:
+    is_worker: "true"
+  nodeEgressGatewayTemplate:
+    addressFamily: IPv4
+    interface: {{ .Values.egress.ipv4.worker.bfdPeerInterface }}
+    nextHopGroup: nexthopgroup-ipv4
+    nextHop:
+{{- end }}
+{{- if or (eq .Values.egress.mode "controlworker") (eq .Values.egress.mode "controlonly") }}
+---
+apiVersion: ncm.nokia.com/v1alpha1
+kind: EgressGateway
+metadata:
+  name: control-egressgateway-ipv4
+  labels:
+{{ toYaml .Values.egress.labels | indent 4 }}
+spec:
+  nodeSelector:
+    is_control: "true"
+  nodeEgressGatewayTemplate:
+    addressFamily: IPv4
+    interface: {{ .Values.egress.ipv4.control.bfdPeerInterface }}
+    nextHopGroup: nexthopgroup-ipv4
+    nextHop:
+{{- end }}
+{{- end }}
+
+{{- if .Values.egress.ipv6.enabled }}
+{{- if or (eq .Values.egress.mode "controlworker") (eq .Values.egress.mode "workeronly") }}
+---
+apiVersion: ncm.nokia.com/v1alpha1
+kind: EgressGateway
+metadata:
+  name: worker-egressgateway-ipv6
+  labels:
+{{ toYaml .Values.egress.labels | indent 4 }}
+spec:
+  nodeSelector:
+    is_worker: "true"
+  nodeEgressGatewayTemplate:
+    addressFamily: IPv6
+    interface: {{ .Values.egress.ipv6.worker.bfdPeerInterface }}
+    nextHopGroup: nexthopgroup-ipv6
+    nextHop:
+{{- end }}
+{{- if or (eq .Values.egress.mode "controlworker") (eq .Values.egress.mode "controlonly") }}
+---
+apiVersion: ncm.nokia.com/v1alpha1
+kind: EgressGateway
+metadata:
+  name: control-egressgateway-ipv6
+  labels:
+{{ toYaml .Values.egress.labels | indent 4 }}
+spec:
+  nodeSelector:
+    is_control: "true"
+  nodeEgressGatewayTemplate:
+    addressFamily: IPv6
+    interface: {{ .Values.egress.ipv6.control.bfdPeerInterface }}
+    nextHopGroup: nexthopgroup-ipv6
+    nextHop:
+{{- end }}
+{{- end }}
+ 

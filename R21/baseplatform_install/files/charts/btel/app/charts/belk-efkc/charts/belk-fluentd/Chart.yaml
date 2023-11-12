@@ -1,0 +1,12 @@
+apiVersion: v1
+appVersion: 1.11.1
+description: A Fluentd  Helm chart for Kubernetes
+keywords:
+- fluentd
+- data
+- log
+maintainers:
+- email: CSF-BELK@groups.nokia.com
+  name: BELK Team
+name: belk-fluentd
+version: 4.7.2

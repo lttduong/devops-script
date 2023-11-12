@@ -1,0 +1,13 @@
+{
+  "alert": "ElasticSearchClusterIsInYellowState",
+  "expr": "es_cluster_status == 1",
+  "for": "10m",
+  "labels": {
+    "alert_id": "6006",
+    "alert_severity": "WARNING"
+  },
+  "annotations": {
+    "description": "Alarm - `The Elasticsearch cluster {{ $labels.namespace }}.{{ $labels.cluster }} is in yellow state. Please check!`",
+    "summary": "Instance - {{ $labels.instance }}"
+  }
+}

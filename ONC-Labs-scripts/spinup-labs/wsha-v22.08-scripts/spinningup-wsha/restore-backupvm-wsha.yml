@@ -1,0 +1,179 @@
+---
+- name: Recovery WSHA VM
+  hosts: localhost
+  connection: local
+  collections:
+   - azure.collection
+
+  vars_files:
+    - ha_env_variables 
+
+  tasks:
+  - name: Restore the disk from your recovery point 
+    shell: sudo az backup restore restore-disks --resource-group "{{ resourceGroup }}" --vault-name "{{ vaultName }}" --container-name "{{ wshaContainerName }}" --item-name "{{ wshaContainerName }}" --storage-account "{{ wshaStorageName }}" --rp-name "{{ wshaRecoveryPoint }}" --target-resource-group "{{ newRG }}" --query name
+    register: backupjob
+
+  - name: Pause for 3 minutes for restore disk
+    pause:
+      minutes: 3
+
+  - name: Mornitoring the restore job 
+    shell: sudo az backup job list --resource-group "{{ resourceGroup }}" --vault-name "{{ vaultName }}" --output table
+    register: restorejob
+  
+  - name: Job name of Backup
+    debug: 
+      msg: "{{ restorejob.stdout}}"
+  
+  - name: Fetch the job details
+    shell: sudo az backup job show -v "{{ vaultName }}" -g "{{ resourceGroup }}" -n "{{ backupjob.stdout }}" --query 'properties.extendedInfo.propertyBag'| grep Template | awk -F '["]' '{print $4}'
+    register: link
+
+  - name: get link
+    debug:
+      msg: "{{ link.stdout }}"
+  
+  - name: Take template name
+    shell: echo "{{ link.stdout }}" | awk -F '[/]' '{print $4; exit}'
+    register: template
+
+  - name: get link
+    debug:
+      msg: "{{ template.stdout }}"
+
+  - name: Take container name
+    shell: echo "{{ link.stdout }}" | awk -F '[/]' '{print $5; exit}'
+    register: cname
+  
+  - name: get link
+    debug:
+      msg: "{{ cname.stdout }}"
+
+  - name: Create Expiretime var
+    shell: date -u -d '30 minutes' +%Y-%m-%dT%H:%MZ
+    register: expiretime
+
+  - name: get expiretime
+    debug:
+      msg: "{{ expiretime.stdout }}"
+
+  - name: Create Connection var
+    command: sudo az storage account show-connection-string --resource-group "{{ resourceGroup }}" --name "{{ wshaStorageName }}" --query connectionString
+    register: connection
+  
+  - name: get connection
+    debug:
+      msg: "{{ connection.stdout }}"
+  
+  - name: Create token for deploy vm 
+    shell: sudo az storage blob generate-sas --container-name {{ template.stdout }} --name {{ cname.stdout }} --expiry {{ expiretime.stdout}} --permissions r --output tsv --connection-string {{ connection.stdout }}
+    register: token
+  
+  - name: get token
+    debug:
+      msg: "{{ token.stdout }}"
+
+  - name: Create Url var for 
+    shell: sudo az storage blob url --container-name {{ template.stdout }} --name {{ cname.stdout }} --output tsv --connection-string {{ connection.stdout }}
+    register: url
+  
+  - name: get url
+    debug:
+      msg: "{{ url.stdout }}"
+
+  - name: Deploy the template to create the VM
+    shell: sudo az deployment group create --resource-group "{{ newRG }}" --template-uri "{{ url.stdout }}?{{ token.stdout }}" --parameters VirtualMachineName="{{ wshaName }}"
+  
+  - name: Add Qualys extension for security Linux
+    shell: sudo az vm extension set -n LinuxAgent.AzureSecurityCenter --publisher Qualys --vm-name "{{ wshaName }}" --resource-group "{{ newRG }}"
+    ignore_errors: yes
+  
+  - name: Add Security extension for security Linux
+    shell: sudo az vm extension set -n LinuxAgent.AzureSecurityCenter --publisher Microsoft.OSTCExtensions --version 1.4 --vm-name "{{ wshaName }}" --resource-group "{{ newRG }}"
+    ignore_errors: yes
+
+  # - name: Enable backup for vm
+  #   shell: sudo az backup protection enable-for-vm --resource-group "{{ resourceGroup }}" --vault-name "{{ wshaVaultName }}" --vm $(az vm show -g "{{ newRG }}" -n "{{ wshaName }}" --query id | tr -d '"') --policy-name "{{ wshaPolicyVault }}"
+  #   ignore_errors: yes
+
+  - name: Get NIC name
+    shell: sudo az vm nic list --vm-name "{{ wshaName }}" -g "{{ newRG }}" --query [0].id | awk -F '[/]' '{print $9}' | sed 's/"//'
+    register: nic
+
+  - name: Get public ip name
+    shell: sudo az vm list-ip-addresses -g "{{ newRG }}" -n "{{ wshaName }}" --query [0].virtualMachine.network.publicIpAddresses[0].name | sed 's/"//g'
+    register: wshaOldIp
+
+  - name: Show public ip name
+    set_fact:
+      wsha_ip_address: "{{ wshaOldIp.stdout }}"
+
+  - name: Get name ip configuration of NIC
+    shell: sudo az network nic ip-config list -g "{{ newRG }}" --nic-name "{{ nic.stdout }}" --query [0].name
+    register: ipconf
+
+  - name: Static private ip address for master vm
+    shell: sudo az network nic ip-config update --name "{{ ipconf.stdout }}" --resource-group "{{ newRG }}" --nic-name "{{ nic.stdout }}" --private-ip-address "{{ wsha_private_ip_address }}"
+
+  # - name: Creating new public ip
+  #   shell: az network public-ip create --resource-group "{{ newRG }}" --name "{{ wshaName }}" --version IPv4 -l "{{ location }}" --allocation-method Static
+
+  - name: Updating public IP for VM
+    shell: sudo az network nic ip-config update --name "{{ ipconf.stdout }}" --nic-name {{ nic.stdout }} --public-ip-address "{{ wsha_public_ip_address  }}" --resource-group "{{ newRG }}"
+
+  - name: Remove the old Public IP
+    shell: az network public-ip delete -g "{{ newRG }}" -n "{{ wsha_ip_address }}"
+    ignore_errors: yes
+
+  - name: Get public new restore vm
+    shell: sudo az vm show -g "{{ newRG }}" -n "{{ wshaName }}"  --query publicIps -d --out tsv
+    register: publicip
+
+  - name: Replace public ip of wsha hosts
+    shell: sudo sed -i "s/172.17.0.6/"{{ publicip.stdout }}"/g" ../hosts
+
+  - name: Replace public ip for hosts
+    shell: sudo sed -i "s/ansible_port=22/ansible_port=5522/g" ../hosts
+  
+  - name: Refresh inventory to ensure new instances exist in inventory
+    meta: refresh_inventory
+
+  - name: Pause 2 minutes for sync hosts file
+    pause:
+     minutes: 2
+
+  - name: Get the ovpn path where store the ovpn files of component
+    shell: echo {{vpnProfile}} | rev |cut -c6- | rev
+    register: ovpnPath
+
+  - name: Set fact the ovpnPath
+    set_fact: 
+      ovpnPath : "{{ ovpnPath.stdout }}" 
+
+  - name: Create a directory if it does not exist
+    file:
+      path: "{{rootProfile}}{{ovpnPath}}/credentials"
+      state: directory
+      mode: '0755'
+
+  - name: Find all files in build 
+    find:
+      path: "{{rootProfile}}{{vpnProfile}}"
+      file_type: file
+      use_regex: false
+      patterns:
+        - '*.ovpn'
+    register: result
+    delegate_to: localhost
+    become: true
+
+  - name: Check all files
+    debug:
+      msg: "{{ result.files|map(attribute='path')|list }}"
+
+  - name: Copy all file to credentials directory
+    copy:
+      src: "{{ item }}"
+      dest: "{{rootProfile}}{{ovpnPath}}/credentials"
+    loop: "{{ result.files|map(attribute='path')|list }}"
+    become: true

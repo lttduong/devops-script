@@ -1,0 +1,37 @@
+# temporary solution - replicaCount for lab profile should be 2 - addressed by CSFS-13803
+replicaCount: 1
+
+resources:
+  requests:
+    memory: 1500Mi
+    cpu: 150m
+  limits:
+    memory: 1500Mi
+    cpu: 2
+
+db_configurator:
+  resources:
+    requests:
+      cpu: "10m"
+      memory: "50Mi"
+    limits:
+      cpu: "200m"
+      memory: "300Mi"
+
+crmq_configurator:
+  resources:
+    requests:
+      cpu: "10m"
+      memory: "50Mi"
+    limits:
+      cpu: "200m"
+      memory: "300Mi"
+
+ckey_configurator:
+  resources:
+    requests:
+      cpu: "10m"
+      memory: "50Mi"
+    limits:
+      cpu: "200m"
+      memory: "300Mi"

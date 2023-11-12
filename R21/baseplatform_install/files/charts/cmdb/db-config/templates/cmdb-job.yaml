@@ -1,0 +1,77 @@
+{{ if .Values.cmdbConfiguratorEnabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Chart.Name }}
+  annotations:
+    "helm.sh/hook": post-install
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": hook-succeeded
+spec:
+  template:
+    metadata:
+      labels:
+        name: {{ .Chart.Name }}
+    spec:
+      dnsPolicy: {{ .Values.dns.policy }}
+      securityContext:
+      ## Start of custom modification of original chart
+        runAsUser: 1773
+        runAsGroup: 1773
+        fsGroup: 1773
+      ## End of custom modification of original chart
+      restartPolicy: Never
+      containers:
+      - name: {{ .Chart.Name }}
+        image: {{ .Values.image.registry }}/{{ .Values.config.cmdb.configurator.image.name }}:{{ .Values.config.cmdb.configurator.image.tag }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        resources:
+{{ toYaml .Values.db_configurator.resources | indent 10 }}
+        args: [ "mysql" ]
+        env:
+        - name: MYSQL_USER
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.config.cmdb.configurator.secretName }}
+              key: mariadb-user
+        - name: MYSQL_PWD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.config.cmdb.configurator.secretName }}
+              key: mariadb-password
+        - name: MYSQL_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: {{ .Values.config.cmdb.configurator.configMapName }}
+              key: mariadb-host
+        - name: MYSQL_TCP_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: {{ .Values.config.cmdb.configurator.configMapName }}
+              key: mariadb-port
+        - name: MYSQL_SQL_FILE
+          value: "{{ .Values.config.cmdb.configurator.configDir }}/config.sql"
+        - name: USE_CLEARTEXT
+          value: "0"
+        - name: MYSQL_SSL_CA_FILE_PATH
+          value: "/etc/my.cnf.d/ssl/ca.crt"
+        volumeMounts:
+        - name: {{ .Chart.Name }}-config-file
+          mountPath: {{ .Values.config.cmdb.configurator.configDir }}
+        - name: {{ .Values.global.caCertName }}
+        ## Start of custom modification of original chart
+        ## CAUTION! don't use subPath because we want to receive SSL secret updates
+          readOnly: true
+          mountPath: "/etc/my.cnf.d/ssl"
+        ## End of custom modification of original chart
+      volumes:
+        - name: {{ .Chart.Name }}-config-file
+          secret:
+            secretName: {{ .Chart.Name }}-config-file
+        - name: {{ .Values.global.caCertName }}
+          secret:
+            secretName: {{ .Values.global.caCertName }}
+            items:
+            - key: ca.crt
+              path: ca.crt
+{{ end }}

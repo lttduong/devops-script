@@ -1,0 +1,26 @@
+{{- if .Values.rbac.enabled }}
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  labels:
+    app: {{ template "grafana.name" . }}
+    chart: {{ template "grafana.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+    {{- if .Values.global.labels }}
+{{ toYaml .Values.global.labels | indent 4}}
+    {{- end }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    {{- if .Values.global.annotations }}
+{{ toYaml .Values.global.annotations | indent 4}}
+    {{- end }}
+    "helm.sh/hook": post-delete
+    "helm.sh/hook-weight": "-6"
+    "helm.sh/hook-delete-policy": hook-succeeded, hook-failed
+  name: "{{ template "grafana.fullname" . }}-post-del"
+rules:
+- apiGroups: [""] # "" indicates the core API group
+  resources: ["secrets"]
+  verbs: ["get", "watch", "list", "delete"]
+{{- end}}

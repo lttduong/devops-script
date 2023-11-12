@@ -1,0 +1,10 @@
+- hosts: kubernetes_master_nodes
+  become: yes
+  vars_files:
+  - env_variables
+  tasks: 
+   - name: run yml file
+     shell: kubectl apply -f ./rbac.yaml -f ./namespace.yaml
+     args:
+        chdir: /opt/var/yum-packages/k8s/
+

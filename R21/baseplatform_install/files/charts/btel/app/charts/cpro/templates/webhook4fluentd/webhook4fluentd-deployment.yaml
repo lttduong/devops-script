@@ -1,0 +1,114 @@
+{{- if .Values.webhook4fluentd.enabled -}}
+apiVersion: {{ template "prometheus.apiVersionExtensionsV1Beta1orV1" . }}
+kind: Deployment
+metadata:
+  labels:
+    app: {{ template "prometheus.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    component: "{{ .Values.webhook4fluentd.name }}"
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+{{- include "prometheus-labels" (tuple .Values.global.labels) | indent 4}}
+  name: {{ template "prometheus.webhook4fluentd.deploymentName" . }}
+{{- if .Values.global.annotations }}
+  annotations:
+{{- include "prometheus-annotations" (tuple .Values.global.annotations) | indent 4}}
+{{- end }}
+spec:
+  replicas: {{ .Values.webhook4fluentd.replicaCount }}
+  {{- if semverCompare ">=1.16.0-0" .Capabilities.KubeVersion.GitVersion }}
+  selector:
+   matchLabels:
+    app: {{ template "prometheus.name" . }}
+    component: "{{ .Values.webhook4fluentd.name }}"
+    release: {{ .Release.Name }}
+  {{- end }}
+  template:
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "{{ .Values.istio.enable }}"
+      {{- if .Values.webhook4fluentd.podAnnotations }}
+{{ toYaml .Values.webhook4fluentd.podAnnotations | indent 8 }}
+      {{- end }}
+{{- include "custom-annotations" (tuple .Values.custom.pod.annotations) | indent 8}}
+{{- if .Values.rbac.pspUseAppArmor }}
+{{- include "custom-annotations" (tuple .Values.custom.pod.apparmorAnnotations) | indent 8}}
+{{- end }}
+      labels:
+        app: {{ template "prometheus.name" . }}
+        component: "{{ .Values.webhook4fluentd.name }}"
+        release: {{ .Release.Name }}
+        {{- include "custom-labels" (tuple .Values.custom.pod.labels) | indent 8}}
+    spec:
+      serviceAccountName: {{ template "prometheus.serviceAccountName" . }}
+      {{- if or .Values.webhook4fluentd.securityContext .Values.seLinuxOptions.enabled }}
+      securityContext:
+{{- if .Values.webhook4fluentd.securityContext }}
+{{ toYaml .Values.webhook4fluentd.securityContext | indent 8 }}
+{{- end }}
+{{- if .Values.seLinuxOptions.enabled }}
+        seLinuxOptions:
+          level: {{ .Values.seLinuxOptions.level }}
+          role: {{ .Values.seLinuxOptions.role }}
+          type: {{ .Values.seLinuxOptions.type }}
+          user: {{ .Values.seLinuxOptions.user }}
+{{- end }}
+      {{- end }}
+      containers:
+        - name: {{ template "prometheus.webhook4fluentd.ContainerName" . }}
+          image: "{{ .Values.global.registry1 }}/{{ .Values.webhook4fluentd.image.imageRepo }}:{{ .Values.webhook4fluentd.image.imageTag }}"
+          imagePullPolicy: "{{ .Values.webhook4fluentd.image.imagePullPolicy }}"
+          args: [ "8004" ]
+          ports:
+            - name: tcp-8004
+              containerPort: 8004
+          resources:
+{{ toYaml .Values.webhook4fluentd.resources | indent 12 }}
+    {{- if .Values.webhook4fluentd.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.webhook4fluentd.nodeSelector | indent 8 }}
+    {{- end }}
+    {{- if .Values.webhook4fluentd.tolerations }}
+      tolerations:
+{{ toYaml .Values.webhook4fluentd.tolerations | indent 8 }}
+    {{- end }}
+      affinity:
+        podAntiAffinity:
+{{- if eq .Values.webhook4fluentd.antiAffinityMode "hard" }}
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - {{  template "prometheus.name" . }}
+              - key: component
+                operator: In
+                values:
+                - {{  .Values.webhook4fluentd.name }}
+              - key: release
+                operator: In
+                values:
+                - {{ .Release.Name }}
+            topologyKey: "kubernetes.io/hostname"
+{{- else }}
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - {{  template "prometheus.name" . }}
+                - key: component
+                  operator: In
+                  values:
+                  - {{  .Values.webhook4fluentd.name }}
+                - key: release
+                  operator: In
+                  values:
+                  - {{ .Release.Name }}
+              topologyKey: "kubernetes.io/hostname"
+{{- end }}
+{{- end }}

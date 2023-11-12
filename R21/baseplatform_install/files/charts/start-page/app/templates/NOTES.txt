@@ -1,0 +1,2 @@
+The citm nginx server has been installed.
+

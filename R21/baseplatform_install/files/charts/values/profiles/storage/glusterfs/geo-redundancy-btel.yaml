@@ -1,0 +1,3 @@
+geoRedundancyBtel:
+  persistence:
+    storageClass: glusterfs-storageclass

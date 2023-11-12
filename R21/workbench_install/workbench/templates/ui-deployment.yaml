@@ -1,0 +1,48 @@
+apiVersion: apps/v1 
+kind: Deployment
+metadata:
+  name: {{ .Values.global.releaseNamePrefix }}{{ template "name" . }}-ui
+spec:
+  replicas: {{ .Values.ui.replicaCount }}
+  template:
+    metadata:
+      labels:
+        app: {{ template "name" . }}
+        chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+        release: "{{ .Release.Name }}"
+        heritage: "{{ .Release.Service }}"
+    spec:
+      securityContext:
+        runAsUser: 1000
+        fsGroup: 1000
+{{- if .Values.global.jobNodeAffinityRuleTemplate }}
+{{ tpl .Values.global.jobNodeAffinityRuleTemplate . | indent 6 }}
+{{- end }}
+      containers:
+      - name: {{ template "name" . }}-ui
+        image: "{{ .Values.global.registry }}/{{ .Values.ui.image }}:{{ tpl .Values.ui.imageTag . }}"
+        imagePullPolicy: "{{ .Values.ui.imagePullPolicy }}"
+        terminationMessagePolicy: FallbackToLogsOnError
+        {{- if .Values.ui.resources }}
+        resources:
+          requests:
+            memory: {{ .Values.ui.resources.requests.memory | quote }}
+            cpu: {{ .Values.ui.resources.requests.cpu | quote }}
+          limits:
+            memory: {{ .Values.ui.resources.limits.memory | quote }}
+            cpu: {{ .Values.ui.resources.limits.cpu | quote }}
+        {{- end }}
+        env:
+          - name: "NGINX_HOST"
+            value: {{ .Values.ui.NGINX_HOST | default "localhost" | quote }}
+          - name: "NGINX_PORT"
+            value: {{ .Values.ui.NGINX_PORT | default "80" | quote }}
+          - name: "VIRTUAL_HOST"
+            value: {{ .Values.ui.VIRTUAL_HOST | default "localhost" | quote }}
+          - name: "VIRTUAL_PORT"
+            value: {{ .Values.ui.VIRTUAL_PORT | default "80" | quote }}
+          - name: "VIRTUAL_PROTO"
+            value: {{ .Values.ui.VIRTUAL_PROTO | default "http" | quote }}
+  selector:
+    matchLabels:
+      app: {{ template "name" . }}

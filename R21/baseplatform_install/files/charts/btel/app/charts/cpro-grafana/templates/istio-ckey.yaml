@@ -1,0 +1,49 @@
+{{- if (and (.Values.istio.enable)  (.Values.istio.createKeycloakServiceEntry.enabled)) }}
+apiVersion: {{ template "grafana.apiVersionNetworkIstioV1Alpha3orV1Beta1" . }}
+kind: ServiceEntry
+metadata:
+  name: {{ template "grafana.fullname" . }}-ckey-se
+  namespace: {{ .Release.Namespace }}
+spec:
+  location: {{ .Values.istio.createKeycloakServiceEntry.location }}
+  hosts:
+  - {{ .Values.istio.createKeycloakServiceEntry.extCkeyHostname }}
+  ports:
+  - number: {{ .Values.istio.createKeycloakServiceEntry.extCkeyPort }}
+    name: http-extCkey
+    protocol: {{ .Values.istio.createKeycloakServiceEntry.extCkeyProtocol }}
+  resolution: DNS
+---
+{{- if eq .Values.istio.createKeycloakServiceEntry.location "MESH_INTERNAL" }}
+apiVersion: {{ template "grafana.apiVersionNetworkIstioV1Alpha3orV1Beta1" . }}
+kind: VirtualService
+metadata:
+  name: {{ template "grafana.fullname" . }}-ckey-vs
+  namespace: {{ .Release.Namespace }}
+spec:
+  hosts:
+  - {{ .Values.istio.createKeycloakServiceEntry.extCkeyHostname }}
+  {{- if eq .Values.istio.createKeycloakServiceEntry.extCkeyProtocol "HTTP" }}
+  http:
+  - match:
+    - port: {{ .Values.istio.createKeycloakServiceEntry.extCkeyPort }}
+    route:
+    - destination:
+        host: {{ .Values.istio.createKeycloakServiceEntry.ckeyK8sSvcName }}
+        port:
+          number: {{ .Values.istio.createKeycloakServiceEntry.ckeyK8sSvcPort }}
+  {{- else }}
+  tls:
+  - match:
+    - port: {{ .Values.istio.createKeycloakServiceEntry.extCkeyPort }}
+      sni_hosts:
+      - {{ .Values.istio.createKeycloakServiceEntry.extCkeyHostname }}
+    route:
+    - destination:
+        host: {{ .Values.istio.createKeycloakServiceEntry.ckeyK8sSvcName }}
+        port:
+          number: {{ .Values.istio.createKeycloakServiceEntry.ckeyK8sSvcPort }}
+  {{- end }}
+{{- end }}
+{{- end }}
+

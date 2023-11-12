@@ -1,0 +1,23 @@
+## Start of custom chart file
+{{- if .Values.mariadb.persistence.createPv }}
+{{- range $index, $replica := until (int .Values.mariadb.count) }}
+---
+kind: PersistentVolume
+apiVersion: v1
+metadata:
+  name: {{ $.Chart.Name }}-pv-{{ $index }}
+  labels:
+    type: local
+{{ $.Values.mariadb.persistence.labels | indent 4 }}
+spec:
+  storageClassName: {{ $.Values.mariadb.persistence.storageClass }}
+  capacity:
+    storage: {{ quote $.Values.mariadb.persistence.size }}
+  accessModes:
+    - {{ quote $.Values.mariadb.persistence.accessMode }}
+  hostPath:
+    path: {{ $.Values.volumes.path.mariadbData }}
+  persistentVolumeReclaimPolicy: {{ default "Delete" $.Values.mariadb.persistence.resourcePolicyPv }}
+{{- end }}
+{{- end }}
+## End of custom chart file

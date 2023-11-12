@@ -1,0 +1,15 @@
+{{- if and .Values.fluentd.enable_root_privilege ( .Values.global.rbac.enabled ) ( eq .Values.global.serviceAccountName "") (eq .Values.fluentd.serviceAccountName "" ) }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ template "fluentd.fullname" . }}-clusterrolebinding
+  namespace: {{ .Release.Namespace }}
+subjects:
+- kind: ServiceAccount
+  name: {{ template "fluentd.fullname" .  }}-serviceaccount
+  namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: ClusterRole
+  name: cluster-admin  
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}

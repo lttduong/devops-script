@@ -1,0 +1,35 @@
+belk:
+  persistence:
+    storageClassName: gp2
+  belk-elasticsearch:
+    elasticsearch_master:
+      persistence:
+        createPv: false
+    esdata:
+      persistence:
+        createPv: false
+
+calm:
+  persistence:
+    createPv: false
+    storageClass: gp2
+
+cpro:
+  alertmanager:
+    persistence:
+      createPv: false
+      storageClass: gp2
+  server:
+    persistence:
+      createPv: false
+      storageClass: gp2
+
+grafana:
+  persistence:
+    createPv: false
+    storageClass: gp2
+
+gen3gppxml:
+  persistence:
+    createPv: false
+    storageClass: gp2

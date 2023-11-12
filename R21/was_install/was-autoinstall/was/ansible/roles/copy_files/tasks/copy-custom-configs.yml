@@ -1,0 +1,14 @@
+---
+- name: "Check if {{ src }} exists"
+  stat:
+    path: "{{ src }}"
+  register: src_file_stat
+
+- fail: "Path not found: {{ src }}"
+  when:  src_file_stat.stat.exists == False
+
+- name: "Coping files {{ src }} to {{ dest }}"
+  copy:
+   src: "{{ src }}"
+   dest: "{{ dest }}"
+

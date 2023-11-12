@@ -1,0 +1,98 @@
+{{- if and .Values.istio.enable .Values.alertmanager.enabled}}
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+{{- if .Values.global.labels }}
+  labels:
+{{- include "prometheus-labels" (tuple .Values.global.labels) | indent 4}}
+{{- end }}
+  name: {{ template "prometheus.alertmanager.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+{{- if .Values.global.annotations }}
+  annotations:
+{{- include "prometheus-annotations" (tuple .Values.global.annotations) | indent 4}}
+{{- end }}
+spec:
+{{- if .Values.ha.enabled }}
+  # Start of custom modification of original chart for CSFS-31473
+  host: "{{ template "prometheus.alertmanager.fullname" . }}-ext.{{ .Release.Namespace }}.{{ .Values.dns.domain }}"
+{{- else }}
+  host: "{{ template "prometheus.alertmanager.fullname" . }}.{{ .Release.Namespace }}.{{ .Values.dns.domain }}"
+  ## End of custom modification of original chart
+{{- end }}
+  trafficPolicy:
+{{- if .Values.istio.mtls_enable }}
+    tls:
+      mode: ISTIO_MUTUAL
+{{- else }}
+    tls:
+      mode: DISABLE
+{{- end }}
+{{- if .Values.ha.enabled }}
+    loadBalancer:
+      consistentHash:
+        useSourceIp: true
+{{- end }}
+{{- end }}
+
+---
+
+{{- if and .Values.istio.enable .Values.alertmanager.enabled}}
+{{- if .Values.ha.enabled }}
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+{{- if .Values.global.labels }}
+  labels:
+{{- include "prometheus-labels" (tuple .Values.global.labels) | indent 4}}
+{{- end }}
+  name: {{ template "prometheus.alertmanager.fullname" . }}-int
+  namespace: {{ .Release.Namespace }}
+{{- if .Values.global.annotations }}
+  annotations:
+{{- include "prometheus-annotations" (tuple .Values.global.annotations) | indent 4}}
+{{- end }}
+spec:
+  # Start of custom modification of original chart for CSFS-31473
+  host: "{{ template "prometheus.alertmanager.fullname" . }}-int.{{ .Release.Namespace }}.{{ .Values.dns.domain }}"
+  ## End of custom modification of original chart
+  trafficPolicy:
+{{- if .Values.istio.mtls_enable }}
+    tls:
+      mode: ISTIO_MUTUAL
+{{- else }}
+    tls:
+      mode: DISABLE
+{{- end }}
+{{- end }}
+{{- end }}
+
+---
+
+{{- if and .Values.istio.enable .Values.alertmanager.enabled}}
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+{{- if .Values.global.labels }}
+  labels:
+{{- include "prometheus-labels" (tuple .Values.global.labels) | indent 4}}
+{{- end }}
+  name: {{ template "prometheus.alertmanager.fullname" . }}-scr
+  namespace: {{ .Release.Namespace }}
+{{- if .Values.global.annotations }}
+  annotations:
+{{- include "prometheus-annotations" (tuple .Values.global.annotations) | indent 4}}
+{{- end }}
+spec:
+  # Start of custom modification of original chart for CSFS-31473
+  host: "{{ template "prometheus.alertmanager.fullname" . }}-scr.{{ .Release.Namespace }}.{{ .Values.dns.domain }}"
+  ## End of custom modification of original chart
+  trafficPolicy:
+{{- if .Values.istio.mtls_enable }}
+    tls:
+      mode: ISTIO_MUTUAL
+{{- else }}
+    tls:
+      mode: DISABLE
+{{- end }}
+{{- end }}

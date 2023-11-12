@@ -1,0 +1,200 @@
+registry: {{ (registry) | default(model.properties.registry.default) }}
+image:
+  imageRepo: {{ (image | default("")).imageRepo | default(model.properties.image.properties.imageRepo.default) }}
+  imageTag: {{ (image | default("")).imageTag | default(model.properties.image.properties.imageTag.default) }}
+  imagePullPolicy: {{ (image | default("")).imagePullPolicy | default(model.properties.image.properties.imagePullPolicy.default) }}
+
+global:
+  podNamePrefix: {{ (podNamePrefix) | default(model.properties.podNamePrefix.default )}}
+  containerNamePrefix: {{ (containerNamePrefix) | default(model.properties.containerNamePrefix.default )}}
+
+restServiceType: {{ (restServiceType) | default(model.properties.restServiceType.default) }}
+
+snmpServiceType: {{ (snmpServiceType) | default(model.properties.snmpServiceType.default) }}
+
+{% if (listeningPort is defined) %}
+listeningPort: {{ (listeningPort) | default(model.properties.listeningPort.default) }}
+{% endif %}
+
+{% if (snmpTrapPort is defined) %}
+snmpTrapPort: {{ (snmpTrapPort) | default(model.properties.snmpTrapPort.default) }}
+{% endif %}
+
+{% if (restPort is defined) %}
+restPort: {{ (restPort) | default(model.properties.restPort.default) }}
+{% endif %}
+
+{% if (snmpNodePort is defined) %}
+snmpNodePort: {{ (snmpNodePort) | default(model.properties.snmpNodePort.default) }}
+{% endif %}
+
+{% if (snmpTrapNodePort is defined) %}
+snmpTrapNodePort: {{ (snmpTrapNodePort) | default(model.properties.snmpTrapNodePort.default) }}
+{% endif %}
+
+{% if (restNodePort is defined) %}
+restNodePort: {{ (restNodePort) | default(model.properties.restNodePort.default) }}
+{% endif %}
+
+rbac:
+  enabled: {{ (rbac | default("")).enabled | default(model.properties.rbac.properties.enabled.default) }}
+
+logLevel:  {{ (logLevel) | default(model.properties.logLevel.default)  }}
+
+persistence:
+  enabled: {{ (persistence | default("")).enabled | default(model.properties.persistence.properties.enabled.default) }}
+  accessMode: {{ (persistence | default("")).accessMode | default(model.properties.persistence.properties.accessMode.default) }}
+  size: {{ (persistence | default("")).size | default(model.properties.persistence.properties.size.default) }}
+  storageClass: {{ compaas.storageClass | default("default") }}
+  pvc_auto_delete: {{ (persistence | default("")).pvc_auto_delete | default(model.properties.persistence.properties.pvc_auto_delete.default) }}
+
+resources:
+  requests:
+    memory: {{ (resources | default("")).memory | default(model.properties.resources.properties.memory.default) }}
+    cpu: {{ (resources | default("")).cpu | default(model.properties.resources.properties.cpu.default) }}
+  limits:
+    memory: {{ (resources | default("")).memoryLimit | default(model.properties.resources.properties.memoryLimit.default) }}
+    cpu: {{ (resources | default("")).cpuLimit | default(model.properties.resources.properties.cpuLimit.default) }}
+
+defaultHost: {{ (defaultHost) | default(model.properties.defaultHost.default) }}
+
+storage: {{ (storage) | default(model.properties.storage.default) }}
+
+driver: {{ (mariadb | default("")).driver | default(model.properties.mariadb.properties.driver.default) }}
+url: {{ (mariadb | default("")).url | default(model.properties.mariadb.properties.url.default) }}
+user: {{ (mariadb | default("")).user | default(model.properties.mariadb.properties.user.default) }}
+password: {{ (mariadb | default("")).password | default(model.properties.mariadb.properties.password.default) }}
+passphrase: {{ (mariadb | default("")).passphrase | default(model.properties.mariadb.properties.passphrase.default) }}
+mariadbClientKey: |+
+  {{ (mariadb | default("")).mariadbClientKey | default(model.properties.mariadb.properties.mariadbClientKey.default) |indent(width=2) }}
+mariadbClientCert: |+
+  {{ (mariadb | default("")).mariadbClientCert | default(model.properties.mariadb.properties.mariadbClientCert.default) |indent(width=2) }}
+mariadbServerCert: |+
+  {{ (mariadb | default("")).mariadbServerCert | default(model.properties.mariadb.properties.mariadbServerCert.default) |indent(width=2) }}
+
+endPoint: {{ (etcd | default("")).endPoint | default(model.properties.etcd.properties.endPoint.default) }}
+systemName: {{ (etcd | default("")).systemName | default(model.properties.etcd.properties.systemName.default) }}
+nodeName: {{ (etcd | default("")).nodeName | default(model.properties.etcd.properties.nodeName.default) }}
+
+messageQueueType: {{ (messageQueueType | default("rabbitmq")) | default(model.properties.messageQueueType.default) }}
+
+kafka:
+  zookeeperServerUrls: {{ (kafka  | default("")).zookeeperServerUrls | default(model.properties.kafka.properties.zookeeperServerUrls.default) }}
+  topic: {{ (kafka  | default("alma")).topic | default(model.properties.kafka.properties.topic.default) }}
+  bootstrapServers: {{ (kafka  | default("")).bootstrapServers | default(model.properties.kafka.properties.bootstrapServers.default) }}
+  enabledSSL: {{ (kafka  | default("")).enabledSSL | default(model.properties.kafka.properties.enabledSSL.default) }}
+  passphrase: {{ (kafka  | default("")).passphrase | default(model.properties.kafka.properties.passphrase.default) }}
+  keystorePassword: {{ (kafka  | default("")).keystorePassword | default(model.properties.kafka.properties.keystorePassword.default) }}
+  truststorePassword: {{ (kafka  | default("")).truststorePassword | default(model.properties.kafka.properties.truststorePassword.default) }}
+  base64Keystore: |+
+    {{ (kafka | default("")).base64Keystore | default(model.properties.kafka.properties.base64Keystore.default)| indent(width=4) }}
+  base64Truststore: |+
+    {{ (kafka | default("")).base64Truststore | default(model.properties.kafka.properties.base64Truststore.default)| indent(width=4) }}
+
+mq:
+  username: {{ (mq  | default("")).username | default(model.properties.mq.properties.username.default) }}
+  password: {{ (mq  | default("")).password | default(model.properties.mq.properties.password.default) }}
+  hostname: {{ (mq  | default("")).hostname | default(model.properties.mq.properties.hostname.default) }}
+  passphrase: {{ (mq | default("")).passphrase | default(model.properties.mq.properties.passphrase.default) }}
+  exchangeName: {{ (mq | default("")).exchangeName | default(model.properties.mq.properties.exchangeName.default) }}
+  routingKey: {{ (mq | default("")).routingKey | default(model.properties.mq.properties.routingKey.default) }}
+  queueName: {{ (mq | default("")).queueName | default(model.properties.mq.properties.queueName.default) }}
+  enabledSSL: {{ (mq | default("")).enabledSSL | default(model.properties.mq.properties.enabledSSL.default) }}
+  vhost: {{ (mq | default("")).vhost | default(model.properties.mq.properties.vhost.default) }}
+  encryptProtocol: {{ (mq | default("")).encryptProtocol | default(model.properties.mq.properties.encryptProtocol.default) }}
+  clientKey: |+
+    {{ (mq | default("")).clientKey | default(model.properties.mq.properties.clientKey.default)| indent(width=4) }}
+  clientCert: |+
+    {{ (mq | default("")).clientCert | default(model.properties.mq.properties.clientCert.default) | indent(width=4) }}
+  serverCert: |+
+    {{ (mq | default("")).serverCert | default(model.properties.mq.properties.serverCert.default) | indent(width=4) }}
+
+alarmAdapterClasses: {{ (alarmAdapterClasses) | default(model.properties.alarmAdapterClasses.default) }}
+autoAcknowledgeClearedAlarms: {{ (autoAcknowledgeClearedAlarms) | default(model.properties.autoAcknowledgeClearedAlarms.default) }}
+maxActiveAlarmCount: {{ (maxActiveAlarmCount) | default(model.properties.maxActiveAlarmCount.default) }}
+maxNumberOfEvents: {{ (maxNumberOfEvents) | default(model.properties.maxNumberOfEvents.default) }}
+transactionRetryCount: {{ (transactionRetryCount) | default(model.properties.transactionRetryCount.default) }}
+maxThreads: {{ (maxThreads) | default(model.properties.maxThreads.default) }}
+maxSnmp4jThreads: {{ (maxSnmp4jThreads) | default(model.properties.maxSnmp4jThreads.default) }}
+ha: {{ (ha) | default(model.properties.ha.default) }}
+servers: {{ (servers) | default(model.properties.servers.default) }}
+KeycloakAuthentication: {{ (Keycloak | default("")).KeycloakAuthentication | default(model.properties.Keycloak.properties.KeycloakAuthentication.default) }}
+KeycloakAuthServerUrl: {{ (Keycloak | default("")).KeycloakAuthServerUrl | default(model.properties.Keycloak.properties.KeycloakAuthServerUrl.default) }}
+KeycloakValidationUri: {{ (Keycloak | default("")).KeycloakValidationUri | default(model.properties.Keycloak.properties.KeycloakValidationUri.default) }}
+
+multiContextEnabled: {{ (multiTenancy | default("")).multiContextEnabled | default(model.properties.multiTenancy.properties.multiContextEnabled.default) }}
+tokenValidationViaKeycloak: {{ (multiTenancy | default("")).tokenValidationViaKeycloak| default(model.properties.multiTenancy.properties.tokenValidationViaKeycloak.default) }}
+superUserName: {{ (multiTenancy | default("")).superUserName| default(model.properties.multiTenancy.properties.superUserName.default) }}
+superUserPassword: {{ (multiTenancy | default("")).superUserPassword| default(model.properties.multiTenancy.properties.superUserPassword.default) }}
+superUserPassphrase: {{ (multiTenancy | default("")).superUserPassphrase| default(model.properties.multiTenancy.properties.superUserPassphrase.default) }}
+
+snmpMib: {{ (snmpMib) | default(model.properties.snmpMib.default) }}
+ianaNumber: {{ (ianaNumber) | default(model.properties.ianaNumber.default) }}
+snmpv3UserConfiguration:
+  {{ (snmp | default("")).snmpv3UserConfiguration | default(model.properties.snmp.properties.snmpv3UserConfiguration.default) |indent(width=2) }}
+snmpv2cUserConfiguration:
+  {{ (snmp | default("")).snmpv2cUserConfiguration | default(model.properties.snmp.properties.snmpv2cUserConfiguration.default) |indent(width=2) }}
+groupConfiguration:
+  {{ (snmp | default("")).groupConfiguration | default(model.properties.snmp.properties.groupConfiguration.default) |indent(width=2) }}
+viewConfiguration:
+  {{ (snmp | default("")).viewConfiguration | default(model.properties.snmp.properties.viewConfiguration.default) |indent(width=2) }}
+accessConfiguration:
+  {{ (snmp | default("")).accessConfiguration | default(model.properties.snmp.properties.accessConfiguration.default) |indent(width=2) }}
+notificationTargetsConfiguration:
+  {{ (snmp | default("")).notificationTargetsConfiguration | default(model.properties.snmp.properties.notificationTargetsConfiguration.default) |indent(width=2) }}
+notificationParametersConfiguration:
+  {{ (snmp | default("")).notificationParametersConfiguration | default(model.properties.snmp.properties.notificationParametersConfiguration.default) |indent(width=2) }}
+
+sysObjectID: {{ (sysObjectID) | default(model.properties.sysObjectID.default) }}
+engineId: {{ (engineId) | default(model.properties.engineId.default) }}
+heartBeatInterval: {{ (heartBeatInterval) | default(model.properties.heartBeatInterval.default) }}
+
+lcm:
+  scale_hooks: {{ (lcm | default("")).scale_hooks | default(model.properties.lcm.properties.scale_hooks.default) }}
+  scale_timeout: {{ (lcm | default("")).scale_timeout | default(model.properties.lcm.properties.scale_timeout.default) }}
+
+backuprestore:
+  enabled: {{ (backuprestore | default("")).enabled | default(model.properties.backuprestore.properties.enabled.default) }}
+  backendMode: "{{ (backuprestore | default("")).backendMode | default(model.properties.backuprestore.properties.backendMode.default) }}"
+  cronJob: "{{ (backuprestore | default("")).cronJob | default(model.properties.backuprestore.properties.cronJob.default) }}"
+  brOption: {{ (backuprestore | default("")).brOption | default(model.properties.backuprestore.properties.brOption.default) }}
+  maxCopy: {{ (backuprestore | default("")).maxCopy | default(model.properties.backuprestore.properties.maxCopy.default) }}
+  pre_defined_sidecar:
+    enabled: {{ (backuprestore.pre_defined_sidecar | default("")).enabled | default(model.properties.backuprestore.properties.pre_defined_sidecar.properties.enabled.default) }}
+    imageRepo: cbur/cbura
+    imageTag: 1.0.3-871
+    imagePullPolicy: IfNotPresent
+
+cveaAgentVersion: {{ (cveaAgentVersion) | default(model.properties.cveaAgentVersion.default) }}
+cveaAgentHosts: {{ (cveaAgentHosts) | default(model.properties.cveaAgentHosts.default) }}
+cveaAdapterMaxRetries: {{ (cveaAdapterMaxRetries) | default(model.properties.cveaAdapterMaxRetries.default) }}
+
+cnot:
+  serverURL: {{ (cnot  | default("")).serverURL | default(model.properties.cnot.properties.serverURL.default) }}
+  maxRetries: {{ (cnot  | default("")).maxRetries | default(model.properties.cnot.properties.maxRetries.default) }}
+  enabledSSL: {{ (cnot  | default("")).enabledSSL | default(model.properties.cnot.properties.enabledSSL.default) }}
+  passphrase: {{ (cnot  | default("")).passphrase | default(model.properties.cnot.properties.passphrase.default) }}
+  truststorePassword: {{ (cnot  | default("")).truststorePassword | default(model.properties.cnot.properties.truststorePassword.default) }}
+  base64Truststore: |+
+    {{ (cnot | default("")).base64Truststore | default(model.properties.cnot.properties.base64Truststore.default)| indent(width=4) }}
+
+istio:
+  enabled: {{ (istio | default("")).enabled | default(model.properties.istio.properties.enabled.default) }}
+  inject: {{ (istio | default("")).inject | default(model.properties.istio.properties.inject.default) }}
+  permissive: {{ (istio | default("")).permissive | default(model.properties.istio.properties.permissive.default) }}
+  cni_enabled: {{ (istio | default("")).cni_enabled | default(model.properties.istio.properties.cni_enabled.default) }}
+  ingress:
+    enabled: {{ (istio.ingress | default("")).enabled | default(model.properties.istio.properties.ingress.properties.enabled.default) }}
+    host: {{ (istio.ingress | default("")).host | default(model.properties.istio.properties.ingress.properties.host.default) }}
+    port: {{ (istio.ingress | default("")).port | default(model.properties.istio.properties.ingress.properties.port.default) }}
+    selector: {{ (istio.ingress | default("")).selector | default(model.properties.istio.properties.ingress.properties.selector.default) }}
+    uriRoot: {{ (istio.ingress | default("")).uriRoot | default(model.properties.istio.properties.ingress.properties.uriRoot.default) }}
+    gatewayName: {{ (istio.ingress | default("")).gatewayName | default(model.properties.istio.properties.ingress.properties.gatewayName.default) }}
+    tls:
+      enabled: {{ (istio.ingress.tls | default("")).enabled | default(model.properties.istio.properties.ingress.properties.tls.properties.enabled.default) }}
+      port: {{ (istio.ingress.tls | default("")).port | default(model.properties.istio.properties.ingress.properties.tls.properties.port.default) }}
+      tlsOptions: {{ (istio.ingress.tls | default("")).tlsOptions | default(model.properties.istio.properties.ingress.properties.tls.properties.tlsOptions.default) }}
+
+enterprisesAdvanceConfs:
+{{ (enterprisesAdvanceConfs) | default(model.properties.enterprisesAdvanceConfs.default) | indent(width=2) }}
+

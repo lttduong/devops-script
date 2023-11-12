@@ -1,0 +1,41 @@
+# This condition is to limit rendering the template during heal because of restriction that two resources with same name cannot be created in the same namespace.
+{{ if and ( eq (int .Values.global.preheal ) 0 ) ( eq (int .Values.global.postheal ) 0 ) }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{.Values.service.name}}
+  {{- if .Values.service.prometheus_metrics.enabled }}
+  annotations:
+   {{- if .Values.searchguard.enable }}
+   {{ .Values.service.prometheus_metrics.pro_annotation_https_scrape }}: "true"
+   {{- if or (.Values.istio.enabled) (not .Values.searchguard.http_ssl) }}
+   prometheus.io/scheme: "http"
+   {{- else }}
+   prometheus.io/scheme: "https"
+   {{- end }}
+   {{- else }}
+   prometheus.io/scrape: "true"
+   prometheus.io/scheme: "http"
+   {{- end }}
+   prometheus.io/path: /_prometheus/metrics
+   prometheus.io/port: "9200"
+  {{- end }}
+  labels:
+    component: elasticsearch
+    role: client
+    release: {{ .Release.Name | quote }}
+spec:
+  type: {{ .Values.service.type }}
+  selector:
+    component: elasticsearch
+    role: client
+    release: {{ .Release.Name | quote }}
+  ports:
+    - name: tcp-rest
+      port: {{.Values.service.client_port}}
+      protocol: TCP
+      {{- if (and (eq .Values.service.type "NodePort") (not (empty .Values.service.client_nodeport))) }}
+      nodePort: {{.Values.service.client_nodeport}}
+      {{- end }}
+      targetPort: tcp-rest
+{{ end }}

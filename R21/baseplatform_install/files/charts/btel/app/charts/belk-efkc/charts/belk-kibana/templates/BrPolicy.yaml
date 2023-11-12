@@ -1,0 +1,30 @@
+{{- if .Values.cbur.enabled }}
+apiVersion: "cbur.bcmt.local/v1"
+kind: BrPolicy
+metadata:
+  name: {{ template "kibana.deployment.name" . }}
+  labels:
+    app: {{ template "kibana.fullname" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+spec:
+  k8sobjects:
+  - object-type: configmaps
+    match-criteria: name
+    match-string: {{ template "kibana.fullname" . }}
+  backend:
+    mode: "{{ .Values.cbur.backendMode }}"
+  cronSpec: "{{ .Values.cbur.cronJob }}"
+  autoEnableCron: {{ .Values.cbur.autoEnableCron }}
+  autoUpdateCron: {{ .Values.cbur.autoUpdateCron }}
+  maxiCopy: {{ .Values.cbur.maxCopy }}
+  k8sType: deployment
+  hooks:
+  - name: kibana
+    commands:
+      preBackupCmd: []
+      postBackupCmd: []
+      preRestoreCmd: []
+      postRestoreCmd: []
+{{- end}}

@@ -1,0 +1,31 @@
+{{- if and (.Values.istio.enable) (.Values.webhook4fluentd.enabled) (eq .Values.global.istioVersion 1.4) }}
+apiVersion: "authentication.istio.io/v1alpha1"
+kind: "Policy"
+metadata:
+  labels:
+    app: {{ template "prometheus.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    component: "{{ .Values.webhook4fluentd.name }}"
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+{{- include "prometheus-labels" (tuple .Values.global.labels) | indent 4}}
+  name: {{ template "prometheus.webhook4fluentd.fullname" . }}
+  namespace: "{{.Release.Namespace}}"
+{{- if .Values.global.annotations }}
+  annotations:
+{{- include "prometheus-annotations" (tuple .Values.global.annotations) | indent 4}}
+{{- end }}
+spec:
+  targets:
+  - name: {{ template "prometheus.webhook4fluentd.fullname" . }}
+  - name: {{ template "prometheus.webhook4fluentd.fullname" . }}-scr
+{{- if .Values.istio.mtls_enable }}
+  peers:
+  - mtls:
+      mode: STRICT
+{{- else }}
+  peers:
+  - mtls:
+      mode: PERMISSIVE
+{{- end }}
+{{- end }}

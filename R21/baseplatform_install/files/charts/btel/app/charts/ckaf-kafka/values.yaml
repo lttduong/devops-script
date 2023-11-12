@@ -1,0 +1,574 @@
+---
+#------------------------------------------------------------------------------
+# Kafka:
+#------------------------------------------------------------------------------
+global:
+  # This registry is used for kafka-broker container image
+  registry: csf-docker-delivered.repo.lab.pl.alcatel-lucent.com
+  # This registry is used for jmx-exporter container image
+  registry1: csf-docker-delivered.repo.lab.pl.alcatel-lucent.com
+  # This registry is used for cbur-agent container image
+  registry2: csf-docker-delivered.repo.lab.pl.alcatel-lucent.com
+  # This registry is used for pre/post hook container image
+  registry3: csf-docker-delivered.repo.lab.pl.alcatel-lucent.com
+  # Not used. Reserved for future
+  registry4:
+  # Not used. Reserved for future
+  registry5:
+  seccompAllowedProfileNames: docker/default
+  seccompDefaultProfileName: docker/default
+  storageClass: ""
+  rbacEnable: true
+  serviceAccountName: 
+  cburEnable: true
+  # Enable this flag to forcefully upgrade kafka
+  forceUpgrade: true
+  # Enable this flag to prepare kafka for rollback
+  prepareRollback: false
+  preheal: 0
+  postheal: 0
+  #CLOG configuration
+  clogEnable: true
+  # bkp/restore hook jobs configuration
+  jobhookenable: true
+  jobtimeout: 600
+  prerestore: 0
+  postrestore: 0
+  # istio configurations
+  istio:
+    # setting "enabled: true" injects istio proxy side cars to the kafka pods.
+    enabled: false
+    # set "createDrForClients: true" iff disabling istio for kafka in a istio mtls environment
+    # setting this to true creates a Destination rule for kafka workload with tls mode as "DISABLE".
+    createDrForClients: false
+    # Use the below section to override global istio mtls settings.
+    # if "overrideMtls.enabled: true" destination rules and peerauthentications crd will be created.
+    overrideMtls:
+      enabled: false
+      # Specify the kafka workload mtls mode.
+      mode: "PERMISSIVE"
+  # enable this flag to perform scale via upgrade 
+  enable_scale_via_upgrade: false
+
+  
+Replicas: 3
+imageRepo: "ckaf/kafka"
+imageTag: "4.0.0-5.4.1-3591"
+InterBrokerProtocolVersion: ""
+LogMessageFormatVersion: ""
+imagePullPolicy: "IfNotPresent"
+kubectlImage: "tools/kubectl"
+kubectlTag: "v1.14.3-nano"
+resources: 
+  requests:
+    cpu: 500m
+    memory: 2Gi
+  limits:
+    cpu: 1
+    memory: 4Gi
+podManagementPolicy: OrderedReady
+antiAffinity: "hard"
+
+#This section allows to configure user defined name for component resources
+# Options include:
+# nameOverride: use this to have 'ckaf-kf'-'user-defined' naming convention.
+# fullnameOverride: use this to have custom name for all the resources.
+# default (below parameters commented): 'kf'-'release-name' naming convention.
+# If specified both, fullnameOverride would take the precedence.
+
+#nameOverride: "user-defined"
+#fullnameOverride: "user-defined"
+
+# Add user defined label under nodeLabel as key value pair. 
+# Enable it to true to use nodeLabel feature
+# Always quote the value part. Example nodeType: "kf-enable"
+# Example:
+# kafkaNodeSelector:
+#   enable: true
+#   nodeLabel:
+#     "key1" : "value1" 
+kafkaNodeSelector:
+  enable: false
+  nodeLabel:
+
+# Enable tolerationsForTaints and provide toleration
+# toleration can be added for three types of taints : NoSchedule, PreferNoSchedule and NoExecute
+# operator can also be given as Exists and value parameter can be omitted in that case
+# tolerationSeconds (in seconds) can be added as part of NoExecute toleration that specifies how long the pod will stay bound after the node tainting.
+# Multiple tolerations can be added
+# Example: 
+# - key: "testing1"
+#   operator: "Equal"
+#   value: "no1"
+#   effect: "NoSchedule"
+# - key: "testing2"
+#   operator: "Exists"
+#   effect: "NoExecute"
+#   tolerationSeconds: 120
+# toleration matches a taint if key and effect is same. 
+# An empty 'key' with operator Exists will tolerate everything as it matches all keys, values and effects.
+# Example: 
+# - operator: "Exists"
+# An empty 'effect' matches all effects with key 'key'
+# Example:
+# - key: "key"
+#   operator: "Exists"
+tolerationsForTaints:
+    enable: false
+    tolerations:
+      - key: <"key1">
+        operator: <"Equal">
+        value: <"val1">
+        effect: <"NoSchedule">
+
+# Feature dev In-progress CSFID-1967
+# This feature allows the user to access Kafka broker's outside the k8s cluster.
+# To turn ON the feature set "enableExternalAccess" to true.
+# Port on all edge nodes available for kafka brokers, 
+# User also needs to ensure that consecutive ports are free as per the number of replicas,
+# also considering the scale in/out factor 
+# port availability check must be done by the user prior to the installation. 
+# "externalServiceName" user defined service name to access teh kafka brokers externally
+# eg: externalServiceName: "csf-kafka.nokia.com" 
+ingress:
+  enableExternalAccess: false
+  startPortRangeOnEdgeNode: ""
+  citmReleaseName: ""
+  externalServiceName: ""
+
+security:
+  enabled: true
+  runAsUser: 999
+  fsGroup: 998
+  runAsGroup: 997
+  supplementalGroups: "" 
+  seLinuxOptions:
+    enabled: false
+    level: ""
+    role: ""
+    type: ""
+    user: ""
+
+
+DataStorage: "10Gi"
+LogStorage: "10Gi"
+
+#Jmx Exporter
+JmxExporter:
+  imageRepo: "cpro/jmx-exporter"
+  imageTag: "v2.0.0"
+  imagePullPolicy: "IfNotPresent"
+  port: 7071
+  jmxResources:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 1Gi
+      limits:
+        cpu: 1
+        memory: 4Gi
+
+jobResources:
+  requests:
+    cpu: 200m
+    memory: 1Gi
+  limits:
+    cpu: 1
+    memory: 4Gi
+UncleanLeaderElectionEnable: "false"
+AutoCreateTopicsEnable: "true"
+DefaultReplicationFactor: "1"
+GroupInitialRebalanceDelayMs: "0"
+NumRecoveryThreadsPerDataDir: "1"
+TransactionStateLogReplicationFactor: "1"
+TransactionStateLogMinIsr: "1"
+BackgroundThreads: "10"
+MessageMaxBytes: "1000012"
+NumIoThreads: "8"
+NumNetworkThreads: "3"
+QueuedMaxRequests: "500"
+SocketSendBufferBytes: "102400"
+SocketReceiveBufferBytes: "102400"
+SocketRequestMaxBytes: "104857600"
+NumReplicaFetchers: "1"
+ReplicaFetchMaxBytes: "1048576"
+ReplicaFetchWaitMaxMs: "500"
+ReplicaHighWatermarkCheckpointIntervalMs: "5000"
+ReplicaSocketTimeoutMs: "30000"
+ReplicaSocketReceiveBufferBytes: "65536"
+ReplicaLagTimeMaxMs: "10000"
+ControllerSocketTimeoutMs: "30000"
+NumPartitions: "1"
+OffsetsTopicReplicationFactor: "3"
+CompressionType: "producer"
+LogIndexIntervalBytes: "4096"
+LogIndexSizeMaxBytes: "10485760"
+LogRetentionHours: "168"
+LogRetentionBytes: "1000000000"
+LogFlushIntervalMs: "1000"
+LogFlushIntervalMessages: "10000"
+LogFlushSchedulerIntervalMs: "9223372036854775807"
+LogRollHours: "168"
+LogRetentionCheckIntervalMs: "300000"
+LogSegmentBytes: "1073741824"
+LogCleanerBackoffMs: "15000"
+LogCleanerThreads: "1"
+LogCleanerEnable: "true"
+LogCleanupPolicy: "delete"
+LogLevel: "INFO"
+MaxFileSize: 50MB
+MaxBackupIndex: 10
+AutoPvEnabledKafka: false
+AutoPvEnabledLabelKafka: kafka
+KafkaHeapOpts: "-Xmx1G -Xms1G"
+ZookeeperConnectionTimeoutMs: "6000"
+ZookeeperSyncTimeMs: "2000"
+FetchPurgatoryPurgeIntervalRequests: "1000"
+ProducerPurgatoryPurgeIntervalRequests: "1000"
+ZookeeperSessionTimeoutMs: "6000"
+ZookeeperSetAcl: "false"
+DeleteTopicEnable: "true"
+AutoLeaderRebalanceEnable: "true"
+LeaderImbalanceCheckIntervalSeconds: "300"
+QuotaConsumerDefault: "9223372036854775807"
+QuotaProducerDefault: "9223372036854775807"
+MinInsyncReplicas: 1
+
+configurationOverrides:
+  # override confluent kafka configurations.
+  # example:
+  # ssl.keymanager.algorithm: SunX509
+
+# if zookeeper is not installed as part of this chart
+# you will have to provide zkConnect string
+# example: zkConnect: "ckaf-zookeeper-ckaf-zookeeper.default:2181/"
+zkConnect: ""
+
+# Supported security modes are PLAINTEXT, SSL, SASL_PLAINTEXT, SASL_SSL
+# If SASL/SSL is enabled the following parameters should be enabled
+# sasl.enable: true for SASL (update the secrets)
+# ssl.enabled: true for SSL (update the secrets)
+listenerSecurityMode:
+  internalSecurityMode: PLAINTEXT
+  # external protocol mode would be used only if "ingress.enableExternalAccess" is enabled.
+  # otherwise, external listener would not be added to the list of listeners.
+  externalSecurityMode: PLAINTEXT
+
+# use this section to turn on the zk acl authorizer.
+zkAclAuthorizer:
+  enable: false
+  # prefix 'User:' must be used for every super user.
+  # use ';' as the delimiter if configuring more than one super users.
+  superUsers: "User:<principal>"
+  allowEveryoneIfNoAcl: false
+  
+sasl:
+  #sasl.mechanism: "GSSAPI" or "PLAIN"
+  enable: false
+  mechanism: "GSSAPI"
+  basePath: "/etc/kafka"
+  krb:
+    # provide the krb5.conf as a configmap
+    # kubectl create configmap <krbConfigmapName> --from-file=<KrbConfKeyName>=<path to krb5.conf>
+    krbConfigmapName:
+    KrbConfKeyName: 
+    krbRealm: "EXAMPLE.COM"
+  #kubectl create secret generic <secret-name> --from-file=<pod-0-host-name>=<local-path-to-keytab-0>--from-file=<pod-1-host-name>=<local-path-to-keytab-1> --from-file=<pod-2-host-name>=<local-path-to-keytab-2> --from-file=externalSvcKeytab=<local-path-to-extSvcKeytab>
+  
+  #NOTE: "externalSvcKeytab" is required only in case ingress is enabled.
+  # Create Principal name and <pod-host-name> for all the kafka-pods according to the following:
+  
+  # if (.Values.fullnameOverride) : kafka/<.Values.fullnameOverride>-<pod-number>.<.Values.fullnameOverride>-headless.<namespace>.svc.cluster.local@<krbRealm>
+  # for eg : if .Values.fullnameOverride=test ,pod-number=0 ,namespace=default and krbRealm=EXAMPLE.COM
+  # principal name :-> kafka/test-0.test-headless.default.svc.cluster.local@EXAMPLE.COM
+  # pod-host-name :-> test-0.test-headless.default.svc.cluster.local
+
+  # if (.Values.nameOverride): kafka/ckaf-kf-<.Values.nameOverride>-<pod-number>.ckaf-kf-<.Values.nameOverride>-headless.<namespace>.svc.cluster.local@<krbRealm>
+  # for eg : if .Values.nameOverride=test ,pod-number=0 ,namespace=default and krbRealm=EXAMPLE.COM
+  # principal name :-> kafka/ckaf-kf-test-0.ckaf-kf-test-headless.default.svc.cluster.local@EXAMPLE.COM
+  # pod-host-name :-> ckaf-kf-test-0.ckaf-kf-test-headless.default.svc.cluster.local
+  
+  # if (default) i.e no name or fullname override
+  # For eg: if release-name=test ,pod-number=0 ,namespace=default and krbRealm=EXAMPLE.COM
+  # principal name :->  kafka/kf-test-0.kf-test-headless.default.svc.cluster.local@EXAMPLE.COM
+  # pod-host-name :-> kf-test-0.kf-test-headless.default.svc.cluster.local  
+  
+  # externalSvcKeytab : use this key to mount keytab for external service keytab.
+  #                     optional, use in case if ingress service is enabled with sasl.
+  #                     Note: key must be strictly "externalSvcKeytab".
+    secretName: <krb-keytabs-secret-name>
+  plain:
+    #sasl.plain: kubectl create secret generic plain-admin-pass --from-literal=userkey=kafka-admin@kafka.com --from-literal=passkey=12345 
+    secretName: plain-admin-pass
+    usernameKey: userkey
+    passwordKey: passkey
+    superUsers: "User:kafka-admin@kafka.com"
+    #sasl.plain: kubectl create secret generic --from-file=file1.json=/path/to/keycloak1.json --from-file=file2.json=/path/to/keycloak2.json ...
+    #sasl.plain: file names should be in the format "*.json"
+    keyCloakConfig:
+      secretName: plain-keycloak-config-files
+      enableOAuth2AclAuthorizer: false
+
+ssl:
+#SSL details: http://kafka.apache.org/documentation.html#security_ssl
+#K8s Secret doc: https://kubernetes.io/docs/concepts/configuration/secret/
+#K8s Secret name defined by user. A single secret object has to be created which conatins 5 secret keys
+#out of which 2 keys are created for certificate files (Keystore and Trustore) and 3 keys are created
+#for SSL certificates peasswords (Keystore, Keystore key and Truststore password).
+#Example K8s secret command:
+#kubectl create secret generic <secret-name> --from-literal=keyPass=<passwd> --from-literal=keyStorePass=<passwd> --from-literal=trustStorePass=<passwd> --from-file=keyStore=<certificatepath>/ca.truststore --from-file=trustStore=<certificatepath>/kube1.keystore
+# Enable/disable SSL Encryption
+  enabled: false
+# <secret-name> used in "#kubectl create secret"
+  secret_name: <secret-name>
+  keystore_key: keyStore
+  truststore_key: trustStore
+  truststore_passwd_key: trustStorePass
+  keystore_passwd_key: keyPass
+  keystore_key_passwd_key: keyStorePass
+# The list of protocols enabled for SSL connections
+  enabledProtocols: TLSv1.2,TLSv1.1,TLSv1
+# The file format of thekey store and  trust store file
+  keyStoreType: JKS
+  trustStoreType: JKS
+# Security protocol used to communicate between brokers. Valid values are: PLAINTEXT, SSL, SASL_PLAINTEXT, SASL_SSL. It is an error to set this and inter.broker.listener.name properties at the same time
+  SecurityInterBrokerProtocol: SSL
+# Protocol used to communicate with brokers. Valid values are: PLAINTEXT, SSL, SASL_PLAINTEXT, SASL_SSL.
+  securityProtocols: SSL
+# The SecureRandom PRNG implementation to use for SSL cryptography operations
+  secureRamdomImpl: SHA1PRNG
+# Configures kafka broker to request client authentication. The following settings are common: 
+#       ssl.client.auth=required If set to required client authentication is required. 
+#       ssl.client.auth=requested This means client authentication is optional. unlike requested , if this option is set client can choose not to provide authentication information about itself 
+#       ssl.client.auth=none This means client authentication is not needed.
+  clientAuth: required
+
+# Delete config
+deleteKafkaJob:
+  auto_remove_kf_pvc: true
+  auto_remove_kf_secret: false
+
+# Scale config
+prescalein: 0
+postscalein: 0
+prescaleout: 0
+postscaleout: 0
+lcm:
+  scale_timeout: 600
+  heal: 
+    timeout: 600 
+throttle: 1000
+
+# Selective heal is only handling pod heal when pvc related failures occur only. it may not help in case of any generic failures.
+# In the pod_list pod numbers are seperated with '/'. "example : inputting a value "0/2" would mean healing pod 0 and pod 2."
+selective_heal:
+  enabled: false
+  pod_list:
+
+# Upgrade config
+enable_upgrade_hook: false
+upgrade:
+  CURRENT_KAFKA_VERSION: 1.0.0
+
+# Rollback config
+enableRollback: false
+
+# CBUR agent config
+cbur:
+  name: cbura-sidecar
+  image: cbur/cbura
+  tag: 1.0.3-1665
+  imagePullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 200m
+      memory: 1Gi
+    limits:
+      cpu: 1
+      memory: 4Gi
+  # Below parameter values should be sync between zookeeper and broker
+  # Limit the number of copies that can be saved. Once it is reached, the newer backup will overwritten the oldest one
+  maxCopy: 5
+  #Modes supported now: "local","NETBKUP","AVAMAR", case insensitive
+  backendMode: "local"
+  #same format of cron job setting. It is used for scheduled backup task. Empty string is allowed for no scheduled backup
+  cronJob: "0 23 * * *"
+  #provide the list of metadata topics to be backuped in comma seperated fashion. Provide correct topic names, no spaces between separator and topic names . Please do not mention user created topics.
+  backupTopics: "_schemas"
+
+#Liveliness and Readiness probe configuartions
+livenessProbe:
+  initialDelaySeconds: 30
+  timeoutSeconds: 5
+readinessProbe:
+  initialDelaySeconds: 30
+  timeoutSeconds: 5
+
+
+
+#------------------------------------------------------------------------------
+# Zookeeper:
+#------------------------------------------------------------------------------
+
+ckaf-zookeeper:
+  enabled: true
+  servers: 3
+  # minAvailable: 2
+  antiAffinity: "hard"
+  # Feature dev In-progress CSFID-1967
+  # This feature allows the user to access zookeeper services outside the k8s cluster.
+  # To turn ON the feature set "EnableExternalAccess" to true.
+  # "EdgeNodePort" port on all the edge nodes available for zookeeper service to be deployed,
+  # port availability check must be done by the user prior to the installation.
+  # Pre-requisite for this feature, user is expected to install the citm ingress controller.
+  # The same helm release name must be entered for "citmReleaseName"
+  ingress:
+    enableExternalAccess: false
+    edgeNodePort: ""
+    citmReleaseName: ""
+  # Add user defined label under nodeLabel as key value pair.
+  # Enable it to true to use nodeLabel feature
+  # Always quote the value part. Example nodeType: "zk-enable"
+  # Example:
+  # zookeeperNodeSelector:
+  #   enable: true
+  #   nodeLabel:
+  #     "key1" : "value1"
+  zookeeperNodeSelector:
+    enable: false
+    nodeLabel:
+  resources:
+    requests:
+      cpu: 500m
+      memory: 2Gi
+    limits:
+      cpu: 1
+      memory: 4Gi
+  heap: "2G"
+  dataStorage: "10Gi"
+  logStorage: "10Gi"
+  
+  ##This section is enabled when Kafka chart is dependent on Zookeeper chart.
+  ##And allows to configure user defined name for component resources.
+  ## Options include:
+  ## nameOverride: use this to have 'ckaf-zk'-'user-defined' naming convention.
+  ## fullnameOverride: use this to have custom name for all the resources.
+  ## default (below parameters commented): 'zk'-'release-name' naming convention.
+  ## If specified both, fullnameOverride would take the precedence.
+  ## Zookeeper fullnameOverride name should not be same as kafka fullnameOverride name.
+
+  #nameOverride: "user-defined"
+  #fullnameOverride: "user-defined"
+
+  # Property ensemble is determined, this parameter here is not taken into account.
+  ensemble: ""
+  serverPort: 2888
+  leaderElectionPort: 3888
+  clientPort: 2181
+  imagePullPolicy: "IfNotPresent"
+  tickTimeMs: 2000
+  initTicks: 10
+  syncTicks: 5
+  clientCnxns: 60
+  snapRetain: 3
+  purgeHours: 1
+  probeInitialDelaySeconds: 15
+  probeTimeoutSeconds: 5
+  logLevel: "INFO"
+  maxFileSize: 50MB
+  maxBackupIndex: 10
+  autoPvEnabledZk: false
+  autoPvEnabledLabelZk: zookeeper
+  security:
+    enabled: true
+    runAsUser: 999
+    fsGroup: 998
+    runAsGroup: 997
+    supplementalGroups: "" 
+    seLinuxOptions:
+      enabled: false
+      level: ""
+      role: ""
+      type: ""
+      user: "" 
+  JmxExporter:
+    imageRepo: "cpro/jmx-exporter"
+    imageTag: "v2.0.0"
+    imagePullPolicy: "IfNotPresent"
+    port: 7072
+    jmxResources:
+      resources:
+        requests:
+          cpu: 100m
+          memory: 1Gi
+        limits:
+          cpu: 1
+          memory: 4Gi
+  jobResources:
+    requests:
+      cpu: 200m
+      memory: 1Gi
+    limits:
+      cpu: 1
+      memory: 4Gi
+#Below is the example of creating zk krb secret object.
+#kubectl create secret generic zookeeper-sasl --from-literal=krbPrincipalKey=zookeeper/zk-<releaseName>.<namespace>.svc.cluster.local@<REALM> --from-file=krbKeytabKey=<local Keytab path eg. /home/cloud-user/zk.keytab>
+  krb:
+    enable: false
+    # provide the krb5.conf as a configmap
+    # kubectl create configmap <krbConfigmapName> --from-file=<KrbConfKeyName>=<path to krb5.conf>
+    krbConfigmapName: 
+    KrbConfKeyName: 
+    krbSecretName: <zookeeper-sasl>
+    krbPrincipalKey: <krbPrincipalKey>
+    krbKeytabKey: <krbKeytabKey>
+  cbur:
+    name: cbura-sidecar
+    image: cbur/cbura
+    tag: 1.0.3-1665
+    imagePullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: 200m
+        memory: 1Gi
+      limits:
+        cpu: 1
+        memory: 4Gi
+    # Below parameter values should be sync between zookeeper and broker
+    # Limit the number of copies that can be saved. Once it is reached, the newer backup will overwritten the oldest one
+    maxCopy: 5
+    #Modes supported now: "local","NETBKUP","AVAMAR", case insensitive
+    backendMode: "local"
+    #same format of cron job setting. It is used for scheduled backup task. Empty string is allowed for no scheduled backup
+    cronJob: "0 23 * * *"
+    
+  # Enable tolerationsForTaints and provide toleration
+  # toleration can be added for three types of taints : NoSchedule, PreferNoSchedule and NoExecute
+  # operator can also be given as Exists and value parameter can be omitted in that case
+  # tolerationSeconds (in seconds) can be added as part of NoExecute toleration that specifies how long the pod will stay bound after the node tainting.
+  # Multiple tolerations can be added
+  # Example:
+  # - key: "testing1"
+  #   operator: "Equal"
+  #   value: "no1"
+  #   effect: "NoSchedule"
+  # - key: "testing2"
+  #   operator: "Exists"
+  #   effect: "NoExecute"
+  #   tolerationSeconds: 120
+  # toleration matches a taint if key and effect is same.
+  # An empty 'key' with operator Exists will tolerate everything as it matches all keys, values and effects.
+  # Example:
+  # - operator: "Exists"
+  # An empty 'effect' matches all effects with key 'key'
+  # Example:
+  # - key: "key"
+  #   operator: "Exists"
+  tolerationsForTaints:
+      enable: false
+      tolerations:
+        - key: <"key1">
+          operator: <"Equal">
+          value: <"val1">
+          effect: <"NoSchedule">
+

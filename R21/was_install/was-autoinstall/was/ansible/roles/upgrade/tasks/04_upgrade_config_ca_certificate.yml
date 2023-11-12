@@ -1,0 +1,10 @@
+---
+- name: "Upgrading CA certificate namespace"
+  shell: >
+    {{ helmPath }} upgrade {{ caCertHelmName }}-{{ item }} {{ chartsPath }}/ca-cert/app
+    --namespace {{ item }}
+    --reuse-values
+    --values {{ chartsPath }}/values/global-values.yaml
+  with_items:
+    - "{{ NAMESPACE }}"
+

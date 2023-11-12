@@ -1,0 +1,5 @@
+secrets:
+  netguardWorkflowAutomationSecret:
+    enabled: true
+    secretName: "ckey-netguard-was-client-secret"
+    secretValue: "{{ .Values.global.config.ckey.client.secret.netguardWorkflowAutomationSecret }}"

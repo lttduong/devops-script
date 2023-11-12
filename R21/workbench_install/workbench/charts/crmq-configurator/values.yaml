@@ -1,0 +1,60 @@
+config:
+  image:
+    repository: crmq-config
+    tag: "{{ index .Values.global.imageTags \"crmq-config\" }}"
+    pullPolicy: IfNotPresent
+  secretName: "crmq-configurator-config"
+  configMapName: "crmq-configurator-config-configmap"
+
+rbacEnabled: true
+
+generatePassword: "{{ printf \"%%s%%s\" (randAlpha 1) (randAlphaNum 20) }}"
+
+certificatesSecretName: "crmq-tls-secret"
+
+users:
+  ckeyListener:
+    enabled: "true"
+    username: "{{ .Release.Name }}-ckey-listener-user"
+    secretName: "{{ .Values.global.releaseNamePrefix }}ckey-listener-user-secret"
+#  guest:
+#    username: guest
+#    passwordHash: N5ZOR9R5OCiEJJ7KlvxF+CnHd5mon3qXxeJKn+dIsW5Vf9Ai
+#    secretName: ""
+
+jobs:
+  ckeyListener:
+    enabled: "true"
+    adminConfig:
+      secretName: "{{ .Values.global.releaseNamePrefix }}{{ .Release.Name }}-ckey-listener-adminconfig-secret"
+      files:
+        - "config_files/admin-config/framework-ckey-listener.json"
+#    controlCommands:
+#      secretName:
+#      files: "config_files/bpas/control-commands"
+#      embedded:
+#        - name: my-commands
+#          content: |-
+#     {
+#       "users": [
+#         {
+#           "name": "{{ tpl .Values.users.ckeyListener.username $ }}",
+#           "password_hash": "{{ .Values.users.ckeyListener.password | sha256sum }}",
+#           "hashing_algorithm": "rabbit_password_hashing_sha256",
+#           "tags": ""
+#         }
+#       ],
+#       "permissions": [
+#         {
+#           "user": "{{ tpl .Values.users.ckeyListener.username $ }}",
+#           "vhost": "{{ .Values.global.ckey.virtualHostName }}",
+#           "configure": "{{ .Values.global.ckey.eventsTopicName }}",
+#           "write": "{{ .Values.global.ckey.eventsTopicName }}",
+#           "read": "{{ .Values.global.ckey.eventsTopicName }}"
+#         }
+#       ]
+#     }
+
+#    adminCommands: "config_files/bpas/admin-commands"
+#      secretName:
+#      files: "config_files/bpas/control-commands"

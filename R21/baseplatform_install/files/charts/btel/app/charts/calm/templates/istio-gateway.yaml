@@ -1,0 +1,44 @@
+{{- if and .Values.istio.enabled .Values.istio.ingress.enabled }}
+{{- if not .Values.istio.ingress.gatewayName }}
+apiVersion: networking.istio.io/v1alpha3
+kind: Gateway
+metadata:
+  labels:
+    app: {{ template "alarm.name" . }}
+    chart: {{ .Chart.Name }}
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+    version: {{ .Chart.Version }}
+  name: {{ template "alarm.fullname" . }}-gateway
+  namespace: {{ .Release.Namespace }}
+spec:
+  selector:
+{{ toYaml .Values.istio.ingress.selector | indent 4 }}
+  servers:
+  {{- if .Values.istio.ingress.tls.enabled }}
+  - hosts:
+    - '{{ .Values.istio.ingress.host }}'
+    port:
+      number: {{ .Values.istio.ingress.port }}
+      name: http-restful
+      protocol: HTTP
+    tls:
+      httpsRedirect: true
+  - hosts:
+    - '{{ .Values.istio.ingress.host }}'
+    port:
+      number: {{ .Values.istio.ingress.tls.port }}
+      name: https-restful
+      protocol: HTTPS
+    tls:
+{{ toYaml .Values.istio.ingress.tls.tlsOptions | indent 6 }}
+  {{- else }}
+  - hosts:
+    - '{{ .Values.istio.ingress.host }}'
+    port:
+      number: {{ .Values.istio.ingress.port }}
+      name: http-restful
+      protocol: HTTP
+  {{- end }}
+{{- end }}
+{{- end }}

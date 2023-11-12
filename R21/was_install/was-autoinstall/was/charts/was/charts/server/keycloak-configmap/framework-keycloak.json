@@ -1,0 +1,14 @@
+{
+  "realm": "netguard",
+  "auth-server-url": "${env.KEYCLOAK_AUTH_SERVER_URL}",
+  "realm-urls": {{ .Values.global.ckeyAdapterAddresses }},
+  "ssl-required": "external",
+  "resource": "netguard-framework",
+  "credentials": {
+    "secret": "${VAULT::app::ckey-netguard-framework-client-secret::1}"
+  },
+  "allow-any-hostname": false,
+  "enable-basic-auth": true,
+  "use-resource-role-mappings": true,
+  "confidential-port": 0
+}

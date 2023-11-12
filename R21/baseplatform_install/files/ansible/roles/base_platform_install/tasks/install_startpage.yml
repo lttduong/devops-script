@@ -1,0 +1,16 @@
+---
+- name: "Installing start page"
+  shell: >
+    {{ helm }} install {{ chartsPath }}/start-page/app
+    --name-template {{ startPageHelmName }}
+    --namespace {{ BP_NAMESPACE }}
+    --values {{ chartsPath }}/values/global-values.yaml
+    --values {{ chartsPath }}/start-page/app/override.yaml
+    {{ startPageConfigurationOverride }}
+    {{ startPageResourcesOverride }}
+    {{ startPageStorageOverride }}
+    --set global.registry={{ bcmtRegistry }}
+    --set httpServer.imageTag=21.0.0
+    --set certManager.servername="{{ startPageHelmName }}-citm-server.{{ BP_NAMESPACE }}.{{ svcDnsDomain }}"
+    --set ipv6Enabled={{ ipv6Only }}
+    --set httpServer.ingressClass={{ INGRESS_CLASS }}

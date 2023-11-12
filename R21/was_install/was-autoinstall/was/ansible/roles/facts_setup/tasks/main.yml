@@ -1,0 +1,133 @@
+- name: "Set installation directory on installation node"
+  set_fact:
+    appThisVersionConfigDirectory: "{{ playbook_dir }}/../netguard_product_install/was/{{ executionTimestamp.stdout }}"
+
+- name: "Initialize helm_params"
+  set_fact:
+    helm_params: ""
+    
+- name: "Set import NA CKEY Config"
+  set_fact:
+    IMPORT_CKEY_NA_CONFIG: true
+
+- name: "Set flag indicating geo redundancy mode"
+  set_fact:
+    geoRedundancyPassiveModeEnabled: "{{ geoRedundancyEnabled and geoRedundancyMode == passiveMode }}"
+    geoRedundancyActiveModeEnabled: "{{ geoRedundancyEnabled and geoRedundancyMode == activeMode }}"
+    geoRedundancyActiveModeOrDisabled: "{{ not geoRedundancyEnabled or geoRedundancyMode == activeMode }}"
+
+- name: "Set product facts"
+  include: product_facts.yml
+  
+- name: "Set IPV6 network only"
+  set_fact:
+    ipv6Only: "{{ NETWORK_STACK=='IPV6_ONLY' }}"
+
+- name: "Define crmq_password_helm_param_names"
+  set_fact:
+    crmq_password_helm_param_names: []
+  when: crmq_password_helm_param_names is not defined
+
+- name: "Append crmq-configurator.users.ckeyListener.password to crmq_password_helm_param_names"
+  set_fact:
+    crmq_password_helm_param_names: "{{ crmq_password_helm_param_names + ['crmq-configurator.users.ckeyListener.password'] }}"
+  
+- name: "Set path to charts on installation node"
+  set_fact:
+    chartsPath: "{{ appThisVersionConfigDirectory }}/charts"
+
+- name: "Set path for SSH private key file"
+  set_fact:
+    sshPrivateKeyFile: "{{ SSH_PRIVATE_KEY_PATH }}"
+    
+- name: "Set Helm path"
+  set_fact:
+    helmPath: "{{ HELM_PATH }}"
+
+- name: "Set kubectl path"
+  set_fact:
+    kubectlPath: "{{ KUBECTL_PATH }}"
+
+- name: "Set local docker images registry address"
+  set_fact:
+    bcmtRegistry: "{{ bcmt_registry }}"
+
+- name: "Set install PSP bypass flag"
+  set_fact:
+    installPspBypass: "{{ INSTALL_PSP_BYPASS | default('false') }}"
+
+- name: "Set run keycloak config flag"
+  set_fact:
+    runKeycloakConfig: "{{ IMPORT_KEYCLOAK_CONFIG | default('false') }}"
+
+- name: "Set edge nodes using ACCESS_FQDNS "
+  set_fact:
+    edgeNodes: "{{ ACCESS_FQDNS }}" 
+  when: ACCESS_FQDNS != []
+
+- name: "Set edge nodes using ACCESS_IPS "
+  set_fact:
+    edgeNodes: "{{ ACCESS_IPS }}" 
+  when: ACCESS_FQDNS == []
+
+- name: "Set edge IPs using ACCESS_IPS "
+  set_fact:
+    edgeIPs: "{{ ACCESS_IPS | first | regex_replace( '(.*)', '\\1') }}"
+  when: ACCESS_IPS != []
+
+# TODO Remove in final version, useful in deployment
+- name: "Set development helper variables"
+  set_fact:
+    shouldInstall: true
+    productionMode: false
+
+- name: "Set namespaceInstall"
+  set_fact:
+    namespaceInstall: "{{ INSTALL_NAMESPACE | default('true') }}"
+
+- name: "Set storageClass"
+  set_fact:
+    storageClass: "{{ BP_DEPLOYMENT_PROFILE.STORAGE }}"
+
+- name: "Setting cert-manager facts"
+  set_fact:
+    certManagerNamespace: "ncms"
+    caCertificateSecret: "ca-key-pair"
+    caCertHelmName: "ca-cert"
+
+- name: "Set geo redundancy related values for passive mode"
+  set_fact:
+    agentGeoSettings: "--set agent.replicaCount=0"
+    serverGeoSettings: "--set server.replicaCount=0"
+    ckeyConfigGeoPassiveSettings: "--set importConfig.enabled=false"
+    cmdbConfigGeoPassiveSettings: "--set createDB.enabled=false"
+    nosDbschematoolOperationGeoSettings: "--set server.dbschematool.operation=\"skip\""
+  when: geoRedundancyPassiveModeEnabled
+
+- name: "Set geo redundancy related values for active mode"
+  set_fact:
+    agentGeoSettings: "--set agent.replicaCount={{ AGENT_REPLICAS | default(0) }}"
+    serverGeoSettings: "--set server.replicaCount={{ SERVER_REPLICAS | default(1) }}"
+    nosDbschematoolOperationGeoSettings: "--set server.dbschematool.operation={{ NOS_DBSCHEMATOOL_OPERATION | quote }}"
+  when: geoRedundancyActiveModeEnabled or not geoRedundancyEnabled
+
+- name: "Set nosdb password fact"
+  set_fact:
+    nosdbpassword: "{{ NOSDB_PASSWORD }}"
+  when: NOSDB_PASSWORD is defined and NOSDB_PASSWORD is not none
+
+- name: "Set netguard-framework Keycloak client secret fact"
+  set_fact:
+    frameworkClientSecret: "{{ NETGUARD_FRAMEWORK_SECRET }}"
+  when: NETGUARD_FRAMEWORK_SECRET is defined and NETGUARD_FRAMEWORK_SECRET is not none and NETGUARD_FRAMEWORK_SECRET != ""
+
+- name: "Set netguard-networkaccess Keycloak client secret fact"
+  set_fact:
+    networkAccessClientSecret: "{{ NETGUARD_NETWORKACCESS_SECRET }}"
+  when: NETGUARD_NETWORKACCESS_SECRET is defined and NETGUARD_NETWORKACCESS_SECRET is not none and NETGUARD_NETWORKACCESS_SECRET != ""
+
+- name: "Set netguard-networkaccess-agent Keycloak client secret fact"
+  set_fact:
+    agentClientSecret: "{{ NETGUARD_NETWORKACCESS_AGENT_SECRET }}"
+  when: NETGUARD_NETWORKACCESS_AGENT_SECRET is defined and NETGUARD_NETWORKACCESS_AGENT_SECRET is not none and NETGUARD_NETWORKACCESS_AGENT_SECRET != ""
+  

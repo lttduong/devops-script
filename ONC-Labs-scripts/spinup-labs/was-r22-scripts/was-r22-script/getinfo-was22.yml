@@ -1,0 +1,50 @@
+---
+- name: Get info WAS 
+  hosts: localhost
+  connection: local
+  collections:
+    - azure.azcollection
+
+  vars:
+    nmaster: "{{ lookup('env', 'masterName') }}"
+    nworker: "{{ lookup('env', 'workerName') }}"
+    newRG: "{{ lookup('env', 'rg') }}"
+ 
+  tasks:
+    - name: Get public IP of Master node
+      shell: sudo az vm show -g "{{ newRG }}" -n "{{ nmaster }}"  --query privateIps -d --out tsv > ./wasip.txt
+      
+    - name: Query Public IP vm master node
+      shell: sudo az vm show -g "{{ newRG }}" -n "{{ nmaster }}"  --query privateIps -d --out tsv 
+      register: ipmaster  
+
+    - name: Print out URL of WAS
+      debug:
+        msg: "This is URL of WAS: https://{{ipmaster.stdout}}"
+
+    - name: Get NETGUARD_ADMIN_PASSWORD
+      shell: awk '{if(NR==154) print $2}' ./was22-install/playbook/bp-packages/bp_config_vars.yml >> ./wasip.txt
+    
+    - name: Show out NETGUARD_ADMIN_PASSWORD
+      shell: awk '{if(NR==154) print $2}' ./was22-install/playbook/bp-packages/bp_config_vars.yml
+      register: netguard_admin
+
+    - name: Print out NETGUARD_ADMIN_PASSWORD
+      debug: 
+        msg: "This is NETGUARD_ADMIN_PASSWORD: {{ netguard_admin.stdout }} "
+
+    - name: Show out KEYCLOAK_ADMIN_PASSWORD
+      shell: awk '{if(NR==134) print $2}' ./was22-install/playbook/bp-packages/bp_config_vars.yml
+      register: keycloak_admin
+
+    - name: Print out VM name of masternode
+      debug:
+        msg: "This is VM name of masternode: {{ nmaster }} "
+
+    - name: Print out VM name of workernode
+      debug:
+        msg: "This is VM name of workernode: {{ nworker }} "
+
+    - name: Print out Resource Group of Cluster
+      debug:
+        msg: "This is Resource group of Cluster: {{ newRG }} "

@@ -1,0 +1,21 @@
+apiVersion: v1
+appVersion: 5.4.1
+description: Apache Kafka is publish-subscribe messaging rethought as a distributed
+  commit log.
+home: https://kafka.apache.org/
+icon: https://kafka.apache.org/images/logo.png
+keywords:
+- kafka
+- zookeeper
+- kafka statefulset
+- 'X-COMPAAS: { "CATEGORY": "Messaging", "SVC_NAME": "Kafka", "SVC_TYPE": "CKAF",
+  "SVC_SCOPE": [ "PRIVATE" ] }'
+maintainers:
+- email: csf-compass@list.nokia.com
+  name: ComPaaS PIE Team
+name: ckaf-kafka
+sources:
+- https://github.com/kubernetes/charts/tree/master/incubator/zookeeper
+- https://github.com/Yolean/kubernetes-kafka
+- https://github.com/solsson/dockerfiles/tree/master/kafka
+version: 3.0.2

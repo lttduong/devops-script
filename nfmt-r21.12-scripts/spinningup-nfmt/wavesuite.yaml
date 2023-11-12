@@ -1,0 +1,384 @@
+########################################################################################################################
+#
+# File: wavesuite.yaml
+#
+########################################################################################################################
+#
+# Nokia - Confidential
+# Do not use, distribute, or copy without consent of Nokia.
+# Copyright (c) 2020, 2021 Nokia. All rights reserved.
+#
+########################################################################################################################
+#
+# Description:
+#   Configuration file for the WSCP Installer.
+#
+#   The configuration provided to the installer using this file or command-line arguments will be saved to disk after
+#   a successful installation. Subsequent installer operations will re-load the persisted configuration from disk. The
+#   saved configuration can be overridden by changing the values in this configuration file or at the command-line.
+#
+#   Unless otherwise documented in this file, if a property in this configuration file is left blank, then an existing
+#   value on disk will be used if available. If a property in this file is empty (in other words, set to ""). Then this
+#   will 'unset' the existing value. Otherwise, a value set at the command line will override any value set in this
+#   file, and any value set in this file will override any value found on disk.
+#
+########################################################################################################################
+
+---
+
+
+########################################################################################################################
+# Server Configuration
+########################################################################################################################
+# Configures the WaveSuite services to use the following proxy URL for HTTP requests.
+# During an update operation, the value '-' may be supplied to clear the proxy setting.
+#
+# By default, no HTTP proxy server will be used.
+http_proxy_server:
+
+# Configures the WaveSuite services to use the following proxy URL for HTTPS requests.
+# During an update operation, the value '-' may be supplied to clear the proxy setting.
+#
+# By default, no HTTPS proxy server will be used.
+https_proxy_server:
+
+# The externally-facing port to access the WaveSuite application.
+#
+# The application will be reachable at https://<host>:<wavesuite_portal_port>/cp/admin/ui after the installation has
+# completed.
+#
+# The default value for this port is 8443.
+wavesuite_portal_port: "28443"
+
+
+########################################################################################################################
+# SSL Configuration
+########################################################################################################################
+# If 'ca_certificates_path' is specified, then the installer will import any CA certificates located at the specified
+# absolute path into the WaveSuite trust store. The root base names of the CA files will be used as certificate aliases
+# in the trust store. Therefore, the CA certificate root base names must be unique.
+#
+# By default, no additional CA certificates will be imported.
+ca_certificates_path:
+
+# The 2-letter country code that will be added to the Subject Name of the installer-generated certificate.
+#
+# The default country name will be set to 'CA' (Canada).
+ssl_certificate_country_name: "CA"
+
+# The installer-generated certificate will be valid for the provided number of days.
+#
+# The default expiry length (in days) is set to '730'.
+ssl_certificate_expiry_length: 730
+
+# The city/locality name that will be added to the Subject Name of the installer-generated certificate.
+#
+# The default locality name will be set to 'Ottawa'.
+ssl_certificate_locality_name: "Ottawa"
+
+# The organization name that will be added to the Subject Name of the installer-generated certificate.
+#
+# The default organization name will be set to 'Nokia'.
+ssl_certificate_organization_name: "Nokia"
+
+# The organizational unit name that will be added to the Subject Name of the installer-generated certificate.
+#
+# The default organizational unit name will be set to 'WaveSuite'.
+ssl_certificate_organizational_unit_name: "WaveSuite"
+
+# The state name that will be added to the Subject Name of the installer-generated certificate.
+#
+# The default state name will be set to 'Ontario'.
+ssl_certificate_state_name: "Ontario"
+
+# The installer will use the password file stored at the absolute path designated by this option to access the private
+# key specified by 'ssl_key_path'
+#
+# By default, no SSL key password file path will be set.
+ssl_key_password_file_path:
+
+# The installer will generate the application's SSL certificate by digitally signing it with the PEM-encoded private key
+# file located at the absolute path designated by this option.
+#
+# Must also specify 'ssl_root_certificate_path' if this option is used.
+#
+# By default, no SSL key path will be set.
+ssl_key_path:
+
+# If 'ssl_root_certificate_path' is specified, then the installer will generate the application's SSL certificate using
+# the PEM-encoded root certificate file located at the absolute path designated by this flag.
+#
+# The certificate provided by the user must be a valid trusted SSL certificate.
+#
+# The generated certificate will contain:
+#   - Common Name:          Configured from the external_access_address below.
+#   - Subject Alt Names:    Configured from the target installation host and zone address values below.
+#
+# If this option is not specified, then the installer will generate the SSL certificate with a default
+# self-signed root certificate.
+#
+# Must also specify 'ssl_key_path' if this option is used.
+#
+# By default, no root SSL certificate will be set.
+ssl_root_certificate_path:
+
+########################################################################################################################
+# Misc
+########################################################################################################################
+# The location to map the internal backups directory 
+# This should map to an external filesystem to ensure backups are accessible outside of the host OS
+#
+# By default, the volume will be mapped to: '/opt/wavesuite/docker_data/volumes'
+backup_and_restore_volume_path:
+
+# Defines if the Swagger generated API documentation can be accessed from the WSCP UI and as an API endpoint.
+#
+#  Examples:
+#  --------
+#    enable_swagger_docs: true
+#
+#    enable_swagger_docs: false
+#
+# This parameter's default value is false if omitted.
+enable_swagger_docs: true
+
+# Defines MariaDB service bin log format. Available alternatives are MIXED, ROW and STATEMENT. Default value is MIXED.
+mariadb_bin_log_format:
+
+# Defines how many days between MariaDB log rotations
+#
+#  Examples:
+#  --------
+#    mariadb_log_days_per_rotation: 4
+#
+#    mariadb_log_days_per_rotation: 5
+#
+# This parameter's default value is 3 if omitted
+mariadb_log_days_per_rotation:
+
+########################################################################################################################
+# Target Installation Nodes
+########################################################################################################################
+# The 'active_host_key' property identifies the WaveSuite target installation host that will contain active application
+# services when configured in a multi-host HA configuration. This property only reflects the state of the system at the
+# time of the installation, as the activity state of the hosts can change post-install.
+#
+# For single host deployments, this property must be set to the host key of the only configured target installation
+# host.
+#
+# See 'wavesuite_target_installation_hosts' below for more information.
+#
+# By default, the active host key will be set to the string 'target_host'.
+active_host_key: target_host
+
+# WaveSuite target installation hosts define the machines on which WaveSuite services will be installed.
+#
+# Currently, single host and multi-host HA configurations are supported. Configuring anything but one or two
+# target installation hosts will result in installation validation failing.
+#
+# The wavesuite_target_installation_hosts variable is intended to be a dictionary whose values should contain a
+# hostname or IP address. The keys of the dictionary can be arbitrarily defined. However, the keys must match those
+# identified in the zone configurations. The keys of this dictionary are referred to as 'host keys'.
+#
+# WARNING: If the wavesuite_target_installation_hosts are configured, then the client_zone, localhost_zone, and
+#          active_host_key configurations will also need to be modified to ensure that the host keys match.
+#
+# All wavesuite_target_installation_hosts will show up in the SAN of the generated SSL certificate.
+#
+# Example:
+# --------
+#   wavesuite_target_installation_hosts:
+#       target_host_1: 10.255.1.1
+#       target_host_2: test-fqdn.domain.com
+#       target_host_3: 10.0.0.1
+#
+# By default, the installer will deploy to the host that triggered the installation. The default host key is set to
+# 'target_host'.
+wavesuite_target_installation_hosts:
+    target_host: 172.16.0.6
+        
+########################################################################################################################
+# External Access Addresses
+########################################################################################################################
+# If the system is expected to be reachable through one or more external addresses not configured by the system (i.e.,
+# via a proxy that is sitting in front of the WaveSuite system), then the following property must be set. External
+# access addresses are expected to be either a fully qualified domain name, or IPv4:PORT pair.
+#
+# The external access address for a specific target installation host will be configured as the Common Name on the
+# installer-generated SSL certificate for that host. All authentication requests on a host will be redirected via the
+# configured external access address.
+#
+# The external access addresses are assumed to be configured with HTTPS. The address configured should not be prepended
+# with 'https://', or any other protocol qualifier.
+#
+# External access addresses can be configured on a per-host basis using the target installation host host keys, or a
+# single one can be set globally for all installation hosts.
+#
+#  Examples:
+#  --------
+#    external_access_addresses: some-fqdn.domain.com
+#
+#    external_access_addresses:
+#        target_host_1: 173.12.5.1:8443
+#        target_host_2: 192.168.0.1:8443
+#
+# By default, the installer will configure individual external access addresses for each host. The IP of the default
+# route on each host will be used along with the 'wavesuite_portal_port'.
+external_access_addresses:
+    target_host: 20.232.172.211:8443
+
+########################################################################################################################
+# Traffic Zone Addresses
+########################################################################################################################
+# Traffic zones define which IP address an application should bind its port to.
+#
+# Each zone is intended to be populated with key/value pairs.
+#   - The keys must be a valid host key from the wavesuite_target_installations_hosts configuration.
+#
+#   - The values must be a list of ip addresses from a valid network interface on the designated target installation
+#     host. The exception to this rule is if the "-" character is provided. Then, the installer will not bind any ports
+#     from services belonging to that zone when installing on the corresponding target installation host.
+#
+# Traffic zones can be added and removed from this file as needed. This means that the client_zone, internal_zone,
+# and localhost_zone can be renamed or removed as desired. The client, internal, and localhost zones will be used as the
+# default configuration if the installer has not been configured.
+#
+# All zone IP addresses will show up in the SAN of the generated SSL certificate.
+#
+# Example:
+# --------
+#   client_zone:
+#       target_host_1:
+#           - 10.10.10.1
+#           - 10.10.10.2
+#       target_host_2:
+#           - 10.200.1.1
+#       target_host_3:
+#           - 10.100.1.1
+#
+#   internal_zone: "-"
+#
+# In the above example, we are configuring the zones for the hosts from the wavesuite_target_installation_hosts example.
+#
+# Services configured to use the client zone will bind their ports to:
+#   - Both 10.10.10.1 and 10.10.10.2 when installed on host 10.255.1.1,
+#   - 10.200.1.1 when installed on host test-fqdn.domain.com,
+#   - and 10.100.1.1 when installed on host 10.0.0.1.
+#
+# Services configured to use the internal zone will not bind their ports to any IP address on either target installation
+# host.
+########################################################################################################################
+
+# The client zone is intended to contain user-facing services.
+#
+# By default, the installer will map the 'target_host' host key to the IP of the default route for the client zone.
+client_zone:
+    target_host: 
+        - 172.16.0.6
+
+# The internal zone is intended to contain services that should be available on an internal network interface.
+#
+# By default, the installer will map the 'target_host' host key to the IP of the default route for the internal zone.
+internal_zone:
+    target_host: 
+        - 172.16.0.6
+
+# The localhost zone is intended to contain services that should be hidden from user interaction, but should still
+# have their ports available on the host system.
+#
+# By default, the installer will map the 'target_host' host key to '127.0.0.1' for the localhost zone.
+localhost_zone:
+    target_host: 
+        - 127.0.0.1
+
+########################################################################################################################
+# Service Deployment Configuration
+########################################################################################################################
+# This section maps services to the zones in which they will be deployed. Each service represents an application that
+# will be deployed as part of the installation process.
+#
+# The 'zones' key of each service expects to be given a list of zone names that have been configured in the
+# 'Traffic Zone Addresses' section.
+#
+# Example:
+# --------
+#   kong_service:
+#       zones:
+#           - client_zone
+#           - internal_zone
+#
+#   kafka_service:
+#       zones:
+#           - internal_zone
+#
+#   keycloak_service:
+#       zones:
+#           - administrative_zone
+#
+# NOTE: In the example above, the administrative_zone does not exist by default as a traffic zone in this configuration
+#       file. It exists just to highlight the fact that adding/removing new zones is possible.
+########################################################################################################################
+
+# The WaveSuite Administration service will exist in the localhost zone by default and binds port 8090 to the specified
+# ip addresses.
+admin_service:
+    zones: 
+        - localhost_zone
+
+# The container network service will exist in the internal zone by default and binds port 2377 to the specified ip
+# address. Only one IP address per host can be configured for the container network service.
+#
+# NOTE: The interfaces designated by the IP addresses used for the container network service must each be able to reach
+#       one another.
+container_network_service:
+    zones:
+        - internal_zone
+
+# The etcd service will exist in the localhost zone by default and binds port 2379 to the specified ip addresses.
+etcd_service:
+    zones:
+        - localhost_zone
+
+# The Kafka service will exist in the localhost zone by default and binds port 9092 to the specified ip addresses.
+#
+# WARNING: Access to Kafka is currently unencrypted. It is not recommended to configure this service to be available
+#          externally.
+kafka_service:
+    zones:
+        - localhost_zone
+
+# The Kafka schema resgistry service will exist in the localhost zone by default and binds port 8081 to the specified
+# ip addresses.
+#
+# WARNING: Access to Kafka schema registry is currently unencrypted. It is not recommended to configure this service
+#          to be available externally.
+kafka_schema_registry_service:
+    zones:
+        - localhost_zone
+
+# The KeyCloak service will exist in the localhost zone by default and binds port 8666 to the specified ip addresses.
+keycloak_service:
+    zones:
+        - localhost_zone
+
+# The Kong service will exist in the client zone by default and binds the port designated by the 'wavesuite_portal_port'
+# configurable property to the specified ip addresses.
+#
+# The Kong service is a reverse proxy that is expected to be available externally and handles all incoming requests.
+kong_service:
+    zones:
+        - client_zone
+
+# The Logging service will exist in the localhost zone by default and binds port 514 to the specified ip addresses.
+logging_service:
+    zones:
+        - localhost_zone
+
+# The MariaDB service will exist in the localhost zone by default and binds port 3306 to the specified ip addresses.
+#
+# WARNING: Access to MariaDB is currently unencrypted. It is not recommended to configure this service to be available
+#          externally.
+mariadb_service:
+    zones:
+        - localhost_zone
+...

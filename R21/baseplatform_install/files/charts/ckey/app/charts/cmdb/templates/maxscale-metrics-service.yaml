@@ -1,0 +1,21 @@
+{{- if .Values.maxscale.metrics.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "cmdb.fullname" . }}-maxscale-metrics
+  labels:
+    {{- include "cmdb-maxscale.labels" . | indent 4 }}
+  annotations:
+{{ toYaml .Values.maxscale.metrics.annotations | indent 4 }}
+    "prometheus.io/port": {{ .Values.services.maxscale.exporter_port | quote }}
+spec:
+  type: ClusterIP
+  ports:
+  - name: tcp-mxs-metrics
+    port: {{ .Values.services.maxscale.exporter_port }}
+    targetPort: tcp-mxs-metrics
+  selector:
+    {{- include "cmdb-maxscale.labels" . | indent 4 }}
+    type: maxscale
+{{- end }}

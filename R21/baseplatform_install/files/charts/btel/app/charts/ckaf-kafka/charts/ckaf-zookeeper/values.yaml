@@ -1,0 +1,246 @@
+# Default values for zookeeper.
+# This is a YAML-formatted file.
+# Declare name/value pairs to be passed into your templates.
+# name: value
+global:
+  # This registry is used for zookeeper-server container image
+  registry: csf-docker-delivered.repo.lab.pl.alcatel-lucent.com
+  # This registry is used for jmx-exporter container image
+  registry1: csf-docker-delivered.repo.lab.pl.alcatel-lucent.com
+  # This registry is used for cbur-agent container image
+  registry2: csf-docker-delivered.repo.lab.pl.alcatel-lucent.com
+  # This registry is used for pre/post hook container image
+  registry3: csf-docker-delivered.repo.lab.pl.alcatel-lucent.com
+  # Not used. Reserved for future
+  registry4:
+  # Not used. Reserved for future
+  registry5:
+  seccompAllowedProfileNames: docker/default
+  seccompDefaultProfileName: docker/default
+  storageClass: ""
+  domainName: ".cluster.local"
+  rbacEnable: true
+  serviceAccountName: 
+  cburEnable: true
+  # Enable this flag to forcefully upgrade kafka
+  forceUpgrade: true
+  # Enable this flag to prepare kafka for rollback
+  prepareRollback: false
+  preheal: 0
+  postheal: 0
+  #CLOG configuration
+  clogEnable: true
+  # bkp/restore hook job configuration
+  jobhookenable: true 
+  jobtimeout: 600
+  prerestore: 0
+  postrestore: 0
+  # istio configurations
+  istio:
+    # setting "enabled: true" injects istio proxy side cars to the zookeeper pods.
+    enabled: false
+    # set "createDrForClients: true" iff disabling istio for zookeeper in a istio  mtls environment
+    # setting this to true creates a Destination rule for zookeeper workload with tls mode as "DISABLE".
+    createDrForClients: false
+    # Use the below section to override global istio mtls settings.
+    # if "overrideMtls.enabled: true",destination rules and peerauthentications policy will be created. 
+    overrideMtls:
+      enabled: false
+      # Specify the zookeeper workload mtls mode.
+      mode: "PERMISSIVE"
+  # enable this flag to perform scale via upgrade 
+  enable_scale_via_upgrade: false
+
+imageRepo: ckaf/zookeeper
+imageTag: "4.0.0-3.5.7-3591"
+kubectlImage: "tools/kubectl"
+kubectlTag: "v1.14.3-nano"
+servers: 3 
+# minAvailable: 2
+antiAffinity: "hard"
+# Add user defined label under nodeLabel as key value pair. 
+# Enable it to true to use nodeLabel feature
+# Always quote the value part. Example nodeType: "zk-enable" 
+# Example:
+# zookeeperNodeSelector:
+#   enable: true
+#   nodeLabel:
+#     "key1" : "value1"
+zookeeperNodeSelector:
+  enable: false
+  nodeLabel:
+
+#This section allows to configure user defined name for component resources
+# Options include:
+# nameOverride: use this to have 'ckaf-zk'-'user-defined' naming convention.
+# fullnameOverride: use this to have custom name for all the resources.
+# default (below parameters commented): 'zk'-'release-name' naming convention.
+# If specified both, fullnameOverride would take the precedence.
+
+#nameOverride: "user-defined"
+#fullnameOverride: "user-defined"
+
+
+
+# Enable tolerationsForTaints and remove curly braces and provide toleration
+# toleration can be added for three types of taints : NoSchedule, PreferNoSchedule and NoExecute
+# operator can also be given as Exists and value parameter can be omitted in that case
+# tolerationSeconds (in seconds) can be added as part of NoExecute toleration that specifies how long the pod will stay bound after the node tainting.
+# Multiple tolerations can be added
+# Example: 
+# - key: "testing1"
+#   operator: "Equal"
+#   value: "no1"
+#   effect: "NoSchedule"
+# - key: "testing2"
+#   operator: "Exists"
+#   effect: "NoExecute"
+#   tolerationSeconds: 120
+# toleration matches a taint if key and effect is same. 
+# An empty 'key' with operator Exists will tolerate everything as it matches all keys, values and effects.
+# Example: 
+# - operator: "Exists"
+# An empty 'effect' matches all effects with key 'key'
+# Example:
+# - key: "key"
+#   operator: "Exists"
+tolerationsForTaints:
+    enable: false
+    tolerations:
+      - key: <"key1">
+        operator: <"Equal">
+        value: <"val1">
+        effect: <"NoSchedule">
+
+# Feature dev In-progress CSFID-1967
+# This feature allows the user to access zookeeper services outside the k8s cluster.
+# To turn ON the feature set "EnableExternalAccess" to true.
+# "EdgeNodePort" port on all the edge nodes available for zookeeper service to be deployed,
+# port availability check must be done by the user prior to the installation.
+# Pre-requisite for this feature, user is expected to install the citm ingress controller. 
+# The same helm release name must be entered for "citmReleaseName"
+ingress:
+  enableExternalAccess: false
+  edgeNodePort: ""
+  citmReleaseName: ""
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 2Gi
+  limits:
+    cpu: 1
+    memory: 4Gi
+heap: "2G"
+dataStorage: "10Gi"
+logStorage: "10Gi"
+serverPort: 2888
+leaderElectionPort: 3888
+imagePullPolicy: "IfNotPresent"
+tickTimeMs: 2000
+initTicks: 10
+syncTicks: 5
+preAllocSize: 64MB
+clientCnxns: 60
+snapRetain: 3
+purgeHours: 1
+probeInitialDelaySeconds: 15
+probeTimeoutSeconds: 5
+snapshotTrustEmpty: false
+
+configurationOverrides:
+  # override only additional zookeeper configs not defined in the above section.
+  # example format:
+  # maxClientCnxns:60 
+
+#Below is the example of creating zk krb secret object.
+#kubectl create secret generic zookeeper-sasl --from-literal=krbPrincipalKey=zookeeper/zk-<releaseName>.<namespace>.svc.cluster.local@<REALM> --from-file=krbKeytabKey=<local Keytab path eg. /home/cloud-user/zk.keytab>
+krb:
+  enable: false
+  krbSecretName: <zookeeper-sasl>
+  krbPrincipalKey: <krbPrincipalKey>
+  krbKeytabKey: <krbKeytabKey>
+  #provide the krb5.conf as a configmap
+  #kubectl create configmap <krbConfigmapName> --from-file=<KrbConfKeyName>=<path to krb5.conf>
+  krbConfigmapName:
+  KrbConfKeyName: 
+      
+logLevel: "INFO"
+maxFileSize: 50MB
+maxBackupIndex: 10
+autoPvEnabledZk: false
+autoPvEnabledLabelZk: zookeeper
+security:
+  enabled: true
+  runAsUser: 999
+  fsGroup: 998
+  runAsGroup: 997
+  supplementalGroups: "" 
+  seLinuxOptions:
+    enabled: false
+    level: ""
+    role: ""
+    type: ""
+    user: ""
+
+#Jmx Exporter
+JmxExporter:
+  imageRepo: "cpro/jmx-exporter"
+  imageTag: "v2.0.0"
+  imagePullPolicy: "IfNotPresent"
+  port: 7072
+  jmxResources:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 1Gi
+      limits:
+        cpu: 1
+        memory: 4Gi
+jobResources:
+  requests:
+    cpu: 200m
+    memory: 1Gi
+  limits:
+    cpu: 1
+    memory: 4Gi
+
+# Delete hook config
+deleteZookeeperJob:
+  auto_remove_zk_pvc: true
+
+# Scale hook config
+prescalein: 0
+postscalein: 0
+lcm:
+  scale_hooks: all
+  scale_timeout: 180
+  heal:
+    timeout: 600
+# Upgrade config
+enableUpgrade: false
+
+
+# Rollback config
+enableRollback: false
+
+# CBUR agent config
+cbur:
+  name: cbura-sidecar
+  image: cbur/cbura
+  tag: 1.0.3-1665
+  imagePullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 200m
+      memory: 1Gi
+    limits:
+      cpu: 1
+      memory: 4Gi
+  # Limit the number of copies that can be saved. Once it is reached, the newer backup will overwritten the oldest one
+  maxCopy: 5
+  #Modes supported now: "local","NETBKUP","AVAMAR", case insensitive
+  backendMode: "local"
+  #same format of cron job setting. It is used for scheduled backup task. Empty string is allowed for no scheduled backup
+  cronJob: "0 23 * * *"
+

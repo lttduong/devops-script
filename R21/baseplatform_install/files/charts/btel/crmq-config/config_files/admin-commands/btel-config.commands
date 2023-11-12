@@ -1,0 +1,7 @@
+declare vhost name=/
+declare user name={{ .Values.config.crmq.users.calm.username }} \
+             password_hash={{ .Values.config.crmq.users.calm.passwordHash }} \
+             hashing_algorithm=rabbit_password_hashing_sha256 \
+             tags=""
+declare permission vhost=/ user={{ .Values.config.crmq.users.calm.username }} \
+                   configure=".*" write=".*" read=".*"

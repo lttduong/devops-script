@@ -1,0 +1,18 @@
+{
+  "policy": "OVERWRITE",
+  "groups": [
+    {
+      "id": "dd7c2fa4-1c70-428c-826c-bc8b0025ed6c",
+      "name": "USER_ADMINISTRATOR",
+      "path": "/USER_ADMINISTRATOR",
+      "attributes": {},
+      "realmRoles": [],
+      "clientRoles": {
+        "realm-management": [
+          "realm-admin"
+        ]
+      },
+      "subGroups": []
+    }
+  ]
+}

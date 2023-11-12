@@ -1,0 +1,68 @@
+## Image Registry
+global:
+  registry: "csf-docker-delivered.repo.lab.pl.alcatel-lucent.com"
+  podNamePrefix: 
+  containerNamePrefix: 
+
+imageRepo: "citm/citm-default-backend"
+imageTag: "4.0.4-5"
+imagePullPolicy: IfNotPresent
+
+nodeSelector: {}
+
+runOnEdge: false
+
+tolerations: []
+
+affinity: {}
+
+replicaCount: 1
+
+resources:
+  requests:
+    memory: 10Mi
+    cpu: 1m
+  limits:
+    memory: 64Mi
+    cpu: 10m
+
+service:
+  type: ClusterIP
+  servicePort: 8080
+
+backend:
+  name: default404
+  port: 8080
+  debug: "false"
+  page:
+    title: "404 - Not found"
+    body: "The requested page was not found"
+    copyright: "Nokia. All rights reserved"
+    productFamilyName: "CITM"
+    productName: "Default backend"
+    productRelease: "4.0.4-5"
+    toolbarTitle: "View more ..."
+    imageBanner: "Nokia_logo_white.svg"
+
+rbac:
+  enabled: true
+  serviceAccountName: default
+  
+istio:
+  enabled: false
+  version: 1.5
+  # Whether istio cni is enabled in the environment.
+  cni:
+    enabled: false
+    # MTLS section of configuration.
+  mtls:
+    #Is strict MTLS enabled in the environment.
+    enabled: true
+  # Should allow mutual TLS as well as clear text for your deployment.
+  permissive: true
+  
+# For helm test
+test:
+  image: "tools/kubectl"
+  tag: "v1.17.8-nano"
+  hookDeletePolicy: "before-hook-creation, hook-succeeded"

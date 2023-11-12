@@ -1,0 +1,66 @@
+{{- if and (.Values.istio.enable) (.Values.alertmanager.enabled) (eq .Values.global.istioVersion 1.4) }}
+apiVersion: "authentication.istio.io/v1alpha1"
+kind: "Policy"
+metadata:
+  labels:
+    app: {{ template "prometheus.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    component: "{{ .Values.alertmanager.name }}"
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+{{- include "prometheus-labels" (tuple .Values.global.labels) | indent 4}}
+  name: {{ template "prometheus.alertmanager.fullname" . }}
+  namespace: "{{.Release.Namespace}}"
+{{- if .Values.global.annotations }}
+  annotations:
+{{- include "prometheus-annotations" (tuple .Values.global.annotations) | indent 4}}
+{{- end }}
+spec:
+  targets:
+  {{- if .Values.ha.enabled }}
+  - name: {{ template "prometheus.alertmanager.fullname" . }}-ext
+  {{- else }}
+  - name: {{ template "prometheus.alertmanager.fullname" . }}
+  {{- end }}
+  - name: {{ template "prometheus.alertmanager.fullname" . }}-scr
+  peers:
+  - mtls:
+{{- if .Values.istio.mtls_enable }}
+      mode: STRICT
+{{- else }}
+      mode: PERMISSIVE
+{{- end }}
+{{- end }}
+
+---
+
+{{- if and (.Values.istio.enable) (.Values.alertmanager.enabled) (eq .Values.global.istioVersion 1.4) }}
+{{- if .Values.ha.enabled }}
+apiVersion: "authentication.istio.io/v1alpha1"
+kind: "Policy"
+metadata:
+  labels:
+    app: {{ template "prometheus.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    component: "{{ .Values.alertmanager.name }}"
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+{{- include "prometheus-labels" (tuple .Values.global.labels) | indent 4}}
+  name: {{ template "prometheus.alertmanager.fullname" . }}-int
+  namespace: "{{.Release.Namespace}}"
+{{- if .Values.global.annotations }}
+  annotations:
+{{- include "prometheus-annotations" (tuple .Values.global.annotations) | indent 4}}
+{{- end }}
+spec:
+  targets:
+  - name: {{ template "prometheus.alertmanager.fullname" . }}-int
+  peers:
+  - mtls:
+{{- if .Values.istio.mtls_enable }}
+      mode: STRICT
+{{- else }}
+      mode: PERMISSIVE
+{{- end }}
+{{- end }}
+{{- end }}

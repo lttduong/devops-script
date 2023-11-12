@@ -1,0 +1,123 @@
+
+Download the packages with link: 
+  1.1 // Only images for Was r22
+    https://nokia-my.sharepoint.com/:u:/r/personal/duong_thanh_ext_nokia_com/Documents/allimageWAS22.tar?csf=1&web=1&e=F9ze1p
+  1.2 // all packages k8s & Was r22
+    https://nokia-my.sharepoint.com/:u:/r/personal/duong_thanh_ext_nokia_com/Documents/was22-packages-offline.tgz?csf=1&web=1&e=vNtyL4
+
+    root@lttduong:/mnt/c/Users/lttduong# ls -al was-packages-offline
+    total 12202220
+    drwxrwxrwx 1 root root         512 Dec  2 10:25 .
+    drwxrwxrwx 1 root root         512 Dec  2 10:47 ..
+    -rwxrwxrwx 1 root root 11805261824 Dec  1 10:03 allimageWAS22.tar
+    -rwxrwxrwx 1 root root    17832207 Dec  1 09:31 ansible-2.9.27-1.el7.noarch.rpm
+    -rwxrwxrwx 1 root root      988234 Jan 24  2022 firewalld.tar.gz
+    -rwxrwxrwx 1 root root        7950 Jan 25  2022 helm-chart.tar.gz
+    -rwxrwxrwx 1 root root    25091763 Jan 22  2022 helm-v2.16.9-linux-amd64.tar.gz
+    -rwxrwxrwx 1 root root    13315267 Jan 22  2022 helm-v3.4.0-linux-amd64.tar.gz
+    -rwxrwxrwx 1 root root      171058 May 29  2020 jq-1.6-2.el7.x86_64.rpm
+    -rwxrwxrwx 1 root root        5565 Jan 27  2022 nfs-subdir-external-provisioner.tgz
+    -rwxrwxrwx 1 root root      944643 Jan 22  2022 nfs-utils.tar.gz
+    -rwxrwxrwx 1 root root     2073176 Dec  1 18:03 python-package.tar.gz
+    -rwxrwxrwx 1 root root   629363463 Apr 18  2022 yum-packages.tar.gz
+
+  1.3 // WAS R22's automation ansible scripts 
+  
+This is the expected package after unpacked in directory of nodes as below:
+    - allimageWAS22.tar
+    - helm-v2.16.9-linux-amd64.tar.gz
+    - helm-v3.4.0-linux-amd64.tar.gz
+    - helm-chart.tar.gz
+    - firewalld.tar.gz
+    - nfs-utils.tar.gz
+    - yum-packages.tar.gz
+    - ansible-2.9.27-1.el7.noarch.rpm
+    - jq-1.6-2.el7.x86_64.rpm
+    - nfs-subdir-external-provisioner.tgz
+    - python-package.tar.gz
+
+1/ Prerequisites
+  - Ansible has been installed on master node
+  - Setup ssh from master can be reached localhost & worker because we will run script on master node
+  Replace IPs and usernames of nodes with master use localhost as below:
+
+  [kubernetes_master_nodes]
+  kubernetes-master ansible_host=localhost ansible_user=<master username>
+
+  [kubernetes_worker_nodes]
+  kubernetes-worker1 ansible_host=<worker IP> ansible_user=<worker username>
+
+  [kubernetes:children]
+  kubernetes_worker_nodes
+  kubernetes_master_nodes
+
+To make sure can be run ansible on the master workers fine, check with the command
+  ansible all -m ping -v
+
+example:
+  [azureuser@nodemaster-off kube-cluster]$ ansible all -m ping -v
+    Using /etc/ansible/ansible.cfg as config file
+    kubernetes-worker1 | SUCCESS => {
+        "ansible_facts": {
+            "discovered_interpreter_python": "/usr/bin/python"
+        },
+        "changed": false,
+        "ping": "pong"
+    }
+    kubernetes-master | SUCCESS => {
+        "ansible_facts": {
+            "discovered_interpreter_python": "/usr/bin/python"
+        },
+        "changed": false,
+        "ping": "pong"
+    }
+
+
+
+2/ Run scripts to install k8s 
+We need update the path where will copy the package was offline installation in file :
+    - k8s-install-offline/playbooks/env_variables
+        
+        dir_master:
+        - "/opt/var/was-packages-offline"      # store the packages to install after unpacked
+        - "/mnt/docker-data"               # The path of library docker where will be docker images  
+        - "/mnt/netguard-data"             # mount point to install NFS server in order to create PV for install WAS
+
+        dir_worker:
+        - "/opt/eppmed/was-packages-offline"       # store the packages to install after unpacked
+        - "/opt/eppmed/docker-data"                # The path of library docker where will be docker images  
+        - "/opt/eppmed/netguard-data"              # mount point to install NFS server in order to create PV for install WAS
+     
+ Then nun ansible script to install k8s with command:
+    ansible-playbook install-k8s-offline.yml
+
+3/ Run script to install was r22
+
+We need to  replace IPs in configuration files to be IPs of currently Node for these files:
+ - k8s-install-offline/playbooks/bp-packages/bp_config_vars.yml
+        
+        FRONTEND_FQDN: <master IP>
+
+        INGRESS_CONTROLLER_BIND_ADDRESSES: <master IP>,<worker IP>
+
+        K8S_MASTER_API_SERVER_URL: https://<master IP>:6443
+
+and change hostnames of Nodes and the path where will copy the package was offline installation in file:
+
+   -  was-install-offline/playbooks/env_variables
+    
+    edge_node: < master hostname >
+    worker_node:
+      < worker hostname >
+      < master hostname >
+
+    dir_master:
+    - "/mnt/was-packages-offline"              # store the packages to install 
+    - "/mnt/docker-data"                       # The path of library docker where will be docker images  
+    - "/mnt/netguard-data"                     # mount point to install NFS server in order to create PV for install WAS
+
+    dir_worker:
+    - "/mnt/was-packages-offline"
+
+Then Run script to install was r22 with command
+  ansible-playbook install-was-offline.yml

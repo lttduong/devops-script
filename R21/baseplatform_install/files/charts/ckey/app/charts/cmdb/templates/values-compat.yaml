@@ -1,0 +1,79 @@
+{{/*
+This file contains some default values structure to help in upgrade scenarios.
+
+When --reuse-values is used on upgrade, any newly added values in the packaged values.yaml
+file are not included, which can cause logic errors in the rendering of the new version of the chart.
+This file provides a place for altering of the .Values dictionary to help in these cases.  Typically
+this will be used to merge sub-dictionaries onto the .Values to inject default values where non exist.
+
+*/}}
+
+{{/* Set a default .Values.hooks for upgrade from before it existed, v6.5.0 */}}
+{{- $_ := merge .Values (dict "hooks" (dict "deletePolicy" "hook-succeeded" )) -}}
+
+{{/* Set default values for .Values.services.maxscale for upgrade from before it existed, v6.6.0 */}}
+{{- $_ := merge .Values (dict "services" (dict "maxscale" (dict "port" "8989"))) -}}
+
+{{/* Set default values for .Values.services.admin for upgrade from before it existed, v7.0.0 */}}
+{{- $_ := merge .Values (dict "services" (dict "admin" (dict "type" "ClusterIP")) (dict "maxscale" (dict "exporter_port" "9195"))) -}}
+{{- $_ := merge .Values (dict "services" (dict "mariadb" (dict "exporter_port" "9104"))) -}}
+{{- if not (hasKey .Values.admin "persistence") -}}
+{{- $_ := merge .Values (dict "admin" (dict "persistence" (dict "enabled" true "accessMode" "ReadWriteOnce" "size" .Values.mariadb.persistence.size))) -}}
+{{- end -}}
+{{- $_ := merge .Values (dict "admin" (dict "postInstallTimeout" "900" "preUpgradeTimeout" "180" "postUpgradeTimeout" "1800" "preDeleteTimeout" "120" "postDeleteTimeout" "180")) -}}
+{{/* Added nodeAffinity enable flags */}}
+{{- if not (hasKey .Values.admin "nodeAffinity") -}}
+{{- $_ := merge .Values (dict "admin" (dict "nodeAffinity" (dict "enabled" false "key" "is_worker" "value" true))) -}}
+{{- end -}}
+{{- if not (hasKey .Values.mariadb.nodeAffinity "enabled") -}}
+{{- $_ := merge .Values (dict "mariadb" (dict "nodeAffinity" (dict "enabled" false))) -}}
+{{- end -}}
+{{- if not (hasKey .Values.maxscale.nodeAffinity "enabled") -}}
+{{- $_ := merge .Values (dict "maxscale" (dict "nodeAffinity" (dict "enabled" true))) -}}
+{{- end -}}
+{{/* Added maxscale-exporter metrics */}}
+{{- $_ := merge .Values (dict "maxscale" (dict "metrics" (dict "enabled" false))) -}}
+{{/* Add CBUR configurable parameters */}}
+{{- $_ := merge .Values (dict "cbur" (dict "cronSpec" "0 0 * * *" "maxiCopy" 5 "backendMode" "local")) -}}
+
+{{/* Set default values for .Values.mariadb.clean_log_interval for upgrade from before it existed, v7.1.0 */}}
+{{- $_ := merge .Values (dict "mariadb" (dict "clean_log_interval" 3600)) -}}
+
+{{/* Set default values for new values, v7.2.0 */}}
+{{- $_ := merge .Values (dict "mariadb" (dict "repl_use_ssl" false)) -}}
+
+{{/* Set default values for new values, v7.3.0 */}}
+{{- $_ := merge .Values (dict "global" (dict "registry2" "csf-docker-delivered.repo.lab.pl.alcatel-lucent.com")) -}}
+{{- if not (hasKey .Values.cbur "dataEncryption") -}}
+{{- $_ := merge .Values (dict "cbur" (dict "dataEncryption" true)) -}}
+{{- end -}}
+
+{{/* Set default values for new values, v7.5.0 */}}
+{{- $_ := merge .Values (dict "cbur" (dict "autoEnableCron" false)) -}}
+
+{{/* Set default values for new values, v7.6.0 */}}
+{{- $_ := merge .Values (dict "admin" (dict "configAnnotation" false)) -}}
+{{- if not (hasKey .Values "quorum_node_wait") -}}
+{{- $_ := merge .Values (dict "quorum_node_wait" 120) -}}
+{{- end -}}
+{{- if not (hasKey .Values.admin "autoHeal") -}}
+{{- $_ := merge .Values (dict "admin" (dict "autoHeal" (dict "enabled" true "pauseDelay" 900))) -}}
+{{- end -}}
+
+{{/* Set default values for new values, v7.9.0 */}}
+{{- $_ := merge .Values (dict "istio" (dict "enabled" false)) -}}
+{{- $_ := merge .Values (dict "mariadb" (dict "encryption" (dict "enabled" false))) -}}
+{{- $_ := merge .Values (dict "certManager" (dict "apiVersion" "certmanager.k8s.io/v1alpha1")) -}}
+{{- $_ := merge .Values (dict "cbur" (dict "ignoreFileChanged" false)) -}}
+
+{{/* Set default values for new values, v7.10.0 */}}
+{{- $_ := merge .Values (dict "cbur" (dict "legacyHooks" false)) -}}
+{{- $_ := merge .Values (dict "services" (dict "mysql" (dict "sessionAffinity" false))) -}}
+
+{{/* Set default values for new values, v7.11.0 */}}
+{{- if not (hasKey .Values.admin "rebuildSlave") -}}
+{{- $_ := merge .Values (dict "admin" (dict "rebuildSlave" (dict "enabled" true "preferredDonor" "slave" "allowMasterDonor" true "timeout" 300 "parallel" 2 "useMemory" "256M"))) -}}
+{{- end -}}
+{{- if not (hasKey .Values "clusterDomain") -}}
+{{- $_ := merge .Values (dict "clusterDomain" "cluster.local") -}}
+{{- end -}}

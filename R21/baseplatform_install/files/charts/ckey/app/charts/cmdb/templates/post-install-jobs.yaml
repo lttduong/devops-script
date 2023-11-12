@@ -1,0 +1,67 @@
+{{- if not (eq (default "enable" .Values.hooks.postInstallJob) "disable") }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "cmdb.fullname" . }}-post-install
+  labels:
+    {{- include "cmdb-admin.labels" . | indent 4 }}
+  annotations:
+    "helm.sh/hook": post-install
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": {{ .Values.hooks.deletePolicy | quote }}
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        {{- include "cmdb-admin.labels" . | indent 8 }}
+        type: admin
+      {{- if .Values.istio.enabled }}
+      annotations:
+        sidecar.istio.io/inject: "true"
+      {{- end }}
+    spec:
+      {{- include "cmdb-admin.secctx" . | nindent 6 }}
+      {{- include "cmdb.simplex-job-sa" . | nindent 6 }}
+      restartPolicy: Never
+
+      containers:
+      - name: post-install-admin
+        {{- include "cmdb-admin.image" . | indent 8 }}
+        args: [ "install" ]
+        env:
+        - name: CLUSTER_TYPE
+          value: "{{ .Values.cluster_type }}"
+        - name: CLUSTER_NAME
+          value: "{{ .Values.cluster_name | default .Release.Name | trunc 32 }}"
+        - name: HOOK_TYPE
+          value: "post"
+        {{- if gt (int .Values.admin.postInstallTimeout) 0 }}
+        - name: HOOK_TIMEOUT
+          value: "{{ .Values.admin.postInstallTimeout }}"
+        {{- end }}
+        {{- if and .Values.admin.debug (gt (int (default '0' .Values.admin.jobDelay)) 0) }}
+        - name: HOOK_DELAY
+          value: "{{ .Values.admin.jobDelay }}"
+        {{- end }}
+        {{- if eq (default "no" .Values.admin.quickInstall) "yes" }}
+        - name: QUICK_INSTALL
+          value: "yes"
+        {{- end }}
+        {{- include "cmdb-k8s.env" . | nindent 8 }}
+        {{- include "cmdb-admin.service" . | nindent 8 }}
+        volumeMounts:
+        - name: cluster-cm
+          mountPath: /chart
+        - name: event-cm
+          mountPath: /event
+        resources:
+{{ toYaml .Values.admin.resources | indent 10 }}
+      volumes:
+      - name: cluster-cm
+        configMap:
+          name: {{ template "cmdb.fullname" . }}-mariadb-cluster
+      - name: event-cm
+        configMap:
+          name: {{ template "cmdb.fullname" . }}-admin-event
+{{- end }}

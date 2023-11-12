@@ -1,0 +1,14 @@
+{{- if .Values.btel_istio_gateway.create }}
+apiVersion: networking.istio.io/v1alpha3
+kind: Gateway
+metadata:
+  labels:
+    app: {{ template "btel.name" . }}
+    chart: {{ template "btel.chart" . }}
+    component: {{ template "btel.name" . }}
+    release: {{ .Release.Name }}
+  name: {{ .Values.btel_istio_gateway.gatewayName }}
+spec:
+{{ toYaml .Values.btel_istio_gateway.customgateway_spec | indent 4 }}
+{{- end }}
+

@@ -1,0 +1,5 @@
+edge_node: tonyk8smastervm
+worker_node:
+  tonyk8sworker1vm
+  tonyk8smastervm
+

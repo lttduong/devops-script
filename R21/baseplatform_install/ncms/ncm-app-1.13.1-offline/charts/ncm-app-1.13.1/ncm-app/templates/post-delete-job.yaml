@@ -1,0 +1,150 @@
+{{- if or .Values.persistence .Values.autonomous }}
+{{- if or .Values.persistence.enabled .Values.autonomous.enabled }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Release.Name }}-del-sa
+  namespace: "{{.Release.Namespace}}"
+  labels:
+    {{- include "ncm-app.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": post-delete
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": hook-succeeded, hook-failed
+---
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  namespace: "{{.Release.Namespace}}"
+  name: {{ .Release.Name }}-del-role
+  labels:
+    {{- include "ncm-app.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": post-delete
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": hook-succeeded, hook-failed
+rules:
+{{- if .Values.autonomous }}
+{{- if .Values.autonomous.tiller }}
+{{- if .Values.autonomous.tiller.enabled }}
+- apiGroups:
+  - extensions
+  - apps
+  resources:
+  - deployments
+  verbs:
+  - get
+  - list
+  - delete
+{{- end }}
+{{- end }}
+{{- end }}
+- apiGroups:
+  - ""
+  resources:
+  {{- if .Values.autonomous }}
+  {{- if .Values.autonomous.tiller }}
+  {{- if .Values.autonomous.tiller.enabled }}
+  - services
+  - secrets
+  {{- end }}
+  {{- end }}
+  {{- end }}
+  - persistentvolumeclaims
+  verbs:
+  - get
+  - delete
+  - list
+  - watch
+  - update
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ .Release.Name }}-del-rb
+  namespace: "{{.Release.Namespace}}"
+  labels:
+    {{- include "ncm-app.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": post-delete
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": hook-succeeded, hook-failed
+subjects:
+- kind: ServiceAccount
+  name: {{ .Release.Name }}-del-sa
+  namespace: "{{.Release.Namespace}}"
+  apiGroup: ""
+roleRef:
+  kind: Role
+  name: {{ .Release.Name }}-del-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}-post-delete
+  labels:
+    {{- include "ncm-app.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": post-delete
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 1
+  template:
+    metadata:
+      name: "{{ .Release.Name }}"
+      labels:
+        {{- include "ncm-app.labels" . | nindent 8 }}
+    spec:
+      {{- include "placement.spec" . | nindent 6}}
+      serviceAccount: {{ .Release.Name }}-del-sa
+      securityContext:
+        runAsUser: 1000
+        runAsGroup:  1000
+        fsGroup: 1000
+      restartPolicy: Never
+      containers:
+      - image: "{{ .Values.global.registry }}/{{ .Values.image.name }}:{{ .Values.image.tag }}" 
+        name: {{ .Release.Name }}
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "256Mi"
+            cpu: "250m"
+        command:
+        - sh
+        - -c
+        - |
+            {{- if .Values.autonomous }}
+            {{- if .Values.autonomous.tiller }}
+            {{- if .Values.autonomous.tiller.enabled }}
+            kubectl get svc -n {{.Release.Namespace}} -l name=tiller | grep tiller && kubectl delete svc -n {{.Release.Namespace}} tiller-deploy
+            kubectl get deploy -n {{.Release.Namespace}} -l name=tiller | grep tiller && kubectl delete deploy -n {{.Release.Namespace}} tiller-deploy
+            {{- if .Values.autonomous.tiller.secretName }}
+            kubectl get secret -n {{.Release.Namespace}} | grep {{.Values.autonomous.tiller.secretName}} && kubectl delete secret -n {{.Release.Namespace}} {{.Values.autonomous.tiller.secretName}}
+            {{- end }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
+            echo 'Post delete for release: {{.Release.Name}}'
+            {{- if .Values.deletePVC }}
+            kubectl get pvc -n {{.Release.Namespace}} | grep {{ template "ncm-app.fullname" . }}-pvc && kubectl delete pvc -n {{.Release.Namespace}} {{ template "ncm-app.fullname" . }}-pvc || echo "PVC {{ template "ncm-app.fullname" . }}-pvc not found"
+{{- if semverCompare ">=1.18.0" .Capabilities.KubeVersion.GitVersion }}
+            kubectl wait --for=delete pvc -n {{ .Release.Namespace}} -l app.kubernetes.io/name={{ include "ncm-app.fullname" . }} --timeout=60s
+            exit 0
+{{- else }}
+            while [ : ]
+            do
+            kubectl get pvc -n {{ .Release.Namespace}} -l app.kubernetes.io/name={{ include "ncm-app.fullname" . }} &> /tmp/file.txt
+            if grep "No resources found" /tmp/file.txt; then
+                exit 0
+            fi
+            sleep 1
+            done
+            {{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

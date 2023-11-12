@@ -1,0 +1,26 @@
+{{- $umLiteFlag := .Values.installUmLite | default false -}}
+{{- if $umLiteFlag -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "umLite.fullname" . }}
+  labels:
+    app: {{ template "umLite.name" . }}
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  type: {{ .Values.umLiteService.type }}
+  ports:
+    - port: {{ .Values.umLiteService.http.externalPort }}
+      protocol: TCP
+      name: http-umlite
+      targetPort: {{ .Values.umLiteService.http.port }}
+    - port: {{ .Values.umLiteService.https.externalPort }}
+      protocol: TCP
+      name: https-umlite
+      targetPort: {{ .Values.umLiteService.https.port }}
+  selector:
+    app: {{ template "umLite.name" . }}
+    release: {{ .Release.Name }}
+{{- end }}

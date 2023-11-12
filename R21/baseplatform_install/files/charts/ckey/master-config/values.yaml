@@ -1,0 +1,7 @@
+config:
+  ckey:
+    realm: master
+    quickLoginCheckMillis: 1000
+    loginSecurityBanner: "You are about to access a private system. This system is for the use of authorized users only. All connections are logged. Any unauthorized access or access attempts may be punished to the fullest extent possible under the applicable local legislation."
+    clientSecret:
+    clientId: master-admin

@@ -1,0 +1,477 @@
+certsConverter:
+  initContainersTemplate: |
+    - name: certs-converter-init
+      image: wasr22containerregistry.azurecr.io/epsec/products/businessprocessautomationservice/bpas/certs-converter:22.2.11
+      imagePullPolicy: "IfNotPresent"
+      securityContext:
+        runAsUser: 1000
+      command: ["certs_converter"]
+      args: ["--certs-dir=/opt/nokia/config/certs-input",
+             "--output=/opt/nokia/config/certs-generated",
+             "--format=JKS",
+             "--ks-pass=changeit",
+             "--ts-pass=changeit"]
+      volumeMounts:
+        # Mount the certificates generated via templates/certificate.yaml as input to certs_converter:
+        - name: "tls-secret"
+          mountPath: "/opt/nokia/config/certs-input"
+          readOnly: true
+        # Mount the outputdir where the converted certs will be placed.
+        # We will then mount the converted certs (JKS files) in the main container
+        - name: "server-generated-certs"
+          mountPath: "/opt/nokia/config/certs-generated"
+  inputdir: /opt/nokia/config/certs-input
+  jkspass: changeit
+  keystorefile: /opt/nokia/config/certs-generated/keystore.jks
+  outputdir: /opt/nokia/config/certs-generated
+  truststoreExtraCerts: /opt/nokia/config/certs-extra
+  truststorefile: /opt/nokia/config/certs-generated/truststore.jks
+  volumeMountsTemplate: |
+    - name: "server-generated-certs"
+      mountPath: "/opt/nokia/config/certs-generated"
+  volumesTemplate: |
+    - name: "tls-secret"
+      secret:
+        secretName: "nwas-server-tls-secret"
+    - name: "server-generated-certs"
+      emptyDir: {}
+ckey-config:
+  enableNA: false
+  image:
+    name: epsec/products/businessprocessautomationservice/bpas/ckey-config
+    tag: 22.2.13
+  importConfig:
+    enabled: true
+  realm: netguard
+  secrets:
+    netguardWorkflowAutomationSecret:
+      enabled: "true"
+      secretName: nwas-ckey-netguard-was-client-secret
+      secretValue: 43bc7f24-95eb-4328-8357-68a9cf3df84d
+crmq-configurator:
+  jobs:
+    server:
+      adminCommands:
+        files:
+        - config_files/admin-commands/server-commands.txt
+        secretName: nwas-server-crmq-secret
+      enabled: "true"
+  users:
+    ckeyListener:
+      password: h%@LK@^%@f^%b^7
+    serverUser:
+      enabled: "true"
+      password: R6T45e@75%%V%4
+      secretName: nwas-server-crmq-user-secret
+      username: bpas-server-user
+  virtualHostName: /
+db-configurator:
+  createDB:
+    enabled: true
+  jobs:
+    bpasdb:
+      enabled: "true"
+      nosUsername: bpasnosdb
+      password: yJEHZC%BD4VI0EPYX3
+      secretName: bpasdb-secret
+      sqlFile: config_files/bpasdb.sql
+      username: bpasdb
+    nosdb:
+      enabled: "true"
+      password: V@49@%%@1@T%Wd4%76
+      secretName: nosdb-secret
+      sqlFile: config_files/nosdb.sql
+      username: bpasnosdb
+dbschematool:
+  hookWeight: 20
+  image: epsec/products/businessprocessautomationservice/bpas-dist/epsec-bpas-dbschematool
+  imagePullPolicy: IfNotPresent
+  imageTag: 22.2.32
+  limits:
+    cpu: 1500m
+    memory: 4Gi
+  operation: schema
+  requests:
+    cpu: 1000m
+    memory: 4Gi
+  restartPolicy: Never
+geoRedundancyEnabled: false
+geoRedundancyEnabledPassive: false
+geoRedundancyMode: active
+global:
+  APP_NAMESPACE: netguard-base
+  BP_CONFIG_NAMESPACE: netguard-base
+  BP_NAMESPACE: netguard-base
+  BP_RELEASE_NAME_PREFIX: nbp-
+  adapterConfigOverridesConfigMapName: nwas-adapter-config-overrides
+  apiVersion: v1
+  app:
+    name: was
+    version: 22.2.32
+  applicationPropertiesOverridesConfigMapName: nwas-application-properties
+  bpasdbSecret: nwas-bpasdb-secret
+  cbur:
+    autoEnableCron: false
+    backendMode: local
+    cronSpec: 0 0 * * *
+    dataEncryption: true
+    enabled: false
+    maxiCopy: 3
+  certManager:
+    api: cert-manager.io/v1alpha2
+    duration: 8760h
+    issuerRef:
+      group: cert-manager.io
+      kind: ClusterIssuer
+      name: ncms-ca-issuer
+    keySize: "2048"
+    renewBefore: 360h
+  ckey:
+    eventsTopicName: ckey.topic
+    virtualHostName: /
+  config:
+    ckey:
+      client:
+        secret:
+          netguardFrameworkSecret: 588846f8-0d45-42e1-86b5-337dc60e19b0
+          netguardWorkflowAutomationSecret: 43bc7f24-95eb-4328-8357-68a9cf3df84d
+      configurator:
+        caCertFile: ca.crt
+        certificatesDir: /certificates
+        configDir: /import/config
+        dataDir: /import/data
+        image:
+          name: epsec/products/businessprocessautomationservice/bpas/ckey-config
+          tag: 22.2.13
+        resources:
+          limits:
+            cpu: 200m
+            memory: 300Mi
+          requests:
+            cpu: 10m
+            memory: 50Mi
+        secretName: nbp-ckey-configurator-config
+      passwordPolicy: forceExpiredPasswordChange(90) and passwordHistory(5) and upperCase(1)
+        and lowerCase(1) and digits(1) and specialChars(1) and length(8) and regexPattern(^.{8,150}$)
+      realm: netguard
+    cmdb:
+      configurator:
+        configDir: /import/config
+        configMapName: nbp-cmdb-configurator-config-configmap
+        image:
+          name: epsec/products/businessprocessautomationservice/bpas/cmdb-config
+          tag: 22.2.7
+        secretName: nbp-cmdb-configurator-config
+    crmq:
+      configurator:
+        configMapName: nbp-crmq-configurator-config-configmap
+        image:
+          name: epsec/products/businessprocessautomationservice/bpas/crmq-config
+          tag: 22.2.6
+        secretName: nbp-crmq-configurator-config
+  crmq:
+    port: "5671"
+    serviceName: nbp-crmq-crmq.netguard-base.svc.cluster.local
+    useSsl: "true"
+  delete_cert_job:
+    resources:
+      limits:
+        cpu: 200m
+        memory: 300Mi
+      requests:
+        cpu: 10m
+        memory: 50Mi
+  dns:
+    domain: .svc.cluster.local
+    policy: ClusterFirst
+  elasticsearch:
+    port: "9200"
+    serviceName: nbp-elasticsearch.netguard-base.svc.cluster.local
+  extendedPropertiesConfigMapName: nwas-extended-properties
+  extraSslCerts:
+    server: false
+  helmHooks:
+    appdbconfig:
+      hook: pre-install
+      weight: "-70"
+    appdbschema:
+      hook: pre-install
+      weight: "-40"
+    configmap:
+      hook: pre-install
+      weight: "-90"
+    crmqconfig:
+      hook: pre-install
+      weight: "-30"
+    nosdbconfig:
+      hook: pre-install
+      weight: "-80"
+    nosdbschema:
+      hook: pre-install
+      weight: "-60"
+    nrsdbschema:
+      hook: pre-install
+      weight: "-50"
+    secret:
+      hook: pre-install
+      weight: "-100"
+  imageTags:
+    epsec/products/businessprocessautomationservice/bpas-dist/epsec-bpas: 22.2.32
+    epsec/products/businessprocessautomationservice/bpas-dist/epsec-bpas-dbschematool: 22.2.32
+    epsec/products/businessprocessautomationservice/bpas-thinclient/epsec-bpasui: 22.2.9
+    epsec/products/businessprocessautomationservice/bpas/certs-converter: 22.2.11
+    epsec/products/businessprocessautomationservice/bpas/ckey-config: 22.2.13
+    epsec/products/businessprocessautomationservice/bpas/cmdb-config: 22.2.7
+    epsec/products/businessprocessautomationservice/bpas/crmq-config: 22.2.6
+    epsec/products/businessprocessautomationservice/bpas/kubectl: v1.24.2-rocky-nano-20220627
+    epsec/products/framework/nos-dist/epsec-nos-dbschematool: latest.22.3
+    epsec/products/framework/propertyencrypter/epsec-propertyencrypter: latest.22.3
+  ingressClass: netguard
+  jobNodeAffinityRuleTemplate: |
+    affinity:
+      # node-level affinity
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+          - matchExpressions:
+            - key: is_worker
+              operator: In
+              values:
+              - "true"
+  kubectl:
+    image:
+      repo: epsec/products/businessprocessautomationservice/bpas/kubectl
+      tag: v1.24.2-rocky-nano-20220627
+  mariadbExternalName: nbp-cmdb-mysql.netguard-base.svc.cluster.local
+  mariadbPort: 3306
+  nosdbSecret: nosdb-secret
+  rbac:
+    enabled: true
+  registry: wasr22containerregistry.azurecr.io
+  releaseNamePrefix: nwas-
+  retainCkeyFrameworkClient: false
+  serverClusterServiceHttpsPort: 8443
+  serverClusterServiceName: nwas-na-server
+  serverConfigOverrideConfigMapName: nwas-server-config-override
+  serviceAccountName: null
+  serviceAccountNameBP: null
+  sshConfigMapName: nwas-ssh-config
+  storageClass: nfs-client
+  svcDnsDomain: svc.cluster.local
+product:
+  name: NetGuard
+server:
+  certsConverter:
+    initContainersTemplate: |
+      - name: certs-converter-init
+        image: wasr22containerregistry.azurecr.io/epsec/products/businessprocessautomationservice/bpas/certs-converter:22.2.11
+        imagePullPolicy: "IfNotPresent"
+        securityContext:
+          runAsUser: 1000
+        command: ["certs_converter"]
+        args: ["--certs-dir=/opt/nokia/config/certs-input",
+               "--output=/opt/nokia/config/certs-generated",
+               "--format=JKS",
+               "--ks-pass=changeit",
+               "--ts-pass=changeit"]
+        volumeMounts:
+          # Mount the certificates generated via templates/certificate.yaml as input to certs_converter:
+          - name: "tls-secret"
+            mountPath: "/opt/nokia/config/certs-input"
+            readOnly: true
+          # Mount the outputdir where the converted certs will be placed.
+          # We will then mount the converted certs (JKS files) in the main container
+          - name: "server-generated-certs"
+            mountPath: "/opt/nokia/config/certs-generated"
+    inputdir: /opt/nokia/config/certs-input
+    jkspass: changeit
+    keystorefile: /opt/nokia/config/certs-generated/keystore.jks
+    outputdir: /opt/nokia/config/certs-generated
+    truststoreExtraCerts: /opt/nokia/config/certs-extra
+    truststorefile: /opt/nokia/config/certs-generated/truststore.jks
+    volumeMountsTemplate: |
+      - name: "server-generated-certs"
+        mountPath: "/opt/nokia/config/certs-generated"
+    volumesTemplate: |
+      - name: "tls-secret"
+        secret:
+          secretName: "nwas-server-tls-secret"
+      - name: "server-generated-certs"
+        emptyDir: {}
+  dbAccounts:
+  - name: nosdb
+    secretName: nosdb-secret
+  - name: bpasdb
+    secretName: bpasdb-secret
+  dbConfig:
+    transactionTimeoutSeconds: "600"
+  dbschematool:
+    image: epsec/products/framework/nos-dist/epsec-nos-dbschematool
+    imagePullPolicy: IfNotPresent
+    imageTag: latest.22.3
+    limits:
+      cpu: 1500m
+      memory: 4Gi
+    operation: schema
+    requests:
+      cpu: 1000m
+      memory: 4Gi
+    restartPolicy: Never
+  diagnosticVolume:
+    size: 32Gi
+  encryptedProperties:
+    secrets:
+      serverCrmqUser:
+        path: bpas/server/rabbitmq/credentials
+        secretName: nwas-server-crmq-user-secret
+  encryptionKey:
+    enabled: false
+    password: ""
+    previous:
+      password: ""
+      version: 20200000-1
+    secretName: encryptkey-secret
+    version: 20200000-1
+  extraEnv: |-
+    - name: "PRODUCT_NAME"
+      value: "NetGuard"
+  extraVolumeMounts: |-
+    - name: process-variable-config-volume
+      mountPath: /opt/nokia/process-variable-config
+    - name: was-keycloak
+      mountPath: /opt/nokia/config/was-keycloak.json
+      subPath: was-keycloak.json
+  extraVolumes: |-
+    - name: process-variable-config-volume
+      configMap:
+        name:  nwas-process-variable-config-configmap
+    - name: was-keycloak
+      configMap:
+        name: nwas-was-keycloak
+  image: epsec/products/businessprocessautomationservice/bpas-dist/epsec-bpas
+  imageTag: 22.2.32
+  ingress:
+    networkAccess:
+      legacyrest:
+        enabled: false
+      rest:
+        enabled: false
+      ui:
+        externalPath: /netguard-was-admin/
+        internalPath: /netguard-was-admin/
+    was:
+      rest:
+        enabled: true
+        externalPath: /netguard-was-rest/
+        internalPath: /netguard-was-rest/
+        limitConnections: 35
+        limitRps: 35
+        maxBodySize: 100m
+        proxyReadTimeout: 600
+  mail:
+    from: noreply@labs-open-ecosystem.org
+    host: 20.231.83.47
+    port: 25
+  nodeAffinityRuleTemplate: |
+    affinity:
+      # node-level affinity
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+          - matchExpressions:
+            - key: is_worker
+              operator: In
+              values:
+              - "true"
+      # pod-level anti-affinity
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 1
+          podAffinityTerm:
+            labelSelector:
+               matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - nwas-server
+            topologyKey: kubernetes.io/hostname
+  propertyEncrypter:
+    initContainersTemplate: |-
+      - name: property-encrypter
+        image: wasr22containerregistry.azurecr.io/epsec/products/framework/propertyencrypter/epsec-propertyencrypter:latest.22.3
+        imagePullPolicy: "IfNotPresent"
+        env:
+          - name: SOURCE_SECRETS_DIR
+            value: "/opt/nokia/config/plaintext"
+          - name: ENCRYPTED_PROPS_FILE
+            value: /opt/nokia/config/encrypted/encrypted.properties
+          - name: ENCRYPTION_CONFIG_FILE
+            value: /opt/nokia/config/encrypted/encrypter-config.properties
+        volumeMounts:
+          - name: encrypted-properties
+            mountPath: "/opt/nokia/config/encrypted"
+          - mountPath: /opt/nokia/config/plaintext/ckey-netguard-framework-client-secret/ckey.client.secret.framework
+            name: nwas-ckey-netguard-framework-client-secret-volume
+          - mountPath: /opt/nokia/config/plaintext/ckey-netguard-was-client-secret/ckey.client.secret.netguardWorkflowAutomation
+            name: nwas-ckey-netguard-was-client-secret-volume
+          - mountPath: /opt/nokia/config/plaintext/ckey-listener-user-secret/messagebroker
+            name: nwas-ckey-listener-user-secret-volume
+          - mountPath: /opt/nokia/config/plaintext/server-crmq-user-secret/bpas.server.rabbitmq.credentials
+            name: nwas-server-crmq-user-secret-volume
+    volumeMountsTemplate: |-
+      - mountPath: /opt/nokia/config/encryptedProperties
+        name: encrypted-properties
+    volumesTemplate: |-
+      - name: encrypted-properties
+        emptyDir: {}
+      - name: nwas-ckey-netguard-framework-client-secret-volume
+        secret:
+          secretName: nwas-ckey-netguard-framework-client-secret
+      - name: nwas-ckey-netguard-was-client-secret-volume
+        secret:
+          secretName: nwas-ckey-netguard-was-client-secret
+      - name: nwas-ckey-listener-user-secret-volume
+        secret:
+          secretName: nwas-ckey-listener-user-secret
+      - name: nwas-server-crmq-user-secret-volume
+        secret:
+          secretName: nwas-server-crmq-user-secret
+  replicaCount: 1
+  resources:
+    config:
+      enableconsole: "false"
+    jvm:
+      MaxMetaspaceSize: 512M
+      MetaspaceSize: 96M
+      Xms: 4G
+      Xmx: 8G
+      debugPort: 0
+    limits:
+      cpu: 8000m
+      memory: 12Gi
+    requests:
+      cpu: 2000m
+      memory: 12Gi
+  useDbConfigurator: true
+ui:
+  httpPort: 8080
+  httpsPort: 8443
+  image: epsec/products/businessprocessautomationservice/bpas-thinclient/epsec-bpasui
+  imagePullPolicy: IfNotPresent
+  imageTag: 22.2.9
+  ingress:
+    limitConnections: 35
+    limitRps: 35
+    maxBodySize: 100m
+    path: /netguard-was(/|$)
+    proxyReadTimeout: 600
+    useHttps: true
+    useRegex: true
+  replicaCount: 1
+  resources:
+    limits:
+      cpu: 4000m
+      memory: 8Gi
+    requests:
+      cpu: 1000m
+      memory: 8Gi

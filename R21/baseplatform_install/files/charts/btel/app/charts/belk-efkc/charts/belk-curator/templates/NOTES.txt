@@ -1,0 +1,2 @@
+Curator chart creates a cronjob in the Release namespace of the chart.
+kubectl get cronjob --namespace {{ .Release.Namespace }} -l app=belk-curator -l release={{ .Release.Name }}

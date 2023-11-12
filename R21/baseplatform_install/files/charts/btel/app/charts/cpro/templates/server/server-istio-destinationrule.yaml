@@ -1,0 +1,69 @@
+{{- if .Values.istio.enable }}
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: {{ template "prometheus.server.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+{{- if .Values.global.labels }}
+  labels:
+{{- include "prometheus-labels" (tuple .Values.global.labels) | indent 4}}
+{{- end }}
+{{- if .Values.global.annotations }}
+  annotations:
+{{- include "prometheus-annotations" (tuple .Values.global.annotations) | indent 4}}
+{{- end }}
+spec:
+  {{- if .Values.ha.enabled }}
+# Start of custom modification of original chart for CSFS-31473
+  host: "{{ template "prometheus.server.fullname" . }}-ext.{{ .Release.Namespace }}.{{ .Values.dns.domain }}"
+# End of custom modification of original chart for CSFS-31473
+  {{- else }}
+# Start of custom modification of original chart for CSFS-31473
+  host: "{{ template "prometheus.server.fullname" . }}.{{ .Release.Namespace }}.{{ .Values.dns.domain }}"
+# End of custom modification of original chart for CSFS-31473
+  {{- end }}
+  trafficPolicy:
+    tls:
+{{- if .Values.istio.mtls_enable }}
+      mode: ISTIO_MUTUAL
+{{- else }}
+      mode: DISABLE
+{{- end }}
+{{- if .Values.ha.enabled }}
+    loadBalancer:
+      consistentHash:
+        useSourceIp: true
+{{- end }}
+{{- end }}
+---
+{{- if .Values.istio.enable }}
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: {{ template "prometheus.server.fullname" . }}-int
+  namespace: {{ .Release.Namespace }}
+{{- if .Values.global.labels }}
+  labels:
+{{- include "prometheus-labels" (tuple .Values.global.labels) | indent 4}}
+{{- end }}
+{{- if .Values.global.annotations }}
+  annotations:
+{{- include "prometheus-annotations" (tuple .Values.global.annotations) | indent 4}}
+{{- end }}
+spec:
+# Start of custom modification of original chart for CSFS-31473
+  host: "{{ template "prometheus.server.fullname" . }}-int.{{ .Release.Namespace }}.{{ .Values.dns.domain }}"
+# End of custom modification of original chart for CSFS-31473
+  trafficPolicy:
+    tls:
+{{- if .Values.istio.mtls_enable }}
+      mode: ISTIO_MUTUAL
+{{- else }}
+      mode: DISABLE
+{{- end }}
+{{- if .Values.ha.enabled }}
+    loadBalancer:
+      consistentHash:
+        useSourceIp: true
+{{- end }}
+{{- end }}

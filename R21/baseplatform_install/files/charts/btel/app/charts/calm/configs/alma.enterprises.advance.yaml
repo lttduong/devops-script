@@ -1,0 +1,69 @@
+### Mutil-realm feature is not supported!!! ###
+## The "enterprise" field is case sensitive.
+## The "rule" field is case insensitive and the valid values will be "critical", "major", "minor", "warning", "indeterminate" and "all". Other values will be ignored.
+## If duplicated rules exist in one enterprise, only the first rule will take effect and other rules will be ignored.
+
+enterprises:
+{{- range $index, $val := .Values.enterprisesAdvanceConfs }}
+  - enterprise: {{ $val.enterprise }}
+    {{- if $val.severityOverwrittenRules }}
+    severityOverwrittenRules:
+    {{- range $index, $val1 := $val.severityOverwrittenRules }}
+      - alarm_id: {{ $val1.alarm_id }}
+        moc_id: {{ $val1.moc_id }}
+        rule:
+          {{- range $key, $value := $val1.rule }}
+          {{ $key  }}: {{ $value }}
+          {{- end }}
+    {{- end }}
+    {{- end }}
+    {{- if $val.transientAlarmsTimeToLiveRules }}
+    transientAlarmsTimeToLiveRules:
+      {{- if $val.transientAlarmsTimeToLiveRules.specificProblemLevel }}
+      specificProblemLevel:
+      {{- range $index, $val2 := $val.transientAlarmsTimeToLiveRules.specificProblemLevel }}
+        - alarmId: {{ $val2.alarmId }}
+          {{- if $val2.mocId }}
+          mocId: {{ $val2.mocId }}
+          {{- end }}
+          ttl: {{ $val2.ttl }}
+      {{- end }}
+      {{- end }}
+      {{- if $val.transientAlarmsTimeToLiveRules.severityLevel }}
+      severityLevel:
+        {{- if $val.transientAlarmsTimeToLiveRules.severityLevel.indeterminate }}
+        indeterminate: {{ $val.transientAlarmsTimeToLiveRules.severityLevel.indeterminate }}
+        {{- end }}
+        {{- if $val.transientAlarmsTimeToLiveRules.severityLevel.warning }}
+        warning: {{ $val.transientAlarmsTimeToLiveRules.severityLevel.warning }}
+        {{- end }}
+        {{- if $val.transientAlarmsTimeToLiveRules.severityLevel.minor }}
+        minor: {{ $val.transientAlarmsTimeToLiveRules.severityLevel.minor }}
+        {{- end }}
+        {{- if $val.transientAlarmsTimeToLiveRules.severityLevel.critical }}
+        critical: {{ $val.transientAlarmsTimeToLiveRules.severityLevel.critical }}
+        {{- end }}
+        {{- if $val.transientAlarmsTimeToLiveRules.severityLevel.major }}
+        major: {{ $val.transientAlarmsTimeToLiveRules.severityLevel.major }}
+        {{- end }}
+      {{- end }}
+      {{- if $val.transientAlarmsTimeToLiveRules.systemLevel }}
+      systemLevel: {{ $val.transientAlarmsTimeToLiveRules.systemLevel }}
+      {{- end }}
+    {{- end }}
+    {{- if $val.brevityControlRules }}
+    brevityControlRules:
+    {{- range $index, $val3 := $val.brevityControlRules }}
+      - groupId: {{ $val3.groupId }}
+        target:
+          {{- range $key, $value := $val3.target }}
+          {{ $key  }}: {{ $value }}
+          {{- end }}
+        upperThreshold: {{ $val3.upperThreshold }}
+        lowerThreshold: {{ $val3.lowerThreshold }}
+        thresholdPeriod: {{ $val3.thresholdPeriod }}
+    {{- end }}
+    {{- end }}
+    deduplicationEnabled: {{ $val.deduplicationEnabled }}
+{{- end }}
+

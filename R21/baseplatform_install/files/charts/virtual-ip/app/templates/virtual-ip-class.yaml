@@ -1,0 +1,11 @@
+{{- if .Values.virtualIp.enabled }}
+apiVersion: ncm.nokia.com/v1alpha1
+kind: VirtualIPClass
+metadata:
+  labels:
+  controller-tools.k8s.io: "1.0"
+  name: {{ .Values.ipClass.name }}
+spec:
+  globalConfig:
+    vrrpVersion: {{ .Values.ipClass.vrrpVersion | quote }}
+{{- end }}

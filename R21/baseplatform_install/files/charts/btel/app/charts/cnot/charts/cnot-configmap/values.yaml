@@ -1,0 +1,175 @@
+global: {} 
+  #configMapOverrideName: 
+  #templateOverrideName:
+  #cnotOutboundTrustCertsName:
+
+cnot_configmap:
+  name: cnot-configmap
+
+cnotFiles:
+  app_conf.yaml:
+    CHANNELS:
+      ALARM:
+        servers:
+          - id: AlarmServer
+        default: AlarmServer
+      EMAIL:
+        servers:
+          - id: SMTPServer1
+            host: localhost
+        default: SMTPServer1
+    TRIGGERS:
+      - id: TriggerForCPRO
+        condition:
+          body: $.alerts[?(@.labels.source == 'CPRO')]
+        action:
+          type: accept
+          profile: ProfileForCPRO
+      - id: TriggerForCALM
+        condition:
+          body: $.alerts[?(@.labels.source == 'CALM')]
+        action:
+          type: accept
+          profile: ProfileForCALM
+    PROFILES:
+      - id: ProfileForCPRO
+        channels:
+          - type: ALARM
+            content:
+              - filter:
+                  location: $.alerts[*]
+                transform:
+                  alarmId:
+                    selected: $.labels.id
+                    required: true
+                  alarmName:
+                    selected: $.labels.name
+                    required: true
+                  alarmSeverity:
+                    selected: $[?(@.status == 'firing')].labels.severity
+                    default: CLEARED
+                  alarmKey:
+                    selected: $.labels.key
+                    default: ''
+                  alarmTask:
+                    default: NOTIFY
+                  alarmText:
+                    selected: $.labels.text
+                    required: true
+                  alarmEventType:
+                    selected: $.labels.eventType
+                    required: true
+                  alarmProbableCause:
+                    selected: $.labels.probableCause
+                    required: true
+                  alarmData:
+                    selected: $.annotations.description
+                  time:
+                    selected: $.startsAt
+                  host:
+                    selected: $.labels.host
+                  system:
+                    selected: $.labels.system
+                  systemId:
+                    selected: $.labels.systemid
+                  extension.source:
+                    selected: $.labels.source
+                  extension.Enterprise:
+                    selected: $.labels.namespace
+      - id: ProfileForCALM
+        channels:
+          - type: EMAIL
+            content:
+              - filter:
+                  location: $.alerts[*]
+                transform:
+                  subject:
+                    default: AlarmNotice
+                  text:
+                    template: EmailTemplate1
+                    variables:
+                      alarmId:
+                        selected: $.labels.id
+                        required: true
+                      alarmName:
+                        selected: $.labels.name
+                        required: true
+                      alarmTask:
+                        selected: $.labels.task
+                        required: true
+                      alarmSeverity:
+                        selected: $.labels.severity
+                        required: true
+                      alarmKey:
+                        selected: $.labels.key
+                      alarmText:
+                        selected: $.labels.text
+                        required: true
+                      alarmEventType:
+                        selected: $.labels.eventType
+                        required: true
+                      alarmProbableCause:
+                        selected: $.labels.probableCause
+                        required: true
+                      alarmData:
+                        selected: $.annotations.description
+                      time:
+                        selected: $.time
+                      timeZone:
+                        selected: $.timezone
+                      process:
+                        selected: $.process
+                      service:
+                        selected: $.service
+                      container:
+                        selected: $.container
+                      host:
+                        selected: $.host
+                      system:
+                        selected: $.system
+                      systemId:
+                        selected: $.systemid
+                      source:
+                        selected: $.labels.source
+                      namespace:
+                        selected: $.labels.namespace
+                  from:
+                    default: someone@nokia.com
+                  sendAsHtml:
+                    default: false
+                  to:
+                    default: to1@nokia.com
+    TEMPLATES:
+      - id: EmailTemplate1
+        file: EmailTemplate1.ftl
+
+  app_conf_internal.properties: |
+    DEFAULT_TRIGGER_HANDLER_TYPE = SIMPLE
+    DEFAULT_PROFILE_HANDLER_TYPE = SIMPLE
+    DEFAULT_SCHEDULE_EXECUTOR_POOL_SIZE = 200
+    TEMPLATE_BASE_PATH = /usr/local/cnot/etc/templates/
+
+cnotTemplates:
+  EmailTemplate1.ftl: |
+    <#compress>
+    Alarm Info:
+    AlarmId = ${alarmId}
+    AlarmName = ${alarmName}
+    AlarmTask = ${alarmTask}
+    AlarmSeverity = ${alarmSeverity}
+    <#if alarmKey ??>AlarmKey = ${alarmKey}</#if>
+    AlarmText = ${alarmText}
+    AlarmEventType = ${alarmEventType}
+    AlarmProbableCause = ${alarmProbableCause}
+    <#if alarmData ??>AlarmData = ${alarmData}</#if>
+    <#if service ??>Service = ${service}</#if>
+    <#if host ??>Host = ${host}</#if>
+    <#if system ??>System = ${system}</#if>
+    <#if systemId ??>SystemId = ${systemId}</#if>
+    <#if source ??>Source = ${source}</#if>
+    <#if namespace ??>NameSpace = ${namespace}</#if>
+    <#if time ??>Time = ${time}<#if timeZone ??>${timeZone}</#if></#if>
+    </#compress>
+
+cnotOutboundTrustCerts:
+  EMAIL_SMTPServer1.crt: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUM3ekNDQWRlZ0F3SUJBZ0lKQUxLV2dyWnRqc2xpTUEwR0NTcUdTSWIzRFFFQkN3VUFNQTR4RERBS0JnTlYKQkFNTUEwTlRSakFlRncweE9UQXhNalV3TXpVeU5UWmFGdzAwTmpBMk1USXdNelV5TlRaYU1BNHhEREFLQmdOVgpCQU1NQTBOVFJqQ0NBU0l3RFFZSktvWklodmNOQVFFQkJRQURnZ0VQQURDQ0FRb0NnZ0VCQU1GeEVBMEQyZXpBCm5SK3gwWU1jRFNmVUlKU0l3aS9SbWYxcWtjUVVDZm9rWFNuVWVnL0o0TXErRElyZEpQcXRLSVdFT0hMVmdUZUEKTFRxdjRkaHJ5V0lvRVNhY0U1YVN6VzhRRFRubUlrNEMyamZHeVZubTlzK1pleEMvUXZ4eGNHUldhSVl5Nm1kWAo0dVArbWNVWXJxUm1yUnhZUzQwek53Z3ZqcnRUZ3ovM1VVMk9XSENpU3M2RVJueTM4UVhLeWFVSEUrT2RXeWIwCkI5azViVzl2OERCZENwS1RCaGhjeFMwWndDN1o0TVFZQ0RqNUJiRGZzWldxbzdvTU5NUEJsd1FvUzg3WUpqZ0QKOXh2RmFiWkE1K0prZW4xdnNpNkNRV3VPSXplSTZNNkVVUUp2T21mcFFzUWlHRHg4eS9FSFM1cEYvS1JtMVZ6agp5L1Y2emp2YWk4RUNBd0VBQWFOUU1FNHdIUVlEVlIwT0JCWUVGREc1UmZyNk1iUXFYUFl6VkN1RzdrU0pLMUp4Ck1COEdBMVVkSXdRWU1CYUFGREc1UmZyNk1iUXFYUFl6VkN1RzdrU0pLMUp4TUF3R0ExVWRFd1FGTUFNQkFmOHcKRFFZSktvWklodmNOQVFFTEJRQURnZ0VCQUJ2VHhYUGFBRmV1UzNvdzI1ZTJ4UzlpM21pcnl3WmtGY1dxcW1nYQpKV2pvejNydnQ3VWhZNFNJb2NFN1ZnandLYWNhY1pPQTc2eTRsTXJsUDV1RVZDTUNTNTdiZ3Jrdks5OXl0WmQrCmZJMDVzTVo0TEhkWlRBQVBybjJ2QzJSUjk1Z0tKbURUTXdnaCszWTFQRUtyTExyWi81VHlZK0R0c2dMM3gwaHYKVW9SaW1jT1QyTWMrQUlLd1YxSEsyM21WMzlwZFhwQWxPUnhhNVNnWGtBZWh5TUVqaUNSYk9mZXc4VEFwL0s1TQpQWmplSzF0eko3QXNCQzJjTDBKWXJ0cjdEMFZtVGh2Rmp2bGNJS1U4Z0xHeE5IUkU3ZXNSRk9kSUVFdUF1OUlKClU3d3MrbXJpK3RwQUhHdjBTSktwaEpVNkU5bjJ4V3p2Y1pUcnpoeWxFTVUyTFFBPQotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0t

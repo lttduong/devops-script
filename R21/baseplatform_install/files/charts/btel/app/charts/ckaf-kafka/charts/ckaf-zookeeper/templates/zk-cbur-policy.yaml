@@ -1,0 +1,30 @@
+{{- if .Values.global.cburEnable }}
+apiVersion: "cbur.bcmt.local/v1"
+kind: BrPolicy
+metadata:
+  name: {{ template "zookeeper.name" . }}
+  namespace: {{ template "zookeeper.namespace" . }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ .Chart.Name }}
+      release: {{ .Release.Name | quote }}
+  volumes:
+  - zookeeper-data-dir
+  - zk-transaction-log-backup 
+  backend:
+    mode: "{{ .Values.cbur.backendMode }}"
+  cronSpec: "{{ .Values.cbur.cronJob }}"
+  k8sType: statefulset
+  brOption: 2
+  scheduleEnable: true
+  maxiCopy: {{ .Values.cbur.maxCopy }}
+  ignoreFileChanged: true
+  hooks:
+  - name: ckaf-zookeeper-server
+    commands:
+      preBackupCmd: ["sh", "-c", "/etc/confluent/docker/zk-backup-log-transaction.sh"]
+      postBackupCmd: ["sh", "-c" , "rm -rf /zk-transaction-log-backup/*"]
+      preRestoreCmd: []
+      postRestoreCmd: ["sh", "-c", "cp -r /zk-transaction-log-backup/* /var/log/zookeeper/ && rm -rf /zk-transaction-log-backup/*"]
+{{- end }} #cburEnable

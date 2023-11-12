@@ -1,0 +1,3 @@
+---
+- import_playbook: k8s-install/setup_master_node.yml
+- import_playbook: k8s-install/setup_worker_nodes.yml

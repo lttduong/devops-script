@@ -1,0 +1,46 @@
+{{- $umLiteFlag := .Values.installUmLite | default false -}}
+{{- if $umLiteFlag -}}
+{{- if .Values.umLiteIngress.enabled -}}
+{{- $fullName := include "umLite.fullname" . -}}
+{{- $releaseName := .Release.Name -}}
+{{- $servicePort := .Values.umLiteService.http.port -}}
+{{- $ingressPath := .Values.umLiteIngress.path -}}
+apiVersion: networking.k8s.io/v1beta1
+kind: Ingress
+metadata:
+  name: {{ printf "%s.%s" .Release.Namespace $fullName }}
+  labels:
+    app: {{ template "umLite.name" . }}
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+{{- with .Values.umLiteIngress.annotations }}
+  annotations:
+{{ toYaml . | indent 4 }}
+{{- end }}
+spec:
+  {{- if .Values.umLiteIngress.tls }}
+  tls:
+{{ toYaml .Values.umLiteIngress.tls | indent 4 }}
+  {{- end }}
+  rules:
+  {{- if .Values.umLiteIngress.hosts -}}
+  {{- range .Values.umLiteIngress.hosts }}
+  - host: {{ . }}
+    http:
+      paths:
+        - path: {{ $ingressPath }}
+          backend:
+            serviceName: {{ $fullName }}
+            servicePort: {{ $servicePort }}
+  {{- end }}
+  {{ else }}  
+  -  http:
+        paths:
+          - path: {{ $ingressPath }}
+            backend:
+              serviceName: {{ $fullName }}
+              servicePort: {{ $servicePort }}
+  {{- end }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: geo-redundancy-site-settings
+data:
+  enabled: {{ .Values.geo_redundancy.enabled | quote}}
+  mode: {{ .Values.geo_redundancy.mode | quote}}
+  site_index: {{ .Values.geo_redundancy.site_index | quote }}

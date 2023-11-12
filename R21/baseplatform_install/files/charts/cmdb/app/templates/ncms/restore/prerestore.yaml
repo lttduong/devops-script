@@ -1,0 +1,64 @@
+{{- if and .Values.cbur .Values.cbur.enabled (gt (int .Values.global.prerestore) 0) }}
+{{- if or .Values.cbur.legacyHooks (not (.Capabilities.APIVersions.Has "cbur.csf.nokia.com/v1")) }}
+{{- if eq .Values.cluster_type "master-slave" }}
+{{ $job := dict "Values" .Values "Chart" .Chart "Release" .Release "Hook" .Values.hooks.preRestoreJob "HookType" "pre"}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "cmdb-job.name" $job }}
+  labels:
+    {{- include "cmdb-admin.labels" . | indent 4 }}
+spec:
+  template:
+    metadata:
+      labels:
+        {{- include "cmdb-admin.labels" . | indent 8 }}
+        type: admin
+      {{- if .Values.istio.enabled }}
+      annotations:
+        sidecar.istio.io/inject: "true"
+      {{- end }}
+    spec:
+      {{- include "cmdb-admin.secctx" . | nindent 6 }}
+      {{- include "cmdb.sa" . | nindent 6 }}
+      restartPolicy: Never
+
+      containers:
+      - name: {{ template "cmdb-job.container-name" $job }}
+        {{- include "cmdb-admin.image" . | indent 8 }}
+        args: [ "restore" ]
+        env:
+        - name: CLUSTER_TYPE
+          value: "{{ .Values.cluster_type }}"
+        - name: CLUSTER_NAME
+          value: "{{ .Values.cluster_name | default .Release.Name | trunc 32 }}"
+        {{- include "cmdb-job.env" $job | nindent 8 }}
+        {{- include "cmdb-k8s.env" . | nindent 8 }}
+        {{- include "cmdb-admin.service" . | indent 8 }}
+        resources:
+{{ toYaml .Values.admin.resources | indent 10 }}
+        volumeMounts:
+        - name: cluster-cm
+          mountPath: /chart
+        - name: event-cm
+          mountPath: /event
+
+      volumes:
+      - name: cluster-cm
+        configMap:
+          name: {{ template "cmdb.fullname" . }}-mariadb-cluster
+      - name: event-cm
+        configMap:
+          name: {{ template "cmdb.fullname" . }}-admin-event
+
+    {{- if .Values.admin.tolerations }}
+      tolerations:
+{{ toYaml .Values.admin.tolerations | indent 8 }}
+    {{- end }}
+    {{- if .Values.admin.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.admin.nodeSelector | indent 8 }}
+    {{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Chart.Name }}
+data:
+  keycloak-realm-urls: {{ .Values.config.ckey.realmUrls }}
+  keycloak-service-url: {{ .Values.config.ckey.serviceUrl }}

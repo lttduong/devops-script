@@ -1,0 +1,6 @@
+---
+- import_playbook: create-vm/create-master.yml
+- import_playbook: create-vm/create-worker.yml
+- import_playbook: create-vm/change-config.yml
+
+

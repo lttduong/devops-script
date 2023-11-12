@@ -1,0 +1,2 @@
+---
+- import_playbook: was22-install/playbook/workbench_setup.yml

@@ -1,0 +1,4 @@
+apiVersion: v1
+description: Keycloak redirect uris config
+name: ckey-redirect-uris-config
+version: 1.0.0

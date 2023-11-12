@@ -1,0 +1,38 @@
+---
+- name: "Set notification receivers list for PushEventNotificationListener"
+  set_fact:
+    notificationReceiverList: >-
+      '[
+         {
+           "realm":"{{ keycloakRealmName }}",
+           "host":"{{ rmqHost }}",
+           "port":"{{ crmqCkeyPort }}",
+           "topicname":"{{ crmqCkeyExchangeName }}",
+           "channel":"RabbitMq",
+           "routing":"{{ crmqCkeyRoutingKey }}",
+           "username":"{{ crmqCkeyUsername }}",
+           "password":"{{ crmqCkeyPassword }}",
+           "rabbitMQSSLEnabled": "true"
+         },
+         {
+           "realm":"master",
+           "host":"{{ rmqHost }}",
+           "port":"{{ crmqCkeyPort }}",
+           "topicname":"{{ crmqCkeyExchangeName }}",
+           "channel":"RabbitMq",
+           "routing":"{{ crmqCkeyRoutingKey }}",
+           "username":"{{ crmqCkeyUsername }}",
+           "password":"{{ crmqCkeyPassword }}",
+           "rabbitMQSSLEnabled": "true"
+         }
+      ]'
+  no_log: true
+  when: csfPushEventListenerEnabled
+
+- name: "Set notificationReceiverList values"
+  replace:
+    dest: "{{ ckeyConfigurationProfile.stat.path }}"
+    regexp: '<NOTIFICATION_RECEIVER_LIST_PLACEHOLDER>'
+    replace: "{{ notificationReceiverList | default('') }}"
+  no_log: true
+  when: ckeyConfigurationProfile.stat.exists

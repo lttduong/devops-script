@@ -1,0 +1,24 @@
+{{ if .Values.cmdb.enabled }}
+WARNING! A sample MariaDB (CMDB) database is getting set up for you with the provided DB parameters. Although this database is sufficient to take a look at Keycloak functionality, you should consider setting up a production-grade MariaDB database, which is provided by the separate CMDB Chart.
+{{ else }}
+NOTE: cmdb.enabled was set to false, please ensure that you have an external database that is ready and accessible at {{ .Values.dbIP }}
+The database must be initialized and ready to use by Keycloak.
+{{ end }}
+
+Please wait for a couple of minutes until Keycloak is totally up. There is a readiness probe set up for this that checks if everything is up and running after an initial delay of 150 seconds. If a large number of replicas is specified, keycloak instances may take longer to be ready, as they all connect to the same shared database.
+    Note that the keycloak server runs about 20 seconds after the docker container is initialized.
+
+If the readiness probe fails, it means that the ingress path (default /auth) page at the specified HTTP Port is not accessible and therefore something is not working as intended.
+    If this occurs, please make sure that correct database information and login credentials are provided; otherwise, Keycloak will not work properly. The keycloak docker image REQUIRES an external shared database.
+
+The following command can help to check server log:
+    kubectl exec -ti <pod_name> tailf standalone/log/server.log
+    This server.log file will become available approximately 20 seconds after the Keycloak container is initialized.
+
+To read the initial Keycloak admin's password (if it was auto-generated/not specified), run:
+    KEYCLOAK_ADMIN_PASSWORD=$(kubectl get secret --namespace {{ .Release.Namespace }} {{ template "keycloak.fullname" . }} -o jsonpath={.data.keycloak-admin-password} |base64 -d)
+
+Remember to make sure that correct database information and credentials are provided; otherwise, Keycloak will not work properly.
+
+After pods are up, user should check if cluster informations are printed in server.log, see chapter 2.8.9.2 'Is it a cluster?' on Confluence page
+    https://confluence.app.alcatel-lucent.com/pages/viewpage.action?spaceKey=plateng&title=CKEY+-+Web+SSO+Guide#CKEY-WebSSOGuide-DockerizedKeycloak

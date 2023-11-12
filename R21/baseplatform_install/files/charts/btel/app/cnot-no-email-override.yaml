@@ -1,0 +1,66 @@
+cnot:
+  cnot-configmap:
+    cnotFiles:
+      app_conf.yaml:
+        CHANNELS:
+          ALARM:
+            servers:
+              - id: AlarmServer
+            default: AlarmServer
+          EMAIL:
+            servers:
+              - id: SMTPServer1
+                host: localhost
+            default: SMTPServer1
+        TRIGGERS:
+          - id: TriggerForCPRO
+            condition:
+              body: $.alerts[?(@.labels.source == 'CPRO')]
+            action:
+              type: accept
+              profile: ProfileForCPRO
+        PROFILES:
+          - id: ProfileForCPRO
+            channels:
+              - type: ALARM
+                content:
+                  - filter:
+                      location: $.alerts[*]
+                    transform:
+                      alarmId:
+                        selected: $.labels.id
+                        required: true
+                      alarmName:
+                        selected: $.labels.name
+                        required: true
+                      alarmSeverity:
+                        selected: $[?(@.status == 'firing')].labels.severity
+                        default: CLEARED
+                      alarmKey:
+                        selected: $.labels.key
+                        default: ''
+                      alarmTask:
+                        default: NOTIFY
+                      alarmText:
+                        selected: $.labels.text
+                        required: true
+                      alarmEventType:
+                        selected: $.labels.eventType
+                        required: true
+                      alarmProbableCause:
+                        selected: $.labels.probableCause
+                        required: true
+                      alarmData:
+                        selected: $.annotations.description
+                      time:
+                        selected: $.startsAt
+                      host:
+                        selected: $.labels.host
+                      system:
+                        selected: $.labels.system
+                      systemId:
+                        selected: $.labels.systemid
+                      extension.source:
+                        selected: $.labels.source
+                      extension.Enterprise:
+                        selected: $.labels.namespace

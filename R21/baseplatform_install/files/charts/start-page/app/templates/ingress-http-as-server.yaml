@@ -1,0 +1,33 @@
+{{- if .Values.httpServer.overrideIngress }}
+{{ .Values.httpServer.overrideIngress }}
+{{ else }}
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: {{ template "httpserver.fullname" . }}
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  rules:
+    - http:
+        paths:
+        {{- if .Values.httpServer.servers }}
+        {{- range $i, $ser := .Values.httpServer.servers }}
+        - path: /{{$ser.server}}
+          backend:
+            serviceName: {{ template "httpserver.fullname" $ }}
+            servicePort: {{$ser.port}}
+        {{- end }}
+        {{- else }}
+        {{- range $i, $expo := .Values.httpServer.expose }}
+        {{- if $expo.ingressPath }}
+        - path: /{{$expo.ingressPath}}
+        {{- else }}
+        - path: /{{$expo.port}}
+        {{- end }}
+          backend:
+            serviceName: {{ template "httpserver.fullname" $ }}
+            servicePort: {{$expo.port}}
+        {{- end }}
+        {{- end }}   
+{{- end }}

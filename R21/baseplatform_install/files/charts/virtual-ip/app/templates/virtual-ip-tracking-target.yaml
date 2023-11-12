@@ -1,0 +1,14 @@
+{{- if .Values.virtualIp.enabled }}
+{{- range $targets := .Values.targets }}
+apiVersion: ncm.nokia.com/v1alpha1
+kind: VirtualIPTrackingTarget
+metadata:
+  labels:
+  controller-tools.k8s.io: "1.0"
+  name: {{ $targets.name }}
+spec:
+  podSelector:
+{{ toYaml $targets.podSelector | indent 4 }}
+---
+{{- end }}
+{{- end }}

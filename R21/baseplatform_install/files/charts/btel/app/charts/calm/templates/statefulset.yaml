@@ -1,0 +1,263 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ template "alarm.fullname" . }}
+  labels:
+    app: {{ template "alarm.name" . }}
+    chart: {{ .Chart.Name }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+    version: {{ .Chart.Version }}
+spec:
+  serviceName: {{ template "alarm.fullname" . }}
+  podManagementPolicy: "Parallel"
+  replicas: {{ .Values.servers }}
+  updateStrategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app: {{ template "alarm.name" . }}
+      release: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ template "alarm.name" . }}
+        release: {{ .Release.Name }}
+      annotations:
+        {{- if .Values.istio.enabled }}
+        sidecar.istio.io/inject: "{{ .Values.istio.inject }}"
+        sidecar.istio.io/rewriteAppHTTPProbers: "{{ .Values.istio.inject }}"
+        {{- end }}
+    spec:
+      ## Start of custom modification of original chart for CSFID-2992
+      initContainers:
+        - name: {{ template "alarm.fullname" . }}-init-wait
+          image: {{ .Values.global.registry }}/{{ .Values.global.certsConverter.image.name }}:{{ .Values.global.certsConverter.image.tag }}
+          imagePullPolicy: {{.Values.image.ImagePullPolicy}}
+          command: ["/bin/sh","-c"]
+          args:
+            - |
+              ## Start of custom modification of original chart
+              ## Add wait for certificate to be available - BASE-390
+              ## Behaviour of certs generation will be changed in cert-manager 0.16.0
+              wait_file () {
+                  pathname=${1}
+                  timeout=${2:-60}
+
+                  # wait up to timeout iterations for file to exist and have size
+                  for i in $(seq ${timeout}); do
+                      [[ -s ${pathname} ]] && return 0
+                      sleep 1
+                  done
+
+                  echo "${pathname}: file not found"
+                  return 1
+              }
+              wait_file /server-certificates/ca.crt 15 || exit 1
+              wait_file /server-certificates/tls.crt 15 || exit 1
+              wait_file /alma/mariadbServerCert.pem 15 || exit 1
+              wait_file /alma/mariadbClientCert.pem 15 || exit 1
+              wait_file /alma/MQServerCert.pem 15 || exit 1
+              wait_file /alma/MQClientCert.pem 15 || exit 1
+              echo "Finish waiting for certificates";
+              ## End of custom modification of original chart
+          volumeMounts:
+            - name: {{ template "alarm.fullname" . }}-tls
+              mountPath: /server-certificates
+              readOnly: true
+            - name: alma
+              mountPath: /alma
+              readOnly: true
+          securityContext:
+#            fsGroup: 10000
+            runAsNonRoot: true
+            runAsUser: 10000
+        - name: {{ template "alarm.fullname" . }}-init
+          image: {{ .Values.global.registry }}/{{ .Values.global.certsConverter.image.name }}:{{ .Values.global.certsConverter.image.tag }}
+          imagePullPolicy: {{.Values.image.ImagePullPolicy}}
+          command: ["certs_converter"]
+          args: ["--certs-dir={{ .Values.volumes.path.certs }}",
+                 "--output={{ .Values.volumes.path.keys }}",
+                 "--format=JKS"]
+          env:
+            - name: TS_PASS
+              value: "{{ .Values.cnot.truststorePasswordCert }}"
+            - name: KS_PASS
+              value: "{{ .Values.cnot.truststorePasswordCert }}"
+          volumeMounts:
+            - name: {{ template "alarm.fullname" . }}-tls
+              mountPath: {{ .Values.volumes.path.certs }}
+              readOnly: true
+            - name: calm-cnot-truststore
+              mountPath: {{ .Values.volumes.path.keys }}
+          securityContext:
+#            fsGroup: 10000
+            runAsNonRoot: true
+            runAsUser: 10000
+      ## End of custom modification of original chart
+      securityContext:
+        runAsUser: 10000
+        fsGroup: 10000
+      {{- if .Values.serviceAccountName }}
+      serviceAccountName: {{ .Values.serviceAccountName }}
+      {{- else if .Values.rbac.enabled }}
+      serviceAccountName: {{ template "alarm.fullname" . }}
+      {{- end }}
+      {{- if .Values.affinity }}
+      affinity:
+{{ toYaml .Values.affinity | indent 8 }}
+      {{- end }}
+      {{- if .Values.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.nodeSelector | indent 8 }}
+      {{- end }}
+      {{- if .Values.tolerations }}
+      tolerations:
+{{ toYaml .Values.tolerations | indent 8 }}
+      {{- end }}
+      containers:
+      - name: {{ template "alarm.container.fullname" . }}
+        imagePullPolicy: {{ .Values.image.imagePullPolicy }}
+        image: {{ .Values.global.registry }}/{{ .Values.image.imageRepo }}:{{ .Values.image.imageTag }}
+        securityContext:
+          runAsUser: 10000
+          allowPrivilegeEscalation: false
+        resources:
+{{ toYaml .Values.resources | indent 10 }}
+        volumeMounts:
+        ## Start of custom modification of original chart for CSFID-2992
+        - name: alma
+          mountPath: /etc/alma/
+        - name: calm-cnot-truststore
+          mountPath: "/etc/alma-tls/cnot.truststore"
+          subPath: "truststore.jks"
+        - name: {{ template "alarm.fullname" $ }}-configs-configmap
+          mountPath: /etc/alma/configmap
+        ## End of custom modification of original chart
+        - name: {{ template "alarm.fullname" $ }}-nidds-configmap
+          mountPath: /etc/alma/config
+       {{- if .Values.persistence.enabled }}
+       
+        ##Start of custom modification of original chart https://jiradc2.ext.net.nokia.com/browse/CSFS-31481
+        #- name: backup
+        #  mountPath: /var/lib/calm/backup
+        - name: logs
+          mountPath: /var/log/calm
+        ##End of custom modification of original chart   
+             
+       {{- end }}
+        ports:
+        - name: udp-snmp
+          containerPort: {{ .Values.listeningPort }}
+          protocol: UDP
+        - name: http-restful
+          containerPort: {{ .Values.restPort }}
+        - name: udp-snmp-trap
+          containerPort: {{ .Values.snmpTrapPort }}
+          protocol: UDP
+        readinessProbe:
+          httpGet:
+            path: /api/alma/selfcheck/onedeep
+            port: {{ .Values.restPort }}
+          initialDelaySeconds: 120
+          failureThreshold: 3
+          timeoutSeconds: 15
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /api/alma/selfcheck/
+            port: {{ .Values.restPort }}
+          initialDelaySeconds: 180
+          periodSeconds: 20
+      {{- if and .Values.backuprestore.enabled  .Values.backuprestore.pre_defined_sidecar.enabled}}
+      - name: cbura-sidecar
+        securityContext:
+          runAsUser: 10000
+        image: "{{ .Values.global.registry }}/{{ .Values.backuprestore.pre_defined_sidecar.imageRepo }}:{{ .Values.backuprestore.pre_defined_sidecar.imageTag }}"
+        imagePullPolicy: "{{ .Values.backuprestore.pre_defined_sidecar.imagePullPolicy }}"
+        volumeMounts:
+        
+        ##Start of custom modification of original chart https://jiradc2.ext.net.nokia.com/browse/CSFS-31481
+        #- name: backup
+        #  mountPath: /backup
+        - name: logs
+          mountPath: /logs
+        ##End of custom modification of original chart
+                
+        {{- if .Values.resources }}
+        resources:
+{{ toYaml .Values.resources | indent 10 }}
+        {{- end }}
+      {{- end }}
+
+      volumes:
+      ## Start of custom modification of original chart for CSFID-2992
+      - name: alma
+        projected:
+          sources:
+          - configMap:
+              name: {{ template "alarm.fullname" . }}-configs-configmap
+          - secret:
+              name: {{ template "alarm.fullname" . }}-cmdb-cert
+              items:
+                - key: ca.crt
+                  path: mariadbServerCert.pem
+                - key: tls.crt
+                  path: mariadbClientCert.pem
+                - key: tls.key
+                  path: mariadbClientKey.pem
+          - secret:
+              name: {{ template "alarm.fullname" . }}-crmq-cert
+              items:
+                - key: ca.crt
+                  path: MQServerCert.pem
+                - key: tls.crt
+                  path: MQClientCert.pem
+                - key: tls.key
+                  path: MQClientKey.pem
+      - name: calm-cnot-truststore
+        emptyDir: {}
+      - name: {{ template "alarm.fullname" . }}-tls
+        secret:
+          secretName: {{ template "alarm.fullname" . }}-tls
+      ## End of custom modification of original chart
+      - name: {{ template "alarm.fullname" . }}-nidds-configmap
+        configMap:
+          name: {{ template "alarm.fullname" . }}-nidds-configmap
+      - name: {{ template "alarm.fullname" . }}-configs-configmap
+        configMap:
+          name: {{ template "alarm.fullname" . }}-configs-configmap
+
+  {{- if .Values.persistence.enabled }}
+  volumeClaimTemplates:
+  - metadata:
+      ##Start of custom modification of original chart https://jiradc2.ext.net.nokia.com/browse/CSFS-31481
+      #name: backup
+      name: logs
+      ##End of custom modification of original chart
+      labels:
+       app: {{ template "alarm.fullname" . }}
+       chart: "{{ .Chart.Name }}"
+       release: "{{ .Release.Name }}"
+       heritage: "{{ .Release.Service }}"
+    spec:
+      accessModes:
+        - {{ .Values.persistence.accessMode | quote }}
+      resources:
+        requests:
+          storage: {{ .Values.persistence.size | quote }}
+    {{- if .Values.persistence.storageClass }}
+    {{- if (eq "-" .Values.persistence.storageClass) }}
+      storageClassName: ""
+    {{- else }}
+      storageClassName: "{{ .Values.persistence.storageClass }}"
+    {{- end }}
+    {{- end }}
+## Start of custom modification of original chart for CSFID-2995
+      {{- if $.Values.persistence.createPv }}
+      selector:
+        matchLabels:
+{{ .Values.persistence.labels | indent 10 }}
+      {{- end }}
+      ## End of custom modification of original chart
+  {{- end }}

@@ -1,0 +1,11 @@
+---
+- name: "Generate CRMQ data"
+  include: generate_crmq_data.yml
+- name: "Generate CMDB data"
+  include: generate_cmdb_data.yml
+- name: "Generate CKEY data"
+  include: generate_ckey_data.yml
+- name: "Generate BTEL data"
+  include: generate_btel_data.yml
+- name: "Setup geo validation data"
+  include: setup_geo_validation_data.yml

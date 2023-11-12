@@ -1,0 +1,47 @@
+---
+- name: Get info cluster
+  hosts: localhost
+  connection: local
+  collections:
+   - azure.azcollection
+
+  vars_files:
+  - env_variables
+
+  tasks:
+  - name: Pause 8 minutes to create recovery point
+    pause: 
+      minutes: 8
+
+  - name: Show Recovery Point of masternode
+    shell: sudo az backup recoverypoint list --resource-group "{{ resourceGroup }}" --vault-name "{{ vaultName }}" --backup-management-type AzureIaasVM --container-name "{{ masterName }}" --item-name "{{ masterName }}" --query [0].name --output tsv > ./wasPoint.txt
+
+  - name: Show out
+    shell: awk '{if(NR==1) print $1}' ./wasPoint.txt
+    register: masterPoint
+
+  - name: Print out Recovery Point has just backed up of masternode
+    debug:
+      msg: "This is Recovery Point of Masternode : {{ masterPoint.stdout }} "
+
+  - name: Show Recovery Point of worker
+    shell: sudo az backup recoverypoint list --resource-group "{{ resourceGroup }}" --vault-name "{{ vaultName }}" --backup-management-type AzureIaasVM --container-name "{{ workerName }}" --item-name "{{ workerName }}" --query [0].name --output tsv >> ./wasPoint.txt
+      
+  - name: Show out
+    shell: awk '{if(NR==2) print $1}' ./wasPoint.txt
+    register: workerPoint
+
+  - name: Print out Recovery Point has just backed up of masternode
+    debug:
+      msg: "This is Recovery Point of Workernode : {{ workerPoint.stdout }} "
+
+  - name: Show Recovery Point of DPA
+    shell: sudo az backup recoverypoint list --resource-group "{{ resourceGroup }}" --vault-name "{{ vaultName }}" --backup-management-type AzureIaasVM --container-name "{{ dpaName }}" --item-name "{{ dpaName }}" --query [0].name --output tsv >> ./wasPoint.txt
+      
+  - name: Show out
+    shell: awk '{if(NR==3) print $1}' ./wasPoint.txt
+    register: dpaPoint
+
+  - name: Print out Recovery Point has just backed up of masternode
+    debug:
+      msg: "This is Recovery Point of Workernode : {{ dpaPoint.stdout }} "

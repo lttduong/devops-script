@@ -1,0 +1,178 @@
+belk:
+  belk-elasticsearch:
+    esdata:
+      replicas: 2
+      resources:
+        requests:
+          cpu: "100m"
+    elasticsearch_master:
+      resources:
+        requests:
+          cpu: "200m"
+    elasticsearch_client:
+      resources:
+        limits:
+          cpu: "700m"
+        requests:
+          cpu: "100m"
+          memory: "2Gi"
+  belk-fluentd:
+    fluentd:
+      resources:
+        limits:
+          cpu: "500m"
+          memory: "500Mi"
+        requests:
+          cpu: "50m"
+          memory: "300Mi"
+  belk-kibana:
+    kibana:
+      replicas: 2
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: "kubernetes.io/hostname"
+              labelSelector:
+                matchLabels:
+                  role: gui
+                  release: btel
+                  component: elasticsearch
+      resources:
+        requests:
+          cpu: "100m"
+calm:
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - topologyKey: "kubernetes.io/hostname"
+          labelSelector:
+            matchLabels:
+              app: calm
+              release: btel
+  kubectl:
+    jobResources:
+      requests:
+        cpu: 200m
+        memory: 500Mi
+      limits:
+        cpu: 1
+        memory: 1Gi
+grafana:
+  replicas: 2
+  SetDatasource:
+    datasource:
+      url: "http://cpro-server-int.<BP_NAMESPACE_PLACEHOLDER>.<DNS_DOMAIN_PLACEHOLDER>:9090"
+gen3gppxml:
+  replicaCount: 2
+  antiAffinityMode: "hard"
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - topologyKey: "kubernetes.io/hostname"
+          labelSelector:
+            matchLabels:
+              app: gen3gppxml
+              release: btel
+  configOverride: |+
+    OVERRIDE_prometheus_url = http://cpro-server-int.<BP_NAMESPACE_PLACEHOLDER>.<DNS_DOMAIN_PLACEHOLDER>:9090/api/v1
+cnot:
+  cnot:
+    replicaCount: 2
+    affinity:
+      podAntiAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          - topologyKey: "kubernetes.io/hostname"
+            labelSelector:
+              matchLabels:
+                app: cnot
+                component: cnot
+                release: btel
+    resources:
+      requests:
+        cpu: "50m"
+cpro:
+  pushgateway:
+    replicaCount: 2
+    antiAffinityMode: "hard"
+    affinity:
+      podAntiAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          - topologyKey: "kubernetes.io/hostname"
+            labelSelector:
+              matchLabels:
+                app: cpro
+                component: pushgateway
+                release: btel
+  server:
+    antiAffinityMode: "hard"
+    resources:
+      requests:
+        cpu: "100m"
+  nodeExporter:
+    resources:
+      requests:
+        cpu: "50m"
+  kubeStateMetrics:
+    replicaCount: 2
+    affinity:
+      podAntiAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          - topologyKey: "kubernetes.io/hostname"
+            labelSelector:
+              matchLabels:
+                app: cpro
+                component: kube-state-metrics
+                release: btel
+  restserver:
+    replicaCount: 2
+    antiAffinityMode: "hard"
+    affinity:
+      podAntiAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: "kubernetes.io/hostname"
+              labelSelector:
+                matchLabels:
+                  app: cpro
+                  component: restserver
+                  release: btel
+    resources:
+      requests:
+        cpu: "50m"
+  alertmanager:
+    antiAffinityMode: "hard"
+
+db_configurator:
+  resources:
+    requests:
+      cpu: "10m"
+      memory: "50Mi"
+    limits:
+      cpu: "200m"
+      memory: "300Mi"
+
+crmq_configurator:
+  resources:
+    requests:
+      cpu: "10m"
+      memory: "50Mi"
+    limits:
+      cpu: "200m"
+      memory: "300Mi"
+
+grafana_configurator:
+  resources:
+    requests:
+      cpu: "10m"
+      memory: "50Mi"
+    limits:
+      cpu: "200m"
+      memory: "300Mi"
+
+cpro_configurator:
+  resources:
+    requests:
+      cpu: "10m"
+      memory: "50Mi"
+    limits:
+      cpu: "200m"
+      memory: "300Mi"

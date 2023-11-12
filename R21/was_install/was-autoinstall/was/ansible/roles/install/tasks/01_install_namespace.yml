@@ -1,0 +1,13 @@
+---
+- name: "Installing {{ NAMESPACE }} namespace"
+  shell: >
+    {{ helmPath }}  install {{ chartsPath }}/namespace
+    --wait
+    --namespace default
+    --values {{ chartsPath }}/values/global-values.yaml
+    --values {{ chartsPath }}/namespace/values.yaml
+    --name-template {{ namespaceHelmName }}
+    --set registry={{ bcmtRegistry }}
+    --set global.registry={{ bcmtRegistry }}
+    --set namespace={{ NAMESPACE }}
+  when: (shouldInstall == true and namespaceInstall == true)

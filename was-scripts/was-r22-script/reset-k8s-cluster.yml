@@ -1,0 +1,14 @@
+- hosts: all
+  become: yes
+  tasks:
+    - name: reset k8s
+      shell: kubeadm reset -f
+
+    - name: remove k8s packages
+      shell: systemctl stop kubelet && systemctl stop docker && rm -rf /var/lib/cni/ && rm -rf /run/flannel && rm -rf /var/lib/kubelet/* && rm -rf /etc/cni/ && yum remove kubeadm kubectl kubelet kubernetes-cni kube* docker -y
+      
+    - name: reset other items
+      shell: ifconfig flannel.1 down && ifconfig docker0 down && ifconfig cni0 down  && iptables -F && iptables -t nat -F && iptables -t mangle -F && iptables -X
+
+    - name: remove cni0 device
+      shell: brctl delbr cni0

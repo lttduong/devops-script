@@ -1,0 +1,25 @@
+## Start of custom chart file for CSFID-2996
+{{- if .Values.persistence.createPv }}
+{{- range $index, $replica := until (int (ternary 2 1 .Values.HA.enabled)) }}
+---
+kind: PersistentVolume
+apiVersion: v1
+metadata:
+  name: {{ template "grafana.fullname" $ }}-pv-{{ $index }}
+  labels:
+    type: local
+{{ $.Values.persistence.labels | indent 4 }}
+spec:
+  storageClassName: {{ $.Values.persistence.storageClass }}
+  capacity:
+    storage: {{ quote $.Values.persistence.size }}
+  accessModes:
+    {{- range $.Values.persistence.accessModes }}
+    - {{ . | quote }}
+    {{- end }}
+  hostPath:
+    path: {{ $.Values.persistence.hostPath }}
+  persistentVolumeReclaimPolicy: {{ default "Delete" $.Values.persistence.resourcePolicyPv }}
+{{- end }}
+{{- end }}
+## End of custom chart file

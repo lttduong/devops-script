@@ -1,0 +1,186 @@
+## Start of custom chart file
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    app: {{ template "name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    component: "{{ .Values.httpServer.name }}"
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+  name: custom-nginx-configmap
+data:
+  nginx.conf: |+
+    worker_processes auto;
+    pid /tmp/nginx.pid;
+
+    worker_rlimit_nofile 196886;
+
+    events {
+    multi_accept        on;
+    worker_connections  16384;
+    use                 epoll;
+    }
+
+{{- if .Values.json_log }}
+    env CLOG_ENABLE=1;
+    env CLOG_SYSTEMID="{{ .Values.httpServer.name }}";
+{{- end }}
+
+    include /etc/nginx/conf.d/main/*.conf;
+
+    http {
+
+    include /etc/nginx/conf.d/http/*.conf;
+
+    log_format upstreaminfo_clog '{"type":"log","level":"INFO","facility":"23","time":"$time_iso8601","timezone":"set your time zone here","process":"nginx","system":"CITM nginx","systemid":"set your systemid here","host":"$hostname","log":{"message":"$the_real_ip - [$the_real_ip] - $remote_user \'$request\' $status $body_bytes_sent \'$http_referer\' \'$http_user_agent\' $request_length $request_time [$proxy_upstream_name] $upstream_addr $upstream_response_length $upstream_response_time $upstream_status"}}';
+
+    log_format upstreaminfo '$the_real_ip - [$the_real_ip] - $remote_user [$time_local] "$request" $status $body_bytes_sent "$http_referer" "$http_user_agent" $request_length $request_time [$proxy_upstream_name] $upstream_addr $upstream_response_length $upstream_response_time $upstream_status';
+
+    real_ip_header      X-Forwarded-For;
+    real_ip_recursive   on;
+{{- if .Values.ipv6Enabled }}
+    set_real_ip_from    ::/0;
+{{- else }}
+    set_real_ip_from    0.0.0.0/0;
+{{- end }}
+
+    aio                 threads;
+    aio_write           on;
+
+    tcp_nopush          on;
+    tcp_nodelay         on;
+
+    log_subrequest      on;
+
+    reset_timedout_connection on;
+
+    keepalive_timeout  75s;
+    keepalive_requests 100;
+
+    client_header_buffer_size       4k;
+    client_header_timeout           60s;
+    large_client_header_buffers     4 32k;
+    client_body_buffer_size         8k;
+    client_body_timeout             60s;
+
+    http2_max_field_size            4k;
+    http2_max_header_size           48k;
+
+    types_hash_max_size             2048;
+    server_names_hash_max_size      1024;
+    server_names_hash_bucket_size   64;
+    map_hash_bucket_size            64;
+
+    variables_hash_bucket_size      128;
+    variables_hash_max_size         2048;
+
+    underscores_in_headers          off;
+    ignore_invalid_headers          on;
+
+    limit_req_status                503;
+
+    include /etc/nginx/mime.types;
+    default_type text/html;
+
+    gzip on;
+    gzip_comp_level 5;
+    gzip_http_version 1.1;
+    gzip_min_length 256;
+    gzip_types application/atom+xml application/javascript application/x-javascript application/json application/rss+xml application/vnd.ms-fontobject application/x-font-ttf application/    x-web-app-manifest+json application/xhtml+xml application/xml font/opentype image/svg+xml image/x-icon text/css text/plain text/x-component;
+    gzip_proxied any;
+    gzip_vary on;
+
+    # Custom headers for response
+
+    server_tokens off;
+    more_clear_headers Server;
+
+    # disable warnings
+    uninitialized_variable_warn off;
+
+    map $request_uri $loggable {
+    default 1;
+    }
+
+    access_log /var/log/nginx/access.log upstreaminfo{{- if .Values.json_log }}_clog{{- end }} buffer=4k flush=20s if=$loggable;
+    error_log  /var/log/nginx/error.log warn;
+    open_log_file_cache max=1000 inactive=20s valid=1m min_uses=2;
+
+    map $http_x_forwarded_for $the_real_ip {
+    default          $remote_addr;
+    }
+
+    server_name_in_redirect off;
+    port_in_redirect        off;
+
+    ssl_protocols TLSv1.2;
+
+    # turn on session caching to drastically improve performance
+
+    ssl_session_cache builtin:1000 shared:SSL:10m;
+    ssl_session_timeout 10m;
+
+    # allow configuring ssl session tickets
+    ssl_session_tickets on;
+
+    # slightly reduce the time-to-first-byte
+    ssl_buffer_size 4k;
+
+    # allow configuring custom ssl ciphers
+    ssl_ciphers 'ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-SHA384:ECDHE-RSA-AES256-SHA384:ECDHE-ECDSA-AES128-SHA256:ECDHE-RSA-AES128-SHA256';
+    ssl_prefer_server_ciphers on;
+
+    ssl_ecdh_curve auto;
+
+    proxy_ssl_session_reuse on;
+
+    limit_req_zone $binary_remote_addr zone=statuslimit:10m rate=10r/s;
+
+    server {
+      server_name server1;
+{{- if .Values.ipv6Enabled }}
+      listen [::]:8443 ssl ipv6only=on http2;
+{{- else }}
+      listen 8443 ssl http2;
+{{- end }}
+      ssl_certificate /opt/nginx/tls-cert-manager/tls.crt;
+      ssl_certificate_key /opt/nginx/tls-cert-manager/tls.key;
+
+      root /opt/www;
+      set $proxy_upstream_name "-";
+      location / {
+          add_header Last-Modified $date_gmt;
+          if_modified_since off;
+          etag off;
+          try_files $uri /index.html;
+      }
+
+      location /logout-redirect {
+          alias /opt/logout-redirect/;
+          index index.html;
+      }
+
+      location /health {
+          access_log off;
+          return 200 "OK";
+      }
+
+    }
+    }
+    stream {
+
+    include /etc/nginx/conf.d/stream/*.conf;
+
+    log_format log_stream_clog '{"type":"log","level":"INFO","facility":"23","time":"$time_iso8601","timezone":"set your time zone here","process":"nginx","system":"CITM nginx","systemid":"set your systemid here","host":"$hostname","log":{"message":"$protocol $status $bytes_sent $bytes_received $session_time"}}';
+    log_format log_stream [$time_local] $protocol $status $bytes_sent $bytes_received $session_time;
+
+    access_log /var/log/nginx/access.log log_stream{{- if .Values.json_log }}_clog{{- end }};
+    error_log  /var/log/nginx/error.log;
+
+    # TCP services
+
+    # UDP services
+
+    }
+## End of custom chart file

@@ -1,0 +1,50 @@
+bpNamespace: netguard-base
+
+centos:
+  image:
+    name: centos-micro
+
+certManager:
+  used: false
+  duration: "8760h" # 365d
+  renewBefore: "360h" # 15d
+  keySize: "2048"
+  api: "cert-manager.io/v1alpha2"
+  issuerRef:
+    name: ncms-ca-issuer
+    kind: ClusterIssuer
+
+config:
+  grafana:
+    configurator:
+      clientName: grafana-config
+      certificatesDir: /etc/grafana/ssl
+
+dns:
+  domain: svc.cluster.local
+  policy: ClusterFirst
+
+grafana:
+  name: grafana
+  port: 80
+
+grafana_configurator:
+  resources:
+    requests:
+      cpu: "10m"
+      memory: "50Mi"
+    limits:
+      cpu: "200m"
+      memory: "300Mi"
+
+hooks:
+  postDeleteJob: enable
+
+image:
+  registry: epsec-docker-releases.repo.lab.pl.alcatel-lucent.com/common
+  pullPolicy: IfNotPresent
+  tag: latest
+
+SetDashboard:
+  enabled: true
+  overwrite: true

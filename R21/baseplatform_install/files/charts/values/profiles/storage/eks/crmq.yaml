@@ -1,0 +1,4 @@
+persistence:
+  data:
+    storageClass: gp2
+    enabled: true

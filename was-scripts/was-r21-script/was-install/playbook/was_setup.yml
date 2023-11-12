@@ -1,0 +1,54 @@
+- hosts: kubernetes_master_nodes
+  become: yes
+  vars_files:
+  - env_variables
+  tasks:
+
+    - name: untain master node
+      shell: kubectl taint node {{edge_node}} node-role.kubernetes.io/master:NoSchedule-
+      ignore_errors: yes
+
+    - name: copy was config file
+      copy:
+        src: was-packages/was_config_vars.yml 
+        dest: $HOME
+
+    - name: copy was deploy job yml
+      copy:
+        src: was-packages/was-install-job.yml
+        dest: $HOME
+
+    - name: remove configmap
+      shell: kubectl delete configmap was-config
+      ignore_errors: yes
+
+    - name: create was-config configmap
+      shell: kubectl create configmap was-config --from-file=was_config_vars.yml
+      args:
+        chdir: $HOME
+      ignore_errors: yes
+
+    - name: remove previous deploy job if any
+      shell: kubectl delete -f was-install-job.yml
+      args:
+        chdir: $HOME
+      ignore_errors: yes
+
+    - name: remove netguard-was namespace
+      shell: kubectl delete ns netguard-was
+      ignore_errors: yes
+
+    - name: remove was secret if any
+      shell: kubectl get secret -n netguard-configuration| grep  was | awk '{print $1}' | xargs -l kubectl delete secret -n netguard-configuration
+      ignore_errors: yes
+
+    - name: create netguard-was namespace
+      shell: kubectl create ns netguard-was
+
+    - name: install was deploy job
+      shell:  kubectl apply -f was-install-job.yml
+      args:
+        chdir: $HOME
+
+    - name: wait for Was deploy job to finish
+      shell: kubectl wait --for=condition=complete job/install-was --timeout=600s

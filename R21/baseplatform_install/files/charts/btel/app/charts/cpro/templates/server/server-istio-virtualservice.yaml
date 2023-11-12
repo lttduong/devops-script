@@ -1,0 +1,48 @@
+{{- if .Values.istio.enable }}
+{{- if .Values.server.istioIngress.enabled }}
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  labels:
+    app: {{ template "prometheus.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    component: "{{ .Values.server.name }}"
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+{{- include "prometheus-labels" (tuple .Values.global.labels) | indent 4}}
+  name: {{ template "prometheus.server.fullname" . }}-vs
+{{- if .Values.global.annotations }}
+  annotations:
+{{- include "prometheus-annotations" (tuple .Values.global.annotations) | indent 4}}
+{{- end }}
+spec:
+  hosts:
+  - '{{ .Values.server.istioIngress.host }}'
+  gateways:
+  {{- if eq .Values.server.istioIngress.gatewayName "" }}
+  - {{ template "prometheus.server.fullname" . }}-istio-gateway
+  {{- else }}
+  - {{ .Values.server.istioIngress.gatewayName }}
+  {{- end }}
+  http:
+  - match:
+    - uri:
+        prefix: /{{ .Values.server.istioIngress.Contextroot}}
+    rewrite:
+  {{- $rewriteURI := include "server.routePrefixURL" . -}}
+  {{- if ne $rewriteURI "" }}
+      uri: {{ $rewriteURI }}
+  {{- else }}
+      uri: /
+  {{- end }}
+    route:
+    - destination:
+        {{- if .Values.ha.enabled }}
+        host: {{ template "prometheus.server.fullname" . }}-ext
+        {{- else }}
+        host: {{ template "prometheus.server.fullname" . }}
+        {{- end }}
+        port:
+          number: {{ .Values.server.service.servicePort }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,65 @@
+## Start of custom chart file for CSFID-2092
+{{- if .Values.global.certManager.used }}
+apiVersion: {{ .Values.global.certManager.api }}
+kind: Certificate
+metadata:
+  name: {{ template "fluentd.fullname" . }}-crt
+  namespace: {{ .Release.Namespace }}
+spec:
+  secretName: {{ template "fluentd.fullname" . }}-tls
+  issuerRef:
+    name: {{ .Values.global.certManager.issuerRef.name }}
+    kind: {{ .Values.global.certManager.issuerRef.kind }}
+  duration: {{ .Values.global.certManager.duration }}
+  renewBefore: {{ .Values.global.certManager.renewBefore }}
+  keySize: {{ .Values.global.certManager.keySize }}
+  commonName: {{ template "fluentd.name" . }}
+  dnsNames:
+    - {{ template "fluentd.name" . }}.{{ .Release.Namespace }}.{{ .Values.dns.domain }}
+  usages:
+    - server auth
+    - client auth
+#  organization:
+#    - Nokia
+---
+apiVersion: {{ .Values.global.certManager.api }}
+kind: Certificate
+metadata:
+  name: {{ template "fluentd.fullname" . }}-crt-client
+  namespace: {{ .Release.Namespace }}
+spec:
+  secretName: {{ template "fluentd.fullname" . }}-tls-client
+  issuerRef:
+    name: {{ .Values.global.certManager.issuerRef.name }}
+    kind: {{ .Values.global.certManager.issuerRef.kind }}
+  duration: {{ .Values.global.certManager.duration }}
+  renewBefore: {{ .Values.global.certManager.renewBefore }}
+  keySize: {{ .Values.global.certManager.keySize }}
+  commonName: {{ template "fluentd.name" . }}
+  usages:
+    - server auth
+    - client auth
+#  organization:
+#    - Nokia
+---
+apiVersion: {{ .Values.global.certManager.api }}
+kind: Certificate
+metadata:
+  name: {{ template "fluentd.fullname" . }}-crt-clientamqp
+  namespace: {{ .Release.Namespace }}
+spec:
+  secretName: {{ template "fluentd.fullname" . }}-tls-clientamqp
+  issuerRef:
+    name: {{ .Values.global.certManager.issuerRef.name }}
+    kind: {{ .Values.global.certManager.issuerRef.kind }}
+  duration: {{ .Values.global.certManager.duration }}
+  renewBefore: {{ .Values.global.certManager.renewBefore }}
+  keySize: {{ .Values.global.certManager.keySize }}
+  commonName: {{ .Values.global.config.btel.crmqUsername }}
+  usages:
+    - server auth
+    - client auth
+#  organization:
+#    - Nokia
+{{- end }}
+## End of custom chart file

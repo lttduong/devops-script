@@ -1,0 +1,4 @@
+apiVersion: v1
+description: Keycloak master config
+name: ckey-master-config
+version: 1.0.0

@@ -1,0 +1,4 @@
+persistence:
+  data:
+    storageClass: vsphere
+    enabled: true

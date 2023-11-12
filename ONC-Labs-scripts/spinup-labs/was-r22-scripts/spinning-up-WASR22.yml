@@ -1,0 +1,8 @@
+---
+- import_playbook: was-r22-script/create_vm-node.yml
+- import_playbook: was-r22-script/install-k8s-cluster.yml
+- import_playbook: was-r22-script/install-nbp-r22.yml
+- import_playbook: was-r22-script/install-was22.yml
+- import_playbook: was-r22-script/install-workbench.yml
+- import_playbook: was-r22-script/getinfo-was22.yml
+- import_playbook: was-r22-script/dpa-install/install-dpa.yml

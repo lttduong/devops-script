@@ -1,0 +1,49 @@
+{{- if .Values.cbur.enabled }}
+apiVersion: "cbur.bcmt.local/v1"
+kind: BrPolicy
+metadata:
+  name: {{ template "cmdb.pod-prefix" . }}-mariadb
+  labels:
+    {{- include "cmdb-mariadb.labels" . | indent 4 }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ template "cmdb.fullname" . }}
+      csf-subcomponent: mariadb
+  volumes:
+  {{- if and (.Values.mariadb.persistence.backup) (.Values.mariadb.persistence.backup.enabled) }}
+  - backupdir
+  {{- else }}
+  - datadir
+  {{- end }}
+  backend:
+    mode: "{{ .Values.cbur.backendMode }}"
+  autoEnableCron: {{ .Values.cbur.autoEnableCron }}
+  autoUpdateCron: {{ .Values.cbur.autoUpdateCron }}
+  cronSpec: "{{ .Values.cbur.cronSpec }}"
+  dataEncryption:
+    enable: {{ .Values.cbur.dataEncryption }}
+  k8sType: statefulset
+  {{- if eq .Values.cluster_type "galera" }}
+  brOption: 2
+  {{- else }}
+  brOption: 1
+  {{- end }}
+  maxiCopy: {{ .Values.cbur.maxiCopy}}
+  ignoreFileChanged: {{ .Values.cbur.ignoreFileChanged }}
+  hooks:
+  - name: {{ template "cmdb.container-prefix" . }}mariadb
+    commands:
+      preBackupCmd: ["sh", "-c", "rm -rf {{ default "/mariadb/backup" .Values.mariadb.persistence.backup.dir }}/tmp; /usr/bin/mariadb_db_backup --backup --keystore --dir={{ default "/mariadb/backup" .Values.mariadb.persistence.backup.dir }}/tmp --file {{ default "/mariadb/backup" .Values.mariadb.persistence.backup.dir }}/{{ template "cmdb.fullname" .}}-$(date +%Y%m%d_%H%M%S)-backup.tgz -- {{ default "" .Values.cbur.prebackup_mariabackup_args }} | tee /var/log/mariadb/mariadb_db_backup.out"]
+      postBackupCmd: ["sh", "-c", "echo post-backup"]
+      preRestoreCmd: ["sh", "-c", "rm -rf {{ default "/mariadb/backup" .Values.mariadb.persistence.backup.dir }}/tmp {{ default "/mariadb/archive" .Values.mariadb.persistence.backup.dir }}/*backup.tgz"]
+      {{- if eq .Values.cluster_type "galera" }}
+      {{- if .Values.cbur.jobhookenable }}
+      postRestoreCmd: ["sh", "-c", "echo post-restore"]
+      {{- else }}
+      postRestoreCmd: ["sh", "-c", "/usr/bin/mariadb_db_backup --restore --all --nostart --keystore --dir={{ default "/mariadb/backup" .Values.mariadb.persistence.backup.dir }}/tmp --file {{ default "/mariadb/archive" .Values.mariadb.persistence.backup.dir }}/*backup.tgz -- {{ default "" .Values.cbur.postrestore_mariabackup_args }} | tee /var/log/mariadb/mariadb_db_restore.out"]
+      {{- end }}
+      {{- else }}
+      postRestoreCmd: ["sh", "-c", "/usr/bin/mariadb_db_backup --restore --all --keystore --dir={{ default "/mariadb/backup" .Values.mariadb.persistence.backup.dir }}/tmp --file {{ default "/mariadb/archive" .Values.mariadb.persistence.backup.dir }}/*backup.tgz -- {{ default "" .Values.cbur.postrestore_mariabackup_args }} | tee /var/log/mariadb/mariadb_db_restore.out; sleep 60"]
+      {{- end }}
+{{- end }}
